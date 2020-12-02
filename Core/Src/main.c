@@ -27,6 +27,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include "retarget.h"
+#include "qspi_drv.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -103,6 +104,14 @@ int main(void)
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
   RetargetInit(&huart2);
+
+
+
+
+  printf("Init status: %d\n", (int)QSPI_Driver_init());
+
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -110,7 +119,7 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-    printf("test\n");
+
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
