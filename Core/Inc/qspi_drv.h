@@ -5,10 +5,6 @@
 
 #include "stm32l4xx_hal.h"
 
-#define QSPI_SECTOR_SIZE                     (1024*64)
-#define QSPI_SUBSECTOR_SIZE                  (1024*4)
-#define QSPI_SUBSECTOR_COUNT                 4096
-
 #define RESET_ENABLE_CMD                     0x66
 #define RESET_MEMORY_CMD                     0x99
 
@@ -22,7 +18,10 @@
 #define QUAD_OUT_FAST_READ_CMD               0x6B
 #define QUAD_INOUT_FAST_READ_CMD             0xEB
 
-#define SECTOR_ERASE_4KB_CMD                 0x20
+#define PAGE_PROG_CMD                        0x02
+#define QUAD_PAGE_PROG_CMD                   0x32
+
+#define SECTOR_ERASE_CMD                     0x20
 #define BLOCK_ERASE_32KB_CMD                 0x52
 #define BLOCK_ERASE_64KB_CMD                 0xD8
 
@@ -37,13 +36,18 @@
 #define W25Q128_FSR1_WREN                     (1<<1) /* Reg 1, write enable */
 #define W25Q128_FSR2_QE                       (1<<1) /* Reg 2, Quad enable */
 
-//#define MAX_READ_SIZE                        64
-#define DUMMY_CLOCK_CYCLES_READ              4
-#define DUMMY_CLOCK_CYCLES_READ_QUAD         10
-
 #define W25Q128_BULK_ERASE_MAX_TIME          250000
 #define W25Q128_SECTOR_ERASE_MAX_TIME        3000
 #define W25Q128_SUBSECTOR_ERASE_MAX_TIME     800
+
+#define W25Q128_PAGE_SIZE                    0x100
+#define W25Q128_SECTOR_SIZE                  0x1000
+
+//#define MAX_READ_SIZE                        64
+#define DUMMY_CLOCK_CYCLES_READ              8
+#define DUMMY_CLOCK_CYCLES_READ_QUAD         8
+
+
 
 //#define QSPI_COMMAND_TIMEOUT                 1000
 
@@ -56,6 +60,11 @@ typedef enum
 //uint8_t QSPI_Driver_state();
 //uint8_t QSPI_Driver_locked();
 
-QSPI_STATUS QSPI_Driver_init();
+QSPI_STATUS QSPI_Driver_Init();
+QSPI_STATUS QSPI_Driver_Read(uint8_t* pData, uint32_t address, uint32_t size);
+QSPI_STATUS QSPI_Erase_Sector(uint32_t SectorAddress);
+QSPI_STATUS QSPI_Driver_Write_Sector(uint8_t *pData, uint32_t address);
+
+
 
 #endif

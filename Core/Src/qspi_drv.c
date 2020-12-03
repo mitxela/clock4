@@ -1,18 +1,21 @@
 #include "qspi_drv.h"
+#include <assert.h>
 
-volatile uint8_t rx_complete = 0;
+/*volatile uint8_t rx_complete = 0;
 volatile uint8_t tx_complete = 0;
 volatile uint8_t status_matched = 0;
 volatile uint8_t command_complete = 0;
 volatile int8_t qspi_locked = 0;
-uint8_t qspi_init_state = 0;
+uint8_t qspi_init_state = 0;*/
 
 extern QSPI_HandleTypeDef hqspi;
+
+#include <stdio.h>
 
 static QSPI_STATUS QSPI_ResetMemory();
 static QSPI_STATUS QSPI_WriteEnable();
 static QSPI_STATUS QSPI_AutoPollingMemReady(uint32_t Timeout);
-
+static QSPI_STATUS QSPI_Driver_Write_Page(uint8_t *pData, uint32_t address);
 
 /*
 uint8_t QSPI_Driver_state()
@@ -158,7 +161,7 @@ static QSPI_STATUS QSPI_AutoPollingMemReady(uint32_t Timeout)
   return QSPI_STATUS_OK;
 }
 
-QSPI_STATUS QSPI_Driver_init()
+QSPI_STATUS QSPI_Driver_Init()
 {
   QSPI_CommandTypeDef sCommand;
   uint8_t value = W25Q128_FSR2_QE;
@@ -203,6 +206,137 @@ QSPI_STATUS QSPI_Driver_init()
   {
     return QSPI_STATUS_ERROR;
   }
+
+  return QSPI_STATUS_OK;
+}
+
+QSPI_STATUS QSPI_Driver_Read(uint8_t* pData, uint32_t address, uint32_t size)
+{
+  QSPI_CommandTypeDef sCommand;
+
+  /* Reading Sequence ------------------------------------------------ */
+  sCommand.NbData      = size;
+  sCommand.Address     = address;
+  sCommand.Instruction = QUAD_INOUT_FAST_READ_CMD;
+  sCommand.DummyCycles = DUMMY_CLOCK_CYCLES_READ_QUAD;
+  sCommand.DataMode    = QSPI_DATA_4_LINES;
+
+  sCommand.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
+  sCommand.AddressMode       = QSPI_ADDRESS_1_LINE;
+  sCommand.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
+  sCommand.DdrMode           = QSPI_DDR_MODE_DISABLE;
+  sCommand.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;
+  sCommand.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
+
+  /* Configure the command */
+  if (HAL_QSPI_Command(&hqspi, &sCommand, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    return QSPI_STATUS_ERROR;
+  }
+
+  /* Reception of the data */
+  if (HAL_QSPI_Receive(&hqspi, pData, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    return QSPI_STATUS_ERROR;
+  }
+
+  return QSPI_STATUS_OK;
+}
+
+QSPI_STATUS QSPI_Erase_Sector(uint32_t SectorAddress)
+{
+  QSPI_CommandTypeDef sCommand;
+
+  /* Initialize the erase command */
+  sCommand.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
+  sCommand.Instruction       = SECTOR_ERASE_CMD;
+  sCommand.AddressMode       = QSPI_ADDRESS_1_LINE;
+  sCommand.AddressSize       = QSPI_ADDRESS_24_BITS;
+  sCommand.Address           = SectorAddress;
+  sCommand.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
+  sCommand.DataMode          = QSPI_DATA_NONE;
+  sCommand.DummyCycles       = 0;
+  sCommand.DdrMode           = QSPI_DDR_MODE_DISABLE;
+  sCommand.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;
+  sCommand.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
+
+  /* Enable write operations */
+  if (QSPI_WriteEnable() != QSPI_STATUS_OK)
+  {
+    return QSPI_STATUS_ERROR;
+  }
+
+  /* Send the command */
+  if (HAL_QSPI_Command(&hqspi, &sCommand, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    return QSPI_STATUS_ERROR;
+  }
+
+  /* Configure automatic polling mode to wait for end of erase */
+  if (QSPI_AutoPollingMemReady(W25Q128_SUBSECTOR_ERASE_MAX_TIME) != QSPI_STATUS_OK)
+  {
+    return QSPI_STATUS_ERROR;
+  }
+
+  return QSPI_STATUS_OK;
+}
+
+static QSPI_STATUS QSPI_Driver_Write_Page(uint8_t *pData, uint32_t address)
+{
+  QSPI_CommandTypeDef sCommand;
+
+  /* Enable write operations */
+  if (QSPI_WriteEnable() != QSPI_STATUS_OK)
+  {
+    return QSPI_STATUS_ERROR;
+  }
+
+  sCommand.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
+  sCommand.Instruction       = QUAD_PAGE_PROG_CMD;
+  sCommand.AddressMode       = QSPI_ADDRESS_1_LINE;
+  sCommand.AddressSize       = QSPI_ADDRESS_24_BITS;
+  sCommand.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
+  sCommand.DataMode          = QSPI_DATA_4_LINES;
+  sCommand.DummyCycles       = 0;
+  sCommand.DdrMode           = QSPI_DDR_MODE_DISABLE;
+  sCommand.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;
+  sCommand.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
+
+  sCommand.Address = address;
+  sCommand.NbData  = W25Q128_PAGE_SIZE;
+
+  /* Configure the command */
+  if (HAL_QSPI_Command(&hqspi, &sCommand, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    return QSPI_STATUS_ERROR;
+  }
+
+  /* Transmission of the data */
+  if (HAL_QSPI_Transmit(&hqspi, pData, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    return QSPI_STATUS_ERROR;
+  }
+
+  /* Configure automatic polling mode to wait for end of program */
+  if (QSPI_AutoPollingMemReady(HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != QSPI_STATUS_OK)
+  {
+    return QSPI_STATUS_ERROR;
+  }
+
+  return QSPI_STATUS_OK;
+}
+
+QSPI_STATUS QSPI_Driver_Write_Sector(uint8_t *pData, uint32_t address)
+{
+  uint32_t written = 0;
+  do {
+    if (QSPI_Driver_Write_Page(&pData[written], address) != QSPI_STATUS_OK)
+    {
+      return QSPI_STATUS_ERROR;
+    }
+    address += W25Q128_PAGE_SIZE;
+    written += W25Q128_PAGE_SIZE;
+  } while (written < W25Q128_SECTOR_SIZE);
 
   return QSPI_STATUS_OK;
 }
