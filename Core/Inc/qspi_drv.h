@@ -38,8 +38,6 @@
 #define W25Q128_FSR1_WREN                     (1<<1) /* Reg 1, write enable */
 #define W25Q128_FSR2_QE                       (1<<1) /* Reg 2, Quad enable */
 
-#define W25Q128_BURST_WRAP_64                0x000000E0;
-
 #define W25Q128_BULK_ERASE_MAX_TIME          250000
 #define W25Q128_SECTOR_ERASE_MAX_TIME        3000
 #define W25Q128_SUBSECTOR_ERASE_MAX_TIME     800
@@ -47,31 +45,19 @@
 #define W25Q128_PAGE_SIZE                    0x100
 #define W25Q128_SECTOR_SIZE                  0x1000
 
-//#define MAX_READ_SIZE                        64
-#define DUMMY_CLOCK_CYCLES_READ              8
-#define DUMMY_CLOCK_CYCLES_READ_QUAD         8
-
-
-
-//#define QSPI_COMMAND_TIMEOUT                 1000
-
 typedef enum
 {
   QSPI_STATUS_ERROR = 0,
   QSPI_STATUS_OK = 1
 } QSPI_STATUS;
 
-//uint8_t QSPI_Driver_state();
-//uint8_t QSPI_Driver_locked();
 
 QSPI_STATUS QSPI_Driver_Init();
-QSPI_STATUS QSPI_Driver_Read(uint8_t* pData, uint32_t address, uint32_t size);
+QSPI_STATUS QSPI_Read(uint8_t* pData, uint32_t address, uint32_t size);
 QSPI_STATUS QSPI_Erase_Sector(uint32_t SectorAddress);
-QSPI_STATUS QSPI_Driver_Write_Sector(uint8_t *pData, uint32_t address);
+QSPI_STATUS QSPI_Write_Sector(uint8_t *pData, uint32_t address);
 
-QSPI_STATUS QSPI_Driver_Write_Page(uint8_t *pData, uint32_t address);
-QSPI_STATUS QSPI_Driver_Read_Single(uint8_t* pData, uint32_t ReadAddr, uint32_t size);
 
-QSPI_STATUS QSPI_SetWrap();
+
 
 #endif

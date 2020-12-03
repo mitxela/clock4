@@ -115,57 +115,31 @@ int main(void)
   //QSPI_GetStatus();
 
   uint8_t buf[4096]={0};
-  //for (int i=1;i<4096;i++) buf[i]=i;
-  //buf[0]=0x55;
 
-  if (QSPI_Driver_Read_Single(buf, 0, 256) !=QSPI_STATUS_OK)
+
+  if (QSPI_Read(buf, 0, 256) !=QSPI_STATUS_OK)
     printf("read error\n");
   else
     printf("read ok\n");
   buf[256]=0;
   printf("read single: %s\n", buf);
 
-  if (QSPI_SetWrap() != QSPI_STATUS_OK)
-    printf("setwrap failed\n");
 
-  if (QSPI_Driver_Read(buf, 0, 256) !=QSPI_STATUS_OK)
-    printf("read error\n");
-  else
-    printf("read ok\n");
+  for (int i=1;i<4096;i++) buf[i]=i;
+  buf[0]=0x55;
 
-  buf[256]=0;
-  printf("read quad: %s\n", buf);
-
-while(1);
 
   if (QSPI_Erase_Sector(0)!=QSPI_STATUS_OK){
     printf("erase error\n");
 
   } else printf("erase ok\n");
-  //QSPI_GetStatus();
 
-  memset(buf,0x55,25);
-  //memcpy(buf, "LOL AMAZING INIT", 16);
-  //printf("SET DATA: %s\n", buf);
-
-  buf[0]=0x55;
-  for (int i=1;i<4096;i++) buf[i]=i*3;
-  //BSP_QSPI_Write(buf, 0, 256);
-
-
-  if (QSPI_Driver_Write_Sector(buf, 0) != QSPI_STATUS_OK) {
+  if (QSPI_Write_Sector(buf, 0) != QSPI_STATUS_OK) {
     printf("Write error\n");
 
   } else printf("write ok\n");
-  //QSPI_GetStatus();
 
-  if (QSPI_Driver_Read_Single(buf, 0, 256) !=QSPI_STATUS_OK)
-    printf("read error\n");
-  else
-    printf("read ok\n");
 
-  buf[256]=0;
-  printf("read : %s\n", buf);
 
   /* USER CODE END 2 */
 

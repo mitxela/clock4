@@ -1,56 +1,12 @@
 #include "qspi_drv.h"
-#include <assert.h>
-
-/*volatile uint8_t rx_complete = 0;
-volatile uint8_t tx_complete = 0;
-volatile uint8_t status_matched = 0;
-volatile uint8_t command_complete = 0;
-volatile int8_t qspi_locked = 0;
-uint8_t qspi_init_state = 0;*/
 
 extern QSPI_HandleTypeDef hqspi;
-
-#include <stdio.h>
 
 static QSPI_STATUS QSPI_ResetMemory();
 static QSPI_STATUS QSPI_WriteEnable();
 static QSPI_STATUS QSPI_AutoPollingMemReady(uint32_t Timeout);
-//static QSPI_STATUS QSPI_Driver_Write_Page(uint8_t *pData, uint32_t address);
+static QSPI_STATUS QSPI_Write_Page(uint8_t *pData, uint32_t address);
 
-/*
-uint8_t QSPI_Driver_state()
-{
-    return qspi_init_state;
-}
-uint8_t QSPI_Driver_locked()
-{
-    return qspi_locked;
-}
-void HAL_QSPI_RxCpltCallback(QSPI_HandleTypeDef *hqspi)
-{
-    rx_complete = 1;
-}
-void HAL_QSPI_TxCpltCallback(QSPI_HandleTypeDef *hqspi)
-{
-    tx_complete = 1;
-}
-void HAL_QSPI_StatusMatchCallback(QSPI_HandleTypeDef *hqspi)
-{
-    status_matched = 1;
-}
-void HAL_QSPI_CmdCpltCallback(QSPI_HandleTypeDef *hqspi)
-{
-    command_complete = 1;
-}
-void HAL_QSPI_TimeOutCallback(QSPI_HandleTypeDef *hqspi)
-{
-    Error_Handler();
-}
-void HAL_QSPI_ErrorCallback(QSPI_HandleTypeDef *hqspi)
-{
-    Error_Handler();
-}
-*/
 
 static QSPI_STATUS QSPI_ResetMemory()
 {
@@ -210,43 +166,6 @@ QSPI_STATUS QSPI_Driver_Init()
   return QSPI_STATUS_OK;
 }
 
-QSPI_STATUS QSPI_Driver_Read(uint8_t* pData, uint32_t address, uint32_t size)
-{
-  QSPI_CommandTypeDef sCommand;
-
-  /* Reading Sequence ------------------------------------------------ */
-  sCommand.NbData      = size;
-  sCommand.Address     = address;
-  sCommand.Instruction = QUAD_INOUT_FAST_READ_CMD;
-  sCommand.DummyCycles = DUMMY_CLOCK_CYCLES_READ_QUAD;
-  sCommand.DataMode    = QSPI_DATA_4_LINES;
-
-  sCommand.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
-  sCommand.AddressMode       = QSPI_ADDRESS_4_LINES;
-  sCommand.AddressSize       = QSPI_ADDRESS_24_BITS;
-  //sCommand.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
-  sCommand.AlternateByteMode = QSPI_ALTERNATE_BYTES_4_LINES;
-  sCommand.AlternateBytesSize= 1;
-  sCommand.AlternateBytes    = 0xF0;
-  sCommand.DdrMode           = QSPI_DDR_MODE_DISABLE;
-  sCommand.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;
-  sCommand.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
-
-  /* Configure the command */
-  if (HAL_QSPI_Command(&hqspi, &sCommand, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
-  {
-    return QSPI_STATUS_ERROR;
-  }
-
-  /* Reception of the data */
-  if (HAL_QSPI_Receive(&hqspi, pData, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
-  {
-    return QSPI_STATUS_ERROR;
-  }
-
-  return QSPI_STATUS_OK;
-}
-
 QSPI_STATUS QSPI_Erase_Sector(uint32_t SectorAddress)
 {
   QSPI_CommandTypeDef sCommand;
@@ -285,7 +204,7 @@ QSPI_STATUS QSPI_Erase_Sector(uint32_t SectorAddress)
   return QSPI_STATUS_OK;
 }
 
-QSPI_STATUS QSPI_Driver_Write_Page(uint8_t *pData, uint32_t address)
+QSPI_STATUS QSPI_Write_Page(uint8_t *pData, uint32_t address)
 {
   QSPI_CommandTypeDef sCommand;
 
@@ -294,7 +213,6 @@ QSPI_STATUS QSPI_Driver_Write_Page(uint8_t *pData, uint32_t address)
   {
     return QSPI_STATUS_ERROR;
   }
-  //QSPI_GetStatus();
 
   sCommand.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
   sCommand.Instruction       = QUAD_PAGE_PROG_CMD;
@@ -322,22 +240,20 @@ QSPI_STATUS QSPI_Driver_Write_Page(uint8_t *pData, uint32_t address)
     return QSPI_STATUS_ERROR;
   }
 
-  //QSPI_GetStatus();
-
   /* Configure automatic polling mode to wait for end of program */
   if (QSPI_AutoPollingMemReady(HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != QSPI_STATUS_OK)
   {
     return QSPI_STATUS_ERROR;
   }
-  //QSPI_GetStatus();
+
   return QSPI_STATUS_OK;
 }
 
-QSPI_STATUS QSPI_Driver_Write_Sector(uint8_t *pData, uint32_t address)
+QSPI_STATUS QSPI_Write_Sector(uint8_t *pData, uint32_t address)
 {
   uint32_t written = 0;
   do {
-    if (QSPI_Driver_Write_Page(&pData[written], address) != QSPI_STATUS_OK)
+    if (QSPI_Write_Page(&pData[written], address) != QSPI_STATUS_OK)
     {
       return QSPI_STATUS_ERROR;
     }
@@ -349,9 +265,7 @@ QSPI_STATUS QSPI_Driver_Write_Sector(uint8_t *pData, uint32_t address)
 }
 
 
-
-
-QSPI_STATUS QSPI_Driver_Read_Single(uint8_t* pData, uint32_t ReadAddr, uint32_t size)
+QSPI_STATUS QSPI_Read(uint8_t* pData, uint32_t ReadAddr, uint32_t size)
 {
   QSPI_CommandTypeDef sCommand;
 
@@ -384,31 +298,3 @@ QSPI_STATUS QSPI_Driver_Read_Single(uint8_t* pData, uint32_t ReadAddr, uint32_t 
   return QSPI_STATUS_OK;
 }
 
-QSPI_STATUS QSPI_SetWrap()
-{
-  QSPI_CommandTypeDef sCommand;
-
-  sCommand.Instruction = BURST_WRAP_CMD;
-  sCommand.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
-
-  sCommand.DummyCycles = 0;
-  sCommand.DataMode    = QSPI_DATA_NONE;
-  sCommand.NbData      = 0;
-
-  sCommand.Address     = W25Q128_BURST_WRAP_64;
-
-  sCommand.AddressMode       = QSPI_ADDRESS_4_LINES;
-  sCommand.AddressSize       = QSPI_ADDRESS_32_BITS;
-  sCommand.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
-  //sCommand.AlternateBytesSize= 1;
-  //sCommand.AlternateBytes    = 0xF0;
-  sCommand.DdrMode           = QSPI_DDR_MODE_DISABLE;
-  sCommand.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;
-  sCommand.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
-
-  if (HAL_QSPI_Command(&hqspi, &sCommand, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
-  {
-    return QSPI_STATUS_ERROR;
-  }
-  return QSPI_STATUS_OK;
-}
