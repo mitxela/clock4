@@ -11,6 +11,8 @@
 #define WRITE_ENABLE_CMD                     0x06
 #define WRITE_DISABLE_CMD                    0x04
 
+#define BURST_WRAP_CMD                       0x77
+
 #define READ_CMD                             0x03
 #define FAST_READ_CMD                        0x0B
 #define DUAL_OUT_FAST_READ_CMD               0x3B
@@ -35,6 +37,8 @@
 #define W25Q128_FSR1_BUSY                     (1<<0) /* Reg 1, busy flag */
 #define W25Q128_FSR1_WREN                     (1<<1) /* Reg 1, write enable */
 #define W25Q128_FSR2_QE                       (1<<1) /* Reg 2, Quad enable */
+
+#define W25Q128_BURST_WRAP_64                0x000000E0;
 
 #define W25Q128_BULK_ERASE_MAX_TIME          250000
 #define W25Q128_SECTOR_ERASE_MAX_TIME        3000
@@ -66,9 +70,8 @@ QSPI_STATUS QSPI_Erase_Sector(uint32_t SectorAddress);
 QSPI_STATUS QSPI_Driver_Write_Sector(uint8_t *pData, uint32_t address);
 
 QSPI_STATUS QSPI_Driver_Write_Page(uint8_t *pData, uint32_t address);
-uint8_t QSPI_GetStatus(void);
-
-QSPI_STATUS BSP_QSPI_Write(uint8_t* pData, uint32_t WriteAddr, uint32_t Size);
 QSPI_STATUS QSPI_Driver_Read_Single(uint8_t* pData, uint32_t ReadAddr, uint32_t size);
+
+QSPI_STATUS QSPI_SetWrap();
 
 #endif
