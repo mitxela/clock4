@@ -67,6 +67,8 @@ static void MX_USART2_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+
+
 /* USER CODE END 0 */
 
 /**
@@ -108,9 +110,51 @@ int main(void)
 
 
 
-  printf("Init status: %d\n", (int)QSPI_Driver_init());
+  printf("Init status: %d\n", (int)QSPI_Driver_Init());
+
+  //QSPI_GetStatus();
+
+  uint8_t buf[4096]={0};
+  for (int i=0;i<4096;i++) buf[i]=i;
 
 
+  if (QSPI_Driver_Read(buf, 0, 256) !=QSPI_STATUS_OK)
+    printf("read error\n");
+  else
+    printf("read ok\n");
+
+  buf[256]=0; buf[0]=1;
+  printf("read : %s\n", buf);
+
+
+  if (QSPI_Erase_Sector(0)!=QSPI_STATUS_OK){
+    printf("erase error\n");
+
+  } else printf("erase ok\n");
+  //QSPI_GetStatus();
+
+  memset(buf,0x55,25);
+  //memcpy(buf, "LOL AMAZING INIT", 16);
+  //printf("SET DATA: %s\n", buf);
+
+
+  for (int i=1;i<4096;i++) buf[i]=i*3;
+  //BSP_QSPI_Write(buf, 0, 256);
+
+
+  if (QSPI_Driver_Write_Page(buf, 0) != QSPI_STATUS_OK) {
+    printf("Write error\n");
+
+  } else printf("write ok\n");
+  //QSPI_GetStatus();
+
+  if (QSPI_Driver_Read_Single(buf, 0, 256) !=QSPI_STATUS_OK)
+    printf("read error\n");
+  else
+    printf("read ok\n");
+
+  buf[256]=0;
+  printf("read : %s\n", buf);
 
   /* USER CODE END 2 */
 
@@ -204,7 +248,7 @@ static void MX_QUADSPI_Init(void)
   /* USER CODE END QUADSPI_Init 1 */
   /* QUADSPI parameter configuration*/
   hqspi.Instance = QUADSPI;
-  hqspi.Init.ClockPrescaler = 0;
+  hqspi.Init.ClockPrescaler = 64;
   hqspi.Init.FifoThreshold = 4;
   hqspi.Init.SampleShifting = QSPI_SAMPLE_SHIFTING_HALFCYCLE;
   hqspi.Init.FlashSize = 23;

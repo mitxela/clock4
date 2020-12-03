@@ -65,6 +65,10 @@ QSPI_STATUS QSPI_Driver_Read(uint8_t* pData, uint32_t address, uint32_t size);
 QSPI_STATUS QSPI_Erase_Sector(uint32_t SectorAddress);
 QSPI_STATUS QSPI_Driver_Write_Sector(uint8_t *pData, uint32_t address);
 
+QSPI_STATUS QSPI_Driver_Write_Page(uint8_t *pData, uint32_t address);
+uint8_t QSPI_GetStatus(void);
 
+QSPI_STATUS BSP_QSPI_Write(uint8_t* pData, uint32_t WriteAddr, uint32_t Size);
+QSPI_STATUS QSPI_Driver_Read_Single(uint8_t* pData, uint32_t ReadAddr, uint32_t size);
 
 #endif
