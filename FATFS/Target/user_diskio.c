@@ -36,6 +36,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include <string.h>
 #include "ff_gen_drv.h"
+#include "qspi_drv.h"
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
@@ -83,6 +84,12 @@ DSTATUS USER_initialize (
 {
   /* USER CODE BEGIN INIT */
     Stat = STA_NOINIT;
+
+    if (QSPI_Initialized() || QSPI_Driver_Init()==QSPI_STATUS_OK)
+    {
+        Stat &= ~STA_NOINIT;
+    }
+
     return Stat;
   /* USER CODE END INIT */
 }
@@ -98,6 +105,12 @@ DSTATUS USER_status (
 {
   /* USER CODE BEGIN STATUS */
     Stat = STA_NOINIT;
+
+    if (QSPI_Initialized())
+    {
+        Stat &= ~STA_NOINIT;
+    }
+
     return Stat;
   /* USER CODE END STATUS */
 }
@@ -118,7 +131,14 @@ DRESULT USER_read (
 )
 {
   /* USER CODE BEGIN READ */
+
+  uint32_t size = count * W25Q128_SECTOR_SIZE;
+  uint32_t address =  sector * W25Q128_SECTOR_SIZE;
+
+  if (QSPI_Read(buff, address, size) == QSPI_STATUS_OK)
     return RES_OK;
+
+  return RES_ERROR;
   /* USER CODE END READ */
 }
 

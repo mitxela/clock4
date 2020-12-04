@@ -109,38 +109,19 @@ int main(void)
 
 
 
+  FRESULT res;
+  FIL file;
 
-  printf("Init status: %d\n", (int)QSPI_Driver_Init());
-/*
-  //QSPI_GetStatus();
+  char filename[20] = "/CONFIG.TXT";
+  char line[20];
 
-  uint8_t buf[4096]={0};
+  if (f_open(&file, filename, FA_READ) != FR_OK)
+    Error_Handler();
 
+  if (f_gets(line, sizeof(line), &file) != FR_OK)
+    Error_Handler();
 
-  if (QSPI_Read(buf, 0, 256) !=QSPI_STATUS_OK)
-    printf("read error\n");
-  else
-    printf("read ok\n");
-  buf[256]=0; buf[0]=0x55;
-  printf("read single: %s\n", buf);
-  while(1);
-
-  for (int i=1;i<4096;i++) buf[i]=i;
-  buf[0]=0x55;
-
-
-  if (QSPI_Erase_Sector(0)!=QSPI_STATUS_OK){
-    printf("erase error\n");
-
-  } else printf("erase ok\n");
-
-  if (QSPI_Write_Sector(buf, 0) != QSPI_STATUS_OK) {
-    printf("Write error\n");
-
-  } else printf("write ok\n");
-
-*/
-
+  printf("Read file: %s\n", line);
   /* USER CODE END 2 */
 
   /* Infinite loop */
