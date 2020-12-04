@@ -26,6 +26,7 @@
  */
 
 #include <stdint.h>
+#include "fatfs.h"
 
 #ifndef INCL_ZONEDETECT_H_
 #define INCL_ZONEDETECT_H_
@@ -66,7 +67,7 @@ typedef struct ZoneDetectOpaque ZoneDetect;
 extern "C" {
 #endif
 
-ZD_EXPORT ZoneDetect *ZDOpenDatabase(const char *path);
+ZD_EXPORT ZoneDetect *ZDOpenDatabase(FIL* file);
 ZD_EXPORT ZoneDetect *ZDOpenDatabaseFromMemory(void* buffer, size_t length);
 ZD_EXPORT void        ZDCloseDatabase(ZoneDetect *library);
 

@@ -32,42 +32,33 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#if defined(_MSC_VER) || defined(__MINGW32__)
-#include <windows.h>
-#else
+
 #include <errno.h>
-#include <sys/mman.h>
+//#include <sys/mman.h>
 #include <fcntl.h>
 #include <unistd.h>
-#endif
+
+#include "fatfs.h"
 
 #include "zonedetect.h"
+
+FIL* file;
 
 enum ZDInternalError {
     ZD_OK,
     ZD_E_DB_OPEN,
     ZD_E_DB_SEEK,
     ZD_E_DB_MMAP,
-#if defined(_MSC_VER) || defined(__MINGW32__)
-    ZD_E_DB_MMAP_MSVIEW,
-    ZD_E_DB_MAP_EXCEPTION,
-    ZD_E_DB_MUNMAP_MSVIEW,
-#endif
+
     ZD_E_DB_MUNMAP,
     ZD_E_DB_CLOSE,
     ZD_E_PARSE_HEADER
 };
 
 struct ZoneDetectOpaque {
-#if defined(_MSC_VER) || defined(__MINGW32__)
-    HANDLE fd;
-    HANDLE fdMap;
-    int32_t length;
-    int32_t padding;
-#else
-    int fd;
+
     off_t length;
-#endif
+
 
     uint8_t closeType;
     uint8_t *mapping;
@@ -84,6 +75,40 @@ struct ZoneDetectOpaque {
     uint32_t metadataOffset;
     uint32_t dataOffset;
 };
+
+#define MAP_CACHE_SIZE 512
+uint8_t mapCache[MAP_CACHE_SIZE];
+uint32_t mapCacheStart = 0xffffffff, mapCacheEnd = 0;
+
+uint8_t readMapFile(uint32_t addr){
+  unsigned int r;
+
+  if (addr>=mapCacheStart && addr<mapCacheEnd)
+    return mapCache[ addr-mapCacheStart ];
+
+  f_lseek( file, addr);
+  f_read( file, &mapCache, MAP_CACHE_SIZE, &r);
+  mapCacheStart = addr;
+  mapCacheEnd = addr + MAP_CACHE_SIZE;
+
+  return mapCache[0];
+
+}
+uint8_t readMapFileReverse(uint32_t addr){
+  unsigned int r;
+
+  if (addr>=mapCacheStart && addr<mapCacheEnd)
+    return mapCache[ addr-mapCacheStart ];
+
+  mapCacheStart = addr -MAP_CACHE_SIZE +1;
+  mapCacheEnd = addr +1;
+
+  f_lseek( file, mapCacheStart);
+  f_read( file, &mapCache, MAP_CACHE_SIZE, &r);
+
+  return mapCache[ addr-mapCacheStart ];
+
+}
 
 static void (*zdErrorHandler)(int, int);
 static void zdError(enum ZDInternalError errZD, int errNative)
@@ -111,34 +136,26 @@ static unsigned int ZDDecodeVariableLengthUnsigned(const ZoneDetect *library, ui
 
     uint64_t value = 0;
     unsigned int i = 0;
-#if defined(_MSC_VER)
-    __try {
-#endif
-        uint8_t *const buffer = library->mapping + *index;
-        uint8_t *const bufferEnd = library->mapping + library->length - 1;
+
+        //uint8_t *const buffer = library->mapping + *index;
+        //uint8_t *const bufferEnd = library->mapping + library->length - 1;
+        uint32_t const bufferEnd = library->length - 1 - *index;
 
         unsigned int shift = 0;
         while(1) {
-            value |= ((((uint64_t)buffer[i]) & UINT8_C(0x7F)) << shift);
+            uint8_t r = readMapFile(i + *index );
+            value |= ((((uint64_t)r) & UINT8_C(0x7F)) << shift);
             shift += 7u;
 
-            if(!(buffer[i] & UINT8_C(0x80))) {
+            if(!(r & UINT8_C(0x80))) {
                 break;
             }
 
             i++;
-            if(buffer + i > bufferEnd) {
+            if( i > bufferEnd) {
                 return 0;
             }
         }
-#if defined(_MSC_VER)
-    } __except(GetExceptionCode() == EXCEPTION_IN_PAGE_ERROR
-               ? EXCEPTION_EXECUTE_HANDLER
-               : EXCEPTION_CONTINUE_SEARCH) { /* file mapping SEH exception occurred */
-        zdError(ZD_E_DB_MAP_EXCEPTION, (int)GetLastError());
-        return 0;
-    }
-#endif
 
     i++;
     *result = value;
@@ -154,11 +171,9 @@ static unsigned int ZDDecodeVariableLengthUnsignedReverse(const ZoneDetect *libr
         return 0;
     }
 
-#if defined(_MSC_VER)
-    __try {
-#endif
 
-        if(library->mapping[i] & UINT8_C(0x80)) {
+
+        if(readMapFileReverse(i) & UINT8_C(0x80)) {
             return 0;
         }
 
@@ -167,21 +182,13 @@ static unsigned int ZDDecodeVariableLengthUnsignedReverse(const ZoneDetect *libr
         }
         i--;
 
-        while(library->mapping[i] & UINT8_C(0x80)) {
+        while(readMapFileReverse(i) & UINT8_C(0x80)) {
             if(!i) {
                 return 0;
             }
             i--;
         }
 
-#if defined(_MSC_VER)
-    } __except(GetExceptionCode() == EXCEPTION_IN_PAGE_ERROR
-               ? EXCEPTION_EXECUTE_HANDLER
-               : EXCEPTION_CONTINUE_SEARCH) { /* file mapping SEH exception occurred */
-        zdError(ZD_E_DB_MAP_EXCEPTION, (int)GetLastError());
-        return 0;
-    }
-#endif
 
     *index = i;
 
@@ -229,20 +236,11 @@ static char *ZDParseString(const ZoneDetect *library, uint32_t *index)
     char *const str = malloc((size_t)(strLength + 1));
 
     if(str) {
-#if defined(_MSC_VER)
-        __try {
-#endif
+
             for(size_t i = 0; i < strLength; i++) {
-                str[i] = (char)(library->mapping[strOffset + i] ^ UINT8_C(0x80));
+                str[i] = (char)(readMapFile(strOffset + i) ^ UINT8_C(0x80));
             }
-#if defined(_MSC_VER)
-        } __except(GetExceptionCode() == EXCEPTION_IN_PAGE_ERROR
-                   ? EXCEPTION_EXECUTE_HANDLER
-                   : EXCEPTION_CONTINUE_SEARCH) { /* file mapping SEH exception occurred */
-            zdError(ZD_E_DB_MAP_EXCEPTION, (int)GetLastError());
-            return 0;
-        }
-#endif
+
         str[strLength] = 0;
     }
 
@@ -259,25 +257,17 @@ static int ZDParseHeader(ZoneDetect *library)
         return -1;
     }
 
-#if defined(_MSC_VER)
-    __try {
-#endif
-        if(memcmp(library->mapping, "PLB", 3)) {
+        readMapFile(0);
+
+        if(memcmp(&mapCache, "PLB", 3)) {
             return -1;
         }
 
-        library->tableType = library->mapping[3];
-        library->version   = library->mapping[4];
-        library->precision = library->mapping[5];
-        library->numFields = library->mapping[6];
-#if defined(_MSC_VER)
-    } __except(GetExceptionCode() == EXCEPTION_IN_PAGE_ERROR
-               ? EXCEPTION_EXECUTE_HANDLER
-               : EXCEPTION_CONTINUE_SEARCH) { /* file mapping SEH exception occurred */
-        zdError(ZD_E_DB_MAP_EXCEPTION, (int)GetLastError());
-        return 0;
-    }
-#endif
+        library->version   = mapCache[4];
+        library->tableType = mapCache[3];
+        library->precision = mapCache[5];
+        library->numFields = mapCache[6];
+
 
     if(library->version >= 2) {
         return -1;
@@ -789,14 +779,9 @@ void ZDCloseDatabase(ZoneDetect *library)
         }
 
         if(library->closeType == 0) {
-#if defined(_MSC_VER) || defined(__MINGW32__)
-            if(library->mapping && !UnmapViewOfFile(library->mapping)) zdError(ZD_E_DB_MUNMAP_MSVIEW, (int)GetLastError());
-            if(library->fdMap && !CloseHandle(library->fdMap))         zdError(ZD_E_DB_MUNMAP, (int)GetLastError());
-            if(library->fd && !CloseHandle(library->fd))               zdError(ZD_E_DB_CLOSE, (int)GetLastError());
-#else
-            if(library->mapping && munmap(library->mapping, (size_t)(library->length))) zdError(ZD_E_DB_MUNMAP, errno);
-            if(library->fd >= 0 && close(library->fd))                                  zdError(ZD_E_DB_CLOSE, errno);
-#endif
+
+          // f_close()
+
         }
 
         free(library);
@@ -833,58 +818,37 @@ fail:
     return NULL;
 }
 
-ZoneDetect *ZDOpenDatabase(const char *path)
+ZoneDetect *ZDOpenDatabase(FIL* fd)
 {
     ZoneDetect *const library = malloc(sizeof *library);
 
     if(library) {
         memset(library, 0, sizeof(*library));
 
-#if defined(_MSC_VER) || defined(__MINGW32__)
-        library->fd = CreateFile(path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-        if (library->fd == INVALID_HANDLE_VALUE) {
-            zdError(ZD_E_DB_OPEN, (int)GetLastError());
-            goto fail;
-        }
-
-        const DWORD fsize = GetFileSize(library->fd, NULL);
-        if (fsize == INVALID_FILE_SIZE) {
-            zdError(ZD_E_DB_SEEK, (int)GetLastError());
-            goto fail;
-        }
-        library->length = (int32_t)fsize;
-
-        library->fdMap = CreateFileMappingA(library->fd, NULL, PAGE_READONLY, 0, 0, NULL);
-        if (!library->fdMap) {
-            zdError(ZD_E_DB_MMAP, (int)GetLastError());
-            goto fail;
-        }
-
-        library->mapping = MapViewOfFile(library->fdMap, FILE_MAP_READ, 0, 0, 0);
-        if (!library->mapping) {
-            zdError(ZD_E_DB_MMAP_MSVIEW, (int)GetLastError());
-            goto fail;
-        }
-#else
+        file=fd;
+/*
         library->fd = open(path, O_RDONLY | O_CLOEXEC);
         if(library->fd < 0) {
             zdError(ZD_E_DB_OPEN, errno);
             goto fail;
         }
+*/
+        //library->length = lseek(library->fd, 0, SEEK_END);
+        library->length = f_size(file);
 
-        library->length = lseek(library->fd, 0, SEEK_END);
         if(library->length <= 0 || library->length > 50331648) {
             zdError(ZD_E_DB_SEEK, errno);
             goto fail;
         }
-        lseek(library->fd, 0, SEEK_SET);
+        //lseek(library->fd, 0, SEEK_SET);
 
+/*
         library->mapping = mmap(NULL, (size_t)library->length, PROT_READ, MAP_PRIVATE | MAP_FILE, library->fd, 0);
         if(library->mapping == MAP_FAILED) {
             zdError(ZD_E_DB_MMAP, errno);
             goto fail;
         }
-#endif
+*/
 
         /* Parse the header */
         if(ZDParseHeader(library)) {
@@ -1101,14 +1065,7 @@ const char *ZDGetErrorString(int errZD)
             return ZD_E_COULD_NOT("retrieve database file size");
         case ZD_E_DB_MMAP         :
             return ZD_E_COULD_NOT("map database file to system memory");
-#if defined(_MSC_VER) || defined(__MINGW32__)
-        case ZD_E_DB_MMAP_MSVIEW  :
-            return ZD_E_COULD_NOT("open database file view");
-        case ZD_E_DB_MAP_EXCEPTION:
-            return "I/O exception occurred while accessing database file view";
-        case ZD_E_DB_MUNMAP_MSVIEW:
-            return ZD_E_COULD_NOT("close database file view");
-#endif
+
         case ZD_E_DB_MUNMAP       :
             return ZD_E_COULD_NOT("unmap database");
         case ZD_E_DB_CLOSE        :

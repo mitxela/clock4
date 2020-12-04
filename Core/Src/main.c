@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include "retarget.h"
 #include "qspi_drv.h"
+#include "zonedetect.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -107,16 +108,24 @@ int main(void)
 
   FIL file;
 
-  char filename[20] = "/CONFIG.TXT";
+  //char filename[20] = "/CONFIG.TXT";
   char line[20];
 
-  if (f_open(&file, filename, FA_READ) != FR_OK)
+  if (f_open(&file, "/CONFIG.TXT", FA_READ) != FR_OK)
     Error_Handler();
 
-  if (f_gets(line, sizeof(line), &file) != FR_OK)
+  if (f_gets(line, sizeof(line), &file) == 0)
     Error_Handler();
 
   printf("Read file: %s\n", line);
+
+
+
+  if (f_open(&file, "/TZMAP.BIN", FA_READ) != FR_OK) {
+    printf("Could not open tzmap\n");
+    Error_Handler();
+  }
+  ZoneDetect *const cd = ZDOpenDatabase(&file);
 
   /* USER CODE END 2 */
 
@@ -125,7 +134,23 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
+    char str[20];
 
+    float lon, lat;
+
+    printf("Enter latitude: ");
+    scanf("%s", &str);
+    printf("%s\n",&str);
+    lat = (float)atof(str);
+
+    printf("Enter longitude: ");
+    scanf("%s", &str);
+    printf("%s\n",&str);
+    lon = (float)atof(str);
+
+    uint32_t start = HAL_GetTick();
+    printf("IANA Timezone is [%s]\n", ZDHelperSimpleLookupString(cd, lat, lon));
+    printf("Took %lu ms\n", (HAL_GetTick()-start));
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -287,7 +312,7 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
-
+  while(1);
   /* USER CODE END Error_Handler_Debug */
 }
 
