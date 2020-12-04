@@ -58,5 +58,6 @@ QSPI_STATUS QSPI_Erase_Sector(uint32_t SectorAddress);
 QSPI_STATUS QSPI_Write_Sector(uint8_t *pData, uint32_t address);
 
 uint8_t QSPI_Initialized();
+uint8_t QSPI_Locked();
 
 #endif

@@ -9,10 +9,15 @@ static QSPI_STATUS QSPI_AutoPollingMemReady(uint32_t Timeout);
 static QSPI_STATUS QSPI_Write_Page(uint8_t *pData, uint32_t address);
 
 uint8_t initialized = 0;
+uint8_t locked = 0;
 
 uint8_t QSPI_Initialized()
 {
   return initialized;
+}
+uint8_t QSPI_Locked()
+{
+  return locked;
 }
 
 static QSPI_STATUS QSPI_ResetMemory()
@@ -129,15 +134,19 @@ QSPI_STATUS QSPI_Driver_Init()
   QSPI_CommandTypeDef sCommand;
   uint8_t value = W25Q128_FSR2_QE;
 
+  locked++;
+
   /* QSPI memory reset */
   if (QSPI_ResetMemory() != QSPI_STATUS_OK)
   {
+    locked--;
     return QSPI_STATUS_ERROR;
   }
 
   /* Enable write operations */
   if (QSPI_WriteEnable() != QSPI_STATUS_OK)
   {
+    locked--;
     return QSPI_STATUS_ERROR;
   }
 
@@ -156,27 +165,33 @@ QSPI_STATUS QSPI_Driver_Init()
   /* Configure the command */
   if (HAL_QSPI_Command(&hqspi, &sCommand, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
   {
+    locked--;
     return QSPI_STATUS_ERROR;
   }
   /* Transmit the data */
   if (HAL_QSPI_Transmit(&hqspi, &value, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
   {
+    locked--;
     return QSPI_STATUS_ERROR;
   }
 
   /* automatic polling mode to wait for memory ready */
   if (QSPI_AutoPollingMemReady(W25Q128_SUBSECTOR_ERASE_MAX_TIME) != QSPI_STATUS_OK)
   {
+    locked--;
     return QSPI_STATUS_ERROR;
   }
 
   initialized = 1;
+  locked--;
   return QSPI_STATUS_OK;
 }
 
 QSPI_STATUS QSPI_Erase_Sector(uint32_t SectorAddress)
 {
   QSPI_CommandTypeDef sCommand;
+
+  locked++;
 
   /* Initialize the erase command */
   sCommand.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
@@ -194,21 +209,25 @@ QSPI_STATUS QSPI_Erase_Sector(uint32_t SectorAddress)
   /* Enable write operations */
   if (QSPI_WriteEnable() != QSPI_STATUS_OK)
   {
+    locked--;
     return QSPI_STATUS_ERROR;
   }
 
   /* Send the command */
   if (HAL_QSPI_Command(&hqspi, &sCommand, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
   {
+    locked--;
     return QSPI_STATUS_ERROR;
   }
 
   /* Configure automatic polling mode to wait for end of erase */
   if (QSPI_AutoPollingMemReady(W25Q128_SUBSECTOR_ERASE_MAX_TIME) != QSPI_STATUS_OK)
   {
+    locked--;
     return QSPI_STATUS_ERROR;
   }
 
+  locked--;
   return QSPI_STATUS_OK;
 }
 
@@ -216,9 +235,12 @@ QSPI_STATUS QSPI_Write_Page(uint8_t *pData, uint32_t address)
 {
   QSPI_CommandTypeDef sCommand;
 
+  locked++;
+
   /* Enable write operations */
   if (QSPI_WriteEnable() != QSPI_STATUS_OK)
   {
+    locked--;
     return QSPI_STATUS_ERROR;
   }
 
@@ -239,21 +261,25 @@ QSPI_STATUS QSPI_Write_Page(uint8_t *pData, uint32_t address)
   /* Configure the command */
   if (HAL_QSPI_Command(&hqspi, &sCommand, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
   {
+    locked--;
     return QSPI_STATUS_ERROR;
   }
 
   /* Transmission of the data */
   if (HAL_QSPI_Transmit(&hqspi, pData, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
   {
+    locked--;
     return QSPI_STATUS_ERROR;
   }
 
   /* Configure automatic polling mode to wait for end of program */
   if (QSPI_AutoPollingMemReady(HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != QSPI_STATUS_OK)
   {
+    locked--;
     return QSPI_STATUS_ERROR;
   }
 
+  locked--;
   return QSPI_STATUS_OK;
 }
 
@@ -279,6 +305,8 @@ QSPI_STATUS QSPI_Read(uint8_t* pData, uint32_t ReadAddr, uint32_t size)
 
   if (size==0) return QSPI_STATUS_OK;
 
+  locked++;
+
   /* Reading Sequence ------------------------------------------------ */
   sCommand.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
   sCommand.Instruction       = READ_CMD;
@@ -296,15 +324,18 @@ QSPI_STATUS QSPI_Read(uint8_t* pData, uint32_t ReadAddr, uint32_t size)
   /* Configure the command */
   if (HAL_QSPI_Command(&hqspi, &sCommand, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
   {
+    locked--;
     return QSPI_STATUS_ERROR;
   }
 
   /* Reception of the data */
   if (HAL_QSPI_Receive(&hqspi, pData, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
   {
+    locked--;
     return QSPI_STATUS_ERROR;
   }
 
+  locked--;
   return QSPI_STATUS_OK;
 }
 

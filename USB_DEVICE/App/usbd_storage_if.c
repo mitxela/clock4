@@ -180,6 +180,7 @@ USBD_StorageTypeDef USBD_Storage_Interface_fops_FS =
 int8_t STORAGE_Init_FS(uint8_t lun)
 {
   /* USER CODE BEGIN 2 */
+  if (QSPI_Locked()) return (USBD_FAIL);
   if (QSPI_Initialized() || QSPI_Driver_Init()==QSPI_STATUS_OK) return (USBD_OK);
   return (USBD_FAIL);
   /* USER CODE END 2 */
@@ -209,6 +210,7 @@ int8_t STORAGE_GetCapacity_FS(uint8_t lun, uint32_t *block_num, uint16_t *block_
 int8_t STORAGE_IsReady_FS(uint8_t lun)
 {
   /* USER CODE BEGIN 4 */
+  if (QSPI_Locked()) return (USBD_FAIL);
   if (QSPI_Initialized() || QSPI_Driver_Init()==QSPI_STATUS_OK) return (USBD_OK);
   return (USBD_FAIL);
   /* USER CODE END 4 */
@@ -237,6 +239,8 @@ int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t bl
   uint32_t size = blk_len * W25Q128_SECTOR_SIZE;
   uint32_t address =  blk_addr * W25Q128_SECTOR_SIZE;
 
+  if (QSPI_Locked()) return (USBD_FAIL);
+
   if (QSPI_Read(buf, address, size) == QSPI_STATUS_OK)
     return (USBD_OK);
 
@@ -253,6 +257,8 @@ int8_t STORAGE_Write_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t b
 {
   /* USER CODE BEGIN 7 */
   uint32_t address =  blk_addr * W25Q128_SECTOR_SIZE;
+
+  if (QSPI_Locked()) return (USBD_FAIL);
 
   for (int i=0; i<blk_len; i++) {
     if (QSPI_Erase_Sector(address) !=QSPI_STATUS_OK)
