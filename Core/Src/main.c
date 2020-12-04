@@ -111,7 +111,7 @@ int main(void)
 
 
   printf("Init status: %d\n", (int)QSPI_Driver_Init());
-
+/*
   //QSPI_GetStatus();
 
   uint8_t buf[4096]={0};
@@ -121,9 +121,9 @@ int main(void)
     printf("read error\n");
   else
     printf("read ok\n");
-  buf[256]=0;
+  buf[256]=0; buf[0]=0x55;
   printf("read single: %s\n", buf);
-
+  while(1);
 
   for (int i=1;i<4096;i++) buf[i]=i;
   buf[0]=0x55;
@@ -139,7 +139,7 @@ int main(void)
 
   } else printf("write ok\n");
 
-
+*/
 
   /* USER CODE END 2 */
 
@@ -233,7 +233,7 @@ static void MX_QUADSPI_Init(void)
   /* USER CODE END QUADSPI_Init 1 */
   /* QUADSPI parameter configuration*/
   hqspi.Instance = QUADSPI;
-  hqspi.Init.ClockPrescaler = 64;
+  hqspi.Init.ClockPrescaler = 0;
   hqspi.Init.FifoThreshold = 4;
   hqspi.Init.SampleShifting = QSPI_SAMPLE_SHIFTING_HALFCYCLE;
   hqspi.Init.FlashSize = 23;

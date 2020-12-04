@@ -57,7 +57,6 @@ QSPI_STATUS QSPI_Read(uint8_t* pData, uint32_t address, uint32_t size);
 QSPI_STATUS QSPI_Erase_Sector(uint32_t SectorAddress);
 QSPI_STATUS QSPI_Write_Sector(uint8_t *pData, uint32_t address);
 
-
-
+uint8_t QSPI_Initialized();
 
 #endif

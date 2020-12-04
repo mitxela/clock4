@@ -23,7 +23,8 @@
 #include "usbd_storage_if.h"
 
 /* USER CODE BEGIN INCLUDE */
-
+#include "qspi_drv.h"
+#include <stdio.h>
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -64,8 +65,9 @@
   */
 
 #define STORAGE_LUN_NBR                  1
-#define STORAGE_BLK_NBR                  0x10000
-#define STORAGE_BLK_SIZ                  0x200
+#define STORAGE_BLK_NBR                  0x1000
+#define STORAGE_BLK_SIZ                  0x1000
+
 
 /* USER CODE BEGIN PRIVATE_DEFINES */
 
@@ -178,7 +180,8 @@ USBD_StorageTypeDef USBD_Storage_Interface_fops_FS =
 int8_t STORAGE_Init_FS(uint8_t lun)
 {
   /* USER CODE BEGIN 2 */
-  return (USBD_OK);
+  if (QSPI_Initialized() || QSPI_Driver_Init()==QSPI_STATUS_OK) return (USBD_OK);
+  return (USBD_FAIL);
   /* USER CODE END 2 */
 }
 
@@ -206,7 +209,8 @@ int8_t STORAGE_GetCapacity_FS(uint8_t lun, uint32_t *block_num, uint16_t *block_
 int8_t STORAGE_IsReady_FS(uint8_t lun)
 {
   /* USER CODE BEGIN 4 */
-  return (USBD_OK);
+  if (QSPI_Initialized() || QSPI_Driver_Init()==QSPI_STATUS_OK) return (USBD_OK);
+  return (USBD_FAIL);
   /* USER CODE END 4 */
 }
 
@@ -230,7 +234,13 @@ int8_t STORAGE_IsWriteProtected_FS(uint8_t lun)
 int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t blk_len)
 {
   /* USER CODE BEGIN 6 */
-  return (USBD_OK);
+  uint32_t size = blk_len * W25Q128_SECTOR_SIZE;
+  uint32_t address =  blk_addr * W25Q128_SECTOR_SIZE;
+
+  if (QSPI_Read(buf, address, size) == QSPI_STATUS_OK)
+    return (USBD_OK);
+
+  return (USBD_FAIL);
   /* USER CODE END 6 */
 }
 
@@ -242,6 +252,17 @@ int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t bl
 int8_t STORAGE_Write_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t blk_len)
 {
   /* USER CODE BEGIN 7 */
+  uint32_t address =  blk_addr * W25Q128_SECTOR_SIZE;
+
+  for (int i=0; i<blk_len; i++) {
+    if (QSPI_Erase_Sector(address) !=QSPI_STATUS_OK)
+      return (USBD_FAIL);
+    if (QSPI_Write_Sector(buf, address) !=QSPI_STATUS_OK)
+      return (USBD_FAIL);
+
+    buf += W25Q128_SECTOR_SIZE;
+    address += W25Q128_SECTOR_SIZE;
+  }
   return (USBD_OK);
   /* USER CODE END 7 */
 }

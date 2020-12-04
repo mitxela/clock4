@@ -2,11 +2,18 @@
 
 extern QSPI_HandleTypeDef hqspi;
 
+
 static QSPI_STATUS QSPI_ResetMemory();
 static QSPI_STATUS QSPI_WriteEnable();
 static QSPI_STATUS QSPI_AutoPollingMemReady(uint32_t Timeout);
 static QSPI_STATUS QSPI_Write_Page(uint8_t *pData, uint32_t address);
 
+uint8_t initialized = 0;
+
+uint8_t QSPI_Initialized()
+{
+  return initialized;
+}
 
 static QSPI_STATUS QSPI_ResetMemory()
 {
@@ -163,6 +170,7 @@ QSPI_STATUS QSPI_Driver_Init()
     return QSPI_STATUS_ERROR;
   }
 
+  initialized = 1;
   return QSPI_STATUS_OK;
 }
 
@@ -268,6 +276,8 @@ QSPI_STATUS QSPI_Write_Sector(uint8_t *pData, uint32_t address)
 QSPI_STATUS QSPI_Read(uint8_t* pData, uint32_t ReadAddr, uint32_t size)
 {
   QSPI_CommandTypeDef sCommand;
+
+  if (size==0) return QSPI_STATUS_OK;
 
   /* Reading Sequence ------------------------------------------------ */
   sCommand.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
