@@ -77,9 +77,9 @@ static void MX_TIM2_Init(void);
 struct {
   uint8_t low;
   uint8_t high;
-} buffer_c[512] = {0};
+} buffer_c[1280] = {0};
 
-uint16_t buffer_b[512] = {0};
+uint16_t buffer_b[1280] = {0};
 
 void setBrightness(uint32_t bright){
   HAL_DMA_Abort(&hdma_tim1_up);
@@ -235,7 +235,7 @@ int main(void)
   buffer_b[3] = bCat3 | bSegDecode8;
   buffer_b[4] = bCat4 | bSegDecode0;
 
-  setBrightness(32);
+  setBrightness(5);
 
 
   FIL file;
@@ -273,13 +273,15 @@ int main(void)
     scanf("%s", &str);
     printf("%s\n",&str);
     lat = (float)atof(str);
-
+    Error_Handler();
     SetSysTick( &SysTick_CountDown );
 
     printf("Enter longitude: ");
     scanf("%s", &str);
     printf("%s\n",&str);
     lon = (float)atof(str);
+
+    setBrightness(1280);
 
     uint32_t start = HAL_GetTick();
     printf("IANA Timezone is [%s]\n", ZDHelperSimpleLookupString(cd, lat, lon));
@@ -409,7 +411,7 @@ static void MX_TIM1_Init(void)
   htim1.Instance = TIM1;
   htim1.Init.Prescaler = 0;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 64*4;
+  htim1.Init.Period = 16;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -456,7 +458,7 @@ static void MX_TIM2_Init(void)
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 0;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 64*4;
+  htim2.Init.Period = 16;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -597,6 +599,31 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
+
+  __disable_irq();
+
+  buffer_c[0].high=0b11011110;
+  buffer_c[1].high=0b11011101;
+  buffer_c[2].high=0b11011011;
+  buffer_c[3].high=0b11010111;
+  buffer_c[4].high=0b11001111;
+  buffer_c[0].low=0b01010000;
+  buffer_c[1].low=0b01010000;
+  buffer_c[2].low=0b01011100;
+  buffer_c[3].low=0b01010000;
+  buffer_c[4].low=0;
+
+  buffer_b[0] = bCat0;
+  buffer_b[1] = bCat1;
+  buffer_b[2] = bCat2;
+  buffer_b[3] = bCat3;
+  buffer_b[4] = bCat4 | 0b0111100100;
+
+  setBrightness(20);
+
+
+
+
   while(1);
   /* USER CODE END Error_Handler_Debug */
 }
