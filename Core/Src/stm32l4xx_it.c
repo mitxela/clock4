@@ -53,6 +53,13 @@
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+extern struct {
+  uint8_t low;
+  uint8_t high;
+} buffer_c[512];
+
+extern uint16_t buffer_b[512];
+
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -184,6 +191,26 @@ void PendSV_Handler(void)
 void SysTick_Handler(void)
 {
   /* USER CODE BEGIN SysTick_IRQn 0 */
+
+  const uint8_t cLut[]= { cSegDecode0, cSegDecode1, cSegDecode2, cSegDecode3, cSegDecode4, cSegDecode5, cSegDecode6, cSegDecode7, cSegDecode8, cSegDecode9 };
+
+  static uint8_t i=0, j=0, k=0;
+
+  i++;
+  if (i>=10) {
+    i=0;
+    j++;
+    if (j>=10) {
+      j=0;
+      k++;
+      if (k>=10) k=0;
+    }
+  }
+
+  buffer_c[3].low=cLut[i];
+  buffer_c[2].low=cLut[j];
+  buffer_c[1].low=cLut[k];
+
 
   /* USER CODE END SysTick_IRQn 0 */
   HAL_IncTick();

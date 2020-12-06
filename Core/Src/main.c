@@ -81,6 +81,13 @@ struct {
 
 uint16_t buffer_b[512] = {0};
 
+void setBrightness(uint32_t bright){
+  HAL_DMA_Abort(&hdma_tim1_up);
+  HAL_DMA_Abort(&hdma_tim2_up);
+  HAL_DMA_Start(&hdma_tim1_up, (uint32_t)buffer_b, (uint32_t)&GPIOB->ODR, bright);
+  HAL_DMA_Start(&hdma_tim2_up, (uint32_t)buffer_c, (uint32_t)&GPIOC->ODR, bright);
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -151,25 +158,19 @@ int main(void)
   buffer_c[3].low=cSegDecode7;
   buffer_c[4].low=0;
 
-/*
-  buffer_b[0]=0b1111000111111100;
-  buffer_b[1]=0b1110001111111100;
-  buffer_b[2]=0b1101001111111100;
-  buffer_b[3]=0b1011001111111100;
-  buffer_b[4]=0b0111001111111100;
-*/
 
 
 
 
 
-buffer_b[0] = bCat0 | bSegDecode2;
-buffer_b[1] = bCat1 | bSegDecode4;
-buffer_b[2] = bCat2 | bSegDecode6;
-buffer_b[3] = bCat3 | bSegDecode8;
-buffer_b[4] = bCat4 | bSegDecode0;
 
+  buffer_b[0] = bCat0 | bSegDecode2;
+  buffer_b[1] = bCat1 | bSegDecode4;
+  buffer_b[2] = bCat2 | bSegDecode6;
+  buffer_b[3] = bCat3 | bSegDecode8;
+  buffer_b[4] = bCat4 | bSegDecode0;
 
+  setBrightness(256);
 
 
   FIL file;
