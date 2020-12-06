@@ -43,6 +43,37 @@ extern "C" {
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
 
+#define cSegDP 0b00100000
+
+#define cSegDecode0 0b00111111
+#define cSegDecode1 0b00000110
+#define cSegDecode2 0b01011011
+#define cSegDecode3 0b01001111
+#define cSegDecode4 0b01100110
+#define cSegDecode5 0b01101101
+#define cSegDecode6 0b01111101
+#define cSegDecode7 0b00000111
+#define cSegDecode8 0b01111111
+#define cSegDecode9 0b01101111
+
+#define bSegDecode0 0b0011111100
+#define bSegDecode1 0b0000011000
+#define bSegDecode2 0b0101101100
+#define bSegDecode3 0b0100111100
+#define bSegDecode4 0b0110011000
+#define bSegDecode5 0b0110110100
+#define bSegDecode6 0b0111110100
+#define bSegDecode7 0b0000011100
+#define bSegDecode8 0b0111111100
+#define bSegDecode9 0b0110111100
+
+#define bCat0 0b1111000000000000
+#define bCat1 0b1110001000000000
+#define bCat2 0b1101001000000000
+#define bCat3 0b1011001000000000
+#define bCat4 0b0111001000000000
+
+
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
