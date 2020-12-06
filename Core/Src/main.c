@@ -88,6 +88,66 @@ void setBrightness(uint32_t bright){
   HAL_DMA_Start(&hdma_tim2_up, (uint32_t)buffer_c, (uint32_t)&GPIOC->ODR, bright);
 }
 
+
+
+void SysTick_CountUp(void)
+{
+
+  const uint8_t cLut[]= { cSegDecode0, cSegDecode1, cSegDecode2, cSegDecode3, cSegDecode4, cSegDecode5, cSegDecode6, cSegDecode7, cSegDecode8, cSegDecode9 };
+
+  static uint8_t i=0, j=0, k=0;
+
+  i++;
+  if (i>=10) {
+    i=0;
+    j++;
+    if (j>=10) {
+      j=0;
+      k++;
+      if (k>=10) k=0;
+    }
+  }
+
+  buffer_c[3].low=cLut[i];
+  buffer_c[2].low=cLut[j];
+  buffer_c[1].low=cLut[k];
+
+
+  HAL_IncTick();
+
+}
+
+void SysTick_CountDown(void)
+{
+
+  const uint8_t cLut[]= { cSegDecode0, cSegDecode1, cSegDecode2, cSegDecode3, cSegDecode4, cSegDecode5, cSegDecode6, cSegDecode7, cSegDecode8, cSegDecode9 };
+
+  static int8_t i=9, j=9, k=9;
+
+  i--;
+  if (i<0) {
+    i=9;
+    j--;
+    if (j<0) {
+      j=9;
+      k--;
+      if (k<0) k=9;
+    }
+  }
+
+  buffer_c[3].low=cLut[i];
+  buffer_c[2].low=cLut[j];
+  buffer_c[1].low=cLut[k];
+
+
+  HAL_IncTick();
+
+}
+
+
+
+#define SetSysTick(x) *((uint32_t *)0x2000003C) = (uint32_t)x
+
 /* USER CODE END 0 */
 
 /**
@@ -97,6 +157,11 @@ void setBrightness(uint32_t bright){
 int main(void)
 {
   /* USER CODE BEGIN 1 */
+
+  memcpy((void*)0x20000000, (void const*)0x08000000, 0x188);
+  SCB->VTOR = 0x20000000;
+
+  SetSysTick( &SysTick_CountUp );
 
   /* USER CODE END 1 */
 
@@ -170,7 +235,7 @@ int main(void)
   buffer_b[3] = bCat3 | bSegDecode8;
   buffer_b[4] = bCat4 | bSegDecode0;
 
-  setBrightness(256);
+  setBrightness(32);
 
 
   FIL file;
@@ -208,6 +273,8 @@ int main(void)
     scanf("%s", &str);
     printf("%s\n",&str);
     lat = (float)atof(str);
+
+    SetSysTick( &SysTick_CountDown );
 
     printf("Enter longitude: ");
     scanf("%s", &str);
