@@ -240,16 +240,52 @@ int main(void)
 
   FIL file;
 
-  //char filename[20] = "/CONFIG.TXT";
-  char line[20];
 
   if (f_open(&file, "/CONFIG.TXT", FA_READ) != FR_OK)
     Error_Handler();
 
-  if (f_gets(line, sizeof(line), &file) == 0)
-    Error_Handler();
 
-  printf("Read file: %s\n", line);
+
+  char key[20], value[20], s[1], rc;
+  uint16_t col=0;
+
+
+  while (1) {
+    f_read(&file, s, 1, &rc);
+    if (rc!=1) break; //EOF
+
+    if (s[0]=='\r' || s[0]=='\n') { col=0; continue; } //EOL
+
+    if (col==0 && (s[0]=='#' || s[0]==';')) { // comments
+      while (rc && s[0]!='\n') f_read(&file, s, 1, &rc);
+      continue;
+    }
+
+    if (s[0]!='=') {
+      if (col<sizeof(key)-1 &&s[0]!=' ') key[col++] = s[0];
+    } else {
+
+      key[col]=0;
+
+      col=0;
+      while (s[0]!='\n') {
+        f_read(&file, s, 1, &rc);
+        if (rc!=1) break;
+        if (col<sizeof(value)-1 &&s[0]!=' ' &&s[0]!='\r' &&s[0]!='\n') value[col++] = s[0];
+      }
+      value[col]=0;
+      col=0;
+
+      printf("Parsed config key [%s] is value [%s]\n", key, value);
+    }
+  }
+
+
+
+
+
+
+
 
 
 
@@ -411,7 +447,7 @@ static void MX_TIM1_Init(void)
   htim1.Instance = TIM1;
   htim1.Init.Prescaler = 0;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 16;
+  htim1.Init.Period = 64;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -458,7 +494,7 @@ static void MX_TIM2_Init(void)
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 0;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 16;
+  htim2.Init.Period = 64;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
