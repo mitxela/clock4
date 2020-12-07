@@ -26,6 +26,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include <string.h>
 #include "retarget.h"
 #include "qspi_drv.h"
 #include "zonedetect.h"
@@ -88,6 +89,67 @@ void setBrightness(uint32_t bright){
   HAL_DMA_Start(&hdma_tim2_up, (uint32_t)buffer_c, (uint32_t)&GPIOC->ODR, bright);
 }
 
+void parseConfigString(char const *key, char const *value) {
+
+  if (strcasecmp(key, "brightness") == 0) {
+
+    printf("found brightness\n");
+
+  } else if (strcasecmp(key, "date_format") == 0) {
+
+    printf("found date format\n");
+
+  }
+
+
+  printf("Parsed config key [%s] is value [%s]\n", key, value);
+}
+
+void readConfigFile(){
+
+  FIL file;
+
+   if (f_open(&file, "/CONFIG.TXT", FA_READ) != FR_OK)
+     Error_Handler();
+
+   char key[20], value[20], s[1];
+   unsigned int rc;
+   uint16_t col=0;
+
+
+   while (1) {
+     f_read(&file, s, 1, &rc);
+     if (rc!=1) break; //EOF
+
+     if (s[0]=='\r' || s[0]=='\n') { col=0; continue; } //EOL
+
+     if (col==0 && (s[0]=='#' || s[0]==';')) { // comments
+       while (rc && s[0]!='\n') f_read(&file, s, 1, &rc);
+       continue;
+     }
+
+     if (s[0]!='=') {
+       if (col<sizeof(key)-1 &&s[0]!=' ') key[col++] = s[0];
+     } else {
+
+       key[col]=0;
+
+       col=0;
+       while (s[0]!='\n') {
+         f_read(&file, s, 1, &rc);
+         if (rc!=1) break;
+         if (col<sizeof(value)-1 &&s[0]!=' ' &&s[0]!='\r' &&s[0]!='\n') value[col++] = s[0];
+       }
+       value[col]=0;
+       col=0;
+
+       parseConfigString(key, value);
+
+     }
+   }
+
+   f_close(&file);
+}
 
 
 void SysTick_CountUp(void)
@@ -237,48 +299,8 @@ int main(void)
 
   setBrightness(5);
 
+  readConfigFile();
 
-  FIL file;
-
-
-  if (f_open(&file, "/CONFIG.TXT", FA_READ) != FR_OK)
-    Error_Handler();
-
-
-
-  char key[20], value[20], s[1], rc;
-  uint16_t col=0;
-
-
-  while (1) {
-    f_read(&file, s, 1, &rc);
-    if (rc!=1) break; //EOF
-
-    if (s[0]=='\r' || s[0]=='\n') { col=0; continue; } //EOL
-
-    if (col==0 && (s[0]=='#' || s[0]==';')) { // comments
-      while (rc && s[0]!='\n') f_read(&file, s, 1, &rc);
-      continue;
-    }
-
-    if (s[0]!='=') {
-      if (col<sizeof(key)-1 &&s[0]!=' ') key[col++] = s[0];
-    } else {
-
-      key[col]=0;
-
-      col=0;
-      while (s[0]!='\n') {
-        f_read(&file, s, 1, &rc);
-        if (rc!=1) break;
-        if (col<sizeof(value)-1 &&s[0]!=' ' &&s[0]!='\r' &&s[0]!='\n') value[col++] = s[0];
-      }
-      value[col]=0;
-      col=0;
-
-      printf("Parsed config key [%s] is value [%s]\n", key, value);
-    }
-  }
 
 
 
@@ -288,6 +310,7 @@ int main(void)
 
 
 
+  FIL file;
 
   if (f_open(&file, "/TZMAP.BIN", FA_READ) != FR_OK) {
     printf("Could not open tzmap\n");
