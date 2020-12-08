@@ -85,6 +85,30 @@ struct {
 
 uint16_t buffer_b[1280] = {0};
 
+// NMEA 0183 messages have a max length of 82 characters
+uint8_t nmea[90];
+
+void decodeNmeaString(void){
+
+  // do checksum
+  uint8_t *c = &nmea[1], *end = &nmea[sizeof(nmea)];
+  uint8_t sum=0;
+
+  while (*c !='*' && c!=end) {
+    sum ^= *c;
+    c++;
+  }
+  c[3]=0;
+  printf("str: %s\n", c);
+  printf("checksum: 0x%02X\n", sum);
+
+  sprintf(nmea, "%02X", sum);
+  if (nmea[0] == c[1] && nmea[1]==c[2]) printf("woo!!\n");
+  else  printf("boo!!\n");
+
+
+}
+
 void setBrightness(uint32_t bright){
   HAL_DMA_Abort(&hdma_tim1_up);
   HAL_DMA_Abort(&hdma_tim2_up);
@@ -157,7 +181,6 @@ void readConfigFile(){
 
 void SysTick_CountUp(void)
 {
-  USART1->RQR |= USART_RQR_RXFRQ; // flush data register
   const uint8_t cLut[]= { cSegDecode0, cSegDecode1, cSegDecode2, cSegDecode3, cSegDecode4, cSegDecode5, cSegDecode6, cSegDecode7, cSegDecode8, cSegDecode9 };
 
   static uint8_t i=0, j=0, k=0;
@@ -269,7 +292,7 @@ int main(void)
   USART1->CR2 |= '\n'<<24;
   USART1->CR1 |= USART_CR1_UE;
 
-
+  HAL_UART_Receive_DMA(&huart1, nmea, sizeof(nmea));
 
   if (HAL_DMA_Start(&hdma_tim1_up, (uint32_t)buffer_c, (uint32_t)&GPIOC->ODR, 5) != HAL_OK)
   {

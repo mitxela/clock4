@@ -221,6 +221,7 @@ void DMA1_Channel2_IRQHandler(void)
 void DMA1_Channel5_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA1_Channel5_IRQn 0 */
+  if (DMA1->ISR & DMA_FLAG_TC5)  printf("overrun!");
 
   /* USER CODE END DMA1_Channel5_IRQn 0 */
   HAL_DMA_IRQHandler(&hdma_usart1_rx);
@@ -236,6 +237,7 @@ void DMA1_Channel6_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA1_Channel6_IRQn 0 */
 
+
   /* USER CODE END DMA1_Channel6_IRQn 0 */
   HAL_DMA_IRQHandler(&hdma_tim1_up);
   /* USER CODE BEGIN DMA1_Channel6_IRQn 1 */
@@ -246,14 +248,22 @@ void DMA1_Channel6_IRQHandler(void)
 /**
   * @brief This function handles USART1 global interrupt.
   */
+extern uint8_t nmea[90];
 void USART1_IRQHandler(void)
 {
   /* USER CODE BEGIN USART1_IRQn 0 */
 
+  if (nmea[0]=='$'
+   && nmea[1]=='G'
+   && nmea[3]=='R'
+   && nmea[4]=='M'
+   && nmea[5]=='C')
+    decodeNmeaString();
 
-  USART1->ICR |= USART_ICR_CMCF ;
+  HAL_UART_AbortReceive(&huart1);
+  HAL_UART_Receive_DMA(&huart1, nmea, sizeof(nmea));
 
-  printf("x");
+  USART1->ICR = USART_ICR_CMCF;
 
   /* USER CODE END USART1_IRQn 0 */
   //HAL_UART_IRQHandler(&huart1);
