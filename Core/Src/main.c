@@ -89,21 +89,38 @@ uint16_t buffer_b[1280] = {0};
 // NMEA 0183 messages have a max length of 82 characters
 uint8_t nmea[90];
 
-bcdStamp_t rmcTime;
+bcdStamp_t rmcBcd;
+struct tm rmcTm;
+time_t rmcTime;
 
-time_t bcdToTime(bcdStamp_t* in){
+time_t nextTime;
+bcdStamp_t nextBcd;
 
-  struct tm s;
+time_t bcdToTm(bcdStamp_t *in, struct tm *out ) {
+  out->tm_isdst = 0;
+  out->tm_sec = in->seconds + in->tenSeconds*10;
+  out->tm_min = in->minutes + in->tenMinutes*10;
+  out->tm_hour = in->hours + in->tenHours*10;
+  out->tm_mday = in->days + in->tenDays*10;
+  out->tm_mon = in->months + in->tenMonths*10 -1;
+  out->tm_year = in->years + in->tenYears*10 + 100; //Years since 1900
 
-  s.tm_isdst = 0;
-  s.tm_sec = in->seconds + in->tenSeconds*10;
-  s.tm_min = in->minutes + in->tenMinutes*10;
-  s.tm_hour = in->hours + in->tenHours*10;
-  s.tm_mday = in->days + in->tenDays*10;
-  s.tm_mon = in->months + in->tenMonths*10 -1;
-  s.tm_year = in->years + in->tenYears*10 + 100; //Years since 1900
-
-  return mktime(&s);
+  return mktime(out);
+}
+void tmToBcd(struct tm *in, bcdStamp_t *out ) {
+  out->tenYears   = (in->tm_year-100) / 10;
+  out->years      = (in->tm_year-100) % 10;
+  out->tenMonths  = (in->tm_mon+1) / 10;
+  out->months     = (in->tm_mon+1) % 10;
+  out->tenDays    = in->tm_mday / 10;
+  out->days       = in->tm_mday % 10;
+  out->tenHours   = in->tm_hour / 10;
+  out->hours      = in->tm_hour % 10;
+  out->tenMinutes = in->tm_min / 10;
+  out->minutes    = in->tm_min % 10;
+  out->tenSeconds = in->tm_sec / 10;
+  out->seconds    = in->tm_sec % 10;
+  printf("s%d\n", out->seconds);
 }
 
 void decodeRMC(void){
@@ -129,12 +146,12 @@ void decodeRMC(void){
 
   if (*c==',') {printf("time not present\n");return;}
 
-  rmcTime.tenHours   = *c++ -'0';
-  rmcTime.hours      = *c++ -'0';
-  rmcTime.tenMinutes = *c++ -'0';
-  rmcTime.minutes    = *c++ -'0';
-  rmcTime.tenSeconds = *c++ -'0';
-  rmcTime.seconds    = *c++ -'0';
+  rmcBcd.tenHours   = *c++ -'0';
+  rmcBcd.hours      = *c++ -'0';
+  rmcBcd.tenMinutes = *c++ -'0';
+  rmcBcd.minutes    = *c++ -'0';
+  rmcBcd.tenSeconds = *c++ -'0';
+  rmcBcd.seconds    = *c++ -'0';
   c++;
   if (*c!='0') printf("subseconds non-zero\n");
 
@@ -151,14 +168,21 @@ void decodeRMC(void){
 
   if (*c==',') {printf("date not present\n");return;}
 
-  rmcTime.tenDays    = *c++ -'0';
-  rmcTime.days       = *c++ -'0';
-  rmcTime.tenMonths  = *c++ -'0';
-  rmcTime.months     = *c++ -'0';
-  rmcTime.tenYears   = *c++ -'0';
-  rmcTime.years      = *c++ -'0';
+  rmcBcd.tenDays    = *c++ -'0';
+  rmcBcd.days       = *c++ -'0';
+  rmcBcd.tenMonths  = *c++ -'0';
+  rmcBcd.months     = *c++ -'0';
+  rmcBcd.tenYears   = *c++ -'0';
+  rmcBcd.years      = *c++ -'0';
 
-  printf("Unix: %u\n", (int) bcdToTime(&rmcTime)  );
+  rmcTime = bcdToTm( &rmcBcd, &rmcTm );
+
+  nextTime = rmcTime+1;
+  struct tm * nextTm = gmtime( &nextTime );
+
+  tmToBcd( nextTm, &nextBcd );
+
+
 }
 
 void setBrightness(uint32_t bright){
@@ -244,7 +268,18 @@ void SysTick_CountUp(void)
     if (j>=10) {
       j=0;
       k++;
-      if (k>=10) k=0;
+      if (k>=10) {
+        k=0;
+
+        buffer_c[0].low = cLut[nextBcd.seconds];
+
+        buffer_b[0] = bCat0 | cLut[nextBcd.tenHours]<<2;
+        buffer_b[1] = bCat1 | cLut[nextBcd.hours]<<2;
+        buffer_b[2] = bCat2 | cLut[nextBcd.tenMinutes]<<2;
+        buffer_b[3] = bCat3 | cLut[nextBcd.minutes]<<2;
+        buffer_b[4] = bCat4 | cLut[nextBcd.tenSeconds]<<2;
+
+      }
     }
   }
 
