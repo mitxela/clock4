@@ -78,6 +78,7 @@ static void MX_USART1_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+const uint8_t cLut[]= { cSegDecode0, cSegDecode1, cSegDecode2, cSegDecode3, cSegDecode4, cSegDecode5, cSegDecode6, cSegDecode7, cSegDecode8, cSegDecode9 };
 
 struct {
   uint8_t low;
@@ -95,6 +96,13 @@ time_t rmcTime;
 
 time_t nextTime;
 bcdStamp_t nextBcd;
+struct {
+  uint8_t c;
+  uint16_t b[5];
+} next7seg;
+
+uint8_t decisec=0, centisec=0, millisec=0;
+
 
 time_t bcdToTm(bcdStamp_t *in, struct tm *out ) {
   out->tm_isdst = 0;
@@ -120,7 +128,6 @@ void tmToBcd(struct tm *in, bcdStamp_t *out ) {
   out->minutes    = in->tm_min % 10;
   out->tenSeconds = in->tm_sec / 10;
   out->seconds    = in->tm_sec % 10;
-  printf("s%d\n", out->seconds);
 }
 
 void decodeRMC(void){
@@ -137,8 +144,6 @@ void decodeRMC(void){
 
   sprintf(nmea, "%02X", sum);
   if (nmea[0] != c[1] || nmea[1]!=c[2]) return; //checksum error
-
-  printf("RMC rec\n");
 
 #define nextField() while (*c!=',' && c!=end) c++; c++;
 
@@ -182,7 +187,13 @@ void decodeRMC(void){
 
   tmToBcd( nextTm, &nextBcd );
 
+  next7seg.c = cLut[nextBcd.seconds];
 
+  next7seg.b[0] = bCat0 | cLut[nextBcd.tenHours]<<2;
+  next7seg.b[1] = bCat1 | cLut[nextBcd.hours]<<2;
+  next7seg.b[2] = bCat2 | cLut[nextBcd.tenMinutes]<<2;
+  next7seg.b[3] = bCat3 | cLut[nextBcd.minutes]<<2;
+  next7seg.b[4] = bCat4 | cLut[nextBcd.tenSeconds]<<2;
 }
 
 void setBrightness(uint32_t bright){
@@ -254,38 +265,44 @@ void readConfigFile(){
    f_close(&file);
 }
 
+void EXTI9_5_IRQHandler(void)
+{
+  buffer_c[3].low=cLut[0];
+  buffer_c[2].low=cLut[0];
+  buffer_c[1].low=cLut[0];
+  loadNextTimestamp();
+  millisec=0;
+  centisec=0;
+  decisec=0;
+
+
+  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_7);
+
+}
 
 void SysTick_CountUp(void)
 {
-  const uint8_t cLut[]= { cSegDecode0, cSegDecode1, cSegDecode2, cSegDecode3, cSegDecode4, cSegDecode5, cSegDecode6, cSegDecode7, cSegDecode8, cSegDecode9 };
 
-  static uint8_t i=0, j=0, k=0;
 
-  i++;
-  if (i>=10) {
-    i=0;
-    j++;
-    if (j>=10) {
-      j=0;
-      k++;
-      if (k>=10) {
-        k=0;
+  millisec++;
+  if (millisec>=10) {
+    millisec=0;
+    centisec++;
+    if (centisec>=10) {
+      centisec=0;
+      decisec++;
+      if (decisec>=10) {
+        decisec=0;
 
-        buffer_c[0].low = cLut[nextBcd.seconds];
-
-        buffer_b[0] = bCat0 | cLut[nextBcd.tenHours]<<2;
-        buffer_b[1] = bCat1 | cLut[nextBcd.hours]<<2;
-        buffer_b[2] = bCat2 | cLut[nextBcd.tenMinutes]<<2;
-        buffer_b[3] = bCat3 | cLut[nextBcd.minutes]<<2;
-        buffer_b[4] = bCat4 | cLut[nextBcd.tenSeconds]<<2;
+        loadNextTimestamp();
 
       }
     }
   }
 
-  buffer_c[3].low=cLut[i];
-  buffer_c[2].low=cLut[j];
-  buffer_c[1].low=cLut[k];
+  buffer_c[3].low=cLut[millisec];
+  buffer_c[2].low=cLut[centisec];
+  buffer_c[1].low=cLut[decisec];
 
 
   HAL_IncTick();
@@ -294,8 +311,6 @@ void SysTick_CountUp(void)
 
 void SysTick_CountDown(void)
 {
-
-  const uint8_t cLut[]= { cSegDecode0, cSegDecode1, cSegDecode2, cSegDecode3, cSegDecode4, cSegDecode5, cSegDecode6, cSegDecode7, cSegDecode8, cSegDecode9 };
 
   static int8_t i=9, j=9, k=9;
 
@@ -776,8 +791,8 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15|GPIO_PIN_0 
                           |GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4 
-                          |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8 
-                          |GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12, GPIO_PIN_RESET);
+                          |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_8|GPIO_PIN_9 
+                          |GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14 
@@ -786,12 +801,12 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : PC13 PC14 PC15 PC0 
                            PC1 PC2 PC3 PC4 
-                           PC5 PC6 PC7 PC8 
-                           PC9 PC10 PC11 PC12 */
+                           PC5 PC6 PC8 PC9 
+                           PC10 PC11 PC12 */
   GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15|GPIO_PIN_0 
                           |GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4 
-                          |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8 
-                          |GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12;
+                          |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_8|GPIO_PIN_9 
+                          |GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -807,6 +822,16 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PC7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_7;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
 }
 

@@ -102,6 +102,15 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 void decodeRMC(void);
+
+#define loadNextTimestamp() \
+  buffer_c[0].low = next7seg.c; \
+  buffer_b[0] = next7seg.b[0]; \
+  buffer_b[1] = next7seg.b[1]; \
+  buffer_b[2] = next7seg.b[2]; \
+  buffer_b[3] = next7seg.b[3]; \
+  buffer_b[4] = next7seg.b[4];
+
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

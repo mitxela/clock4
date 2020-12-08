@@ -246,9 +246,13 @@ void DMA1_Channel6_IRQHandler(void)
 }
 
 /**
-  * @brief This function handles USART1 global interrupt.
+  * @brief This function handles EXTI line[9:5] interrupts.
   */
 
+
+/**
+  * @brief This function handles USART1 global interrupt.
+  */
 void USART1_IRQHandler(void)
 {
   /* USER CODE BEGIN USART1_IRQn 0 */
@@ -267,7 +271,6 @@ void USART1_IRQHandler(void)
   USART1->ICR = USART_ICR_CMCF;
 
   /* USER CODE END USART1_IRQn 0 */
-  //HAL_UART_IRQHandler(&huart1);
   /* USER CODE BEGIN USART1_IRQn 1 */
 
   /* USER CODE END USART1_IRQn 1 */
