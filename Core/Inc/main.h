@@ -38,6 +38,22 @@ extern "C" {
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
 
+typedef struct {
+  uint8_t tenYears;
+  uint8_t years;
+  uint8_t tenMonths;
+  uint8_t months;
+  uint8_t tenDays;
+  uint8_t days;
+
+  uint8_t tenHours;
+  uint8_t hours;
+  uint8_t tenMinutes;
+  uint8_t minutes;
+  uint8_t tenSeconds;
+  uint8_t seconds;
+} bcdStamp_t;
+
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
@@ -85,7 +101,7 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
-
+void decodeRMC(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

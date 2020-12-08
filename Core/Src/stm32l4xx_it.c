@@ -61,7 +61,7 @@ extern DMA_HandleTypeDef hdma_tim2_up;
 extern DMA_HandleTypeDef hdma_usart1_rx;
 extern UART_HandleTypeDef huart1;
 /* USER CODE BEGIN EV */
-
+extern uint8_t nmea[90];
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -248,17 +248,18 @@ void DMA1_Channel6_IRQHandler(void)
 /**
   * @brief This function handles USART1 global interrupt.
   */
-extern uint8_t nmea[90];
+
 void USART1_IRQHandler(void)
 {
   /* USER CODE BEGIN USART1_IRQn 0 */
 
+  // look for $GxRMC
   if (nmea[0]=='$'
    && nmea[1]=='G'
    && nmea[3]=='R'
    && nmea[4]=='M'
    && nmea[5]=='C')
-    decodeNmeaString();
+    decodeRMC();
 
   HAL_UART_AbortReceive(&huart1);
   HAL_UART_Receive_DMA(&huart1, nmea, sizeof(nmea));

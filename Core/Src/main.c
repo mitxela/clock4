@@ -27,6 +27,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include "retarget.h"
 #include "qspi_drv.h"
 #include "zonedetect.h"
@@ -88,25 +89,76 @@ uint16_t buffer_b[1280] = {0};
 // NMEA 0183 messages have a max length of 82 characters
 uint8_t nmea[90];
 
-void decodeNmeaString(void){
+bcdStamp_t rmcTime;
+
+time_t bcdToTime(bcdStamp_t* in){
+
+  struct tm s;
+
+  s.tm_isdst = 0;
+  s.tm_sec = in->seconds + in->tenSeconds*10;
+  s.tm_min = in->minutes + in->tenMinutes*10;
+  s.tm_hour = in->hours + in->tenHours*10;
+  s.tm_mday = in->days + in->tenDays*10;
+  s.tm_mon = in->months + in->tenMonths*10 -1;
+  s.tm_year = in->years + in->tenYears*10 + 100; //Years since 1900
+
+  return mktime(&s);
+}
+
+void decodeRMC(void){
 
   // do checksum
   uint8_t *c = &nmea[1], *end = &nmea[sizeof(nmea)];
   uint8_t sum=0;
 
-  while (*c !='*' && c!=end) {
+  while (*c !='*') {
     sum ^= *c;
     c++;
+    if(c==end) return; //checksum not found
   }
-  c[3]=0;
-  printf("str: %s\n", c);
-  printf("checksum: 0x%02X\n", sum);
 
   sprintf(nmea, "%02X", sum);
-  if (nmea[0] == c[1] && nmea[1]==c[2]) printf("woo!!\n");
-  else  printf("boo!!\n");
+  if (nmea[0] != c[1] || nmea[1]!=c[2]) return; //checksum error
 
+  printf("RMC rec\n");
 
+#define nextField() while (*c!=',' && c!=end) c++; c++;
+
+  c=&nmea[7]; // Time
+
+  if (*c==',') {printf("time not present\n");return;}
+
+  rmcTime.tenHours   = *c++ -'0';
+  rmcTime.hours      = *c++ -'0';
+  rmcTime.tenMinutes = *c++ -'0';
+  rmcTime.minutes    = *c++ -'0';
+  rmcTime.tenSeconds = *c++ -'0';
+  rmcTime.seconds    = *c++ -'0';
+  c++;
+  if (*c!='0') printf("subseconds non-zero\n");
+
+  nextField() // Navigation receiver warning
+  uint8_t fix = (*c=='A'?1:0);
+
+  nextField() // Latitude deg
+  nextField() // Latitude N/S
+  nextField() // Longitude  deg
+  nextField() // Longitude  E/W
+  nextField() // Speed over ground, Knots
+  nextField() // Course Made Good, True
+  nextField() // Date
+
+  if (*c==',') {printf("date not present\n");return;}
+
+  rmcTime.tenDays    = *c++ -'0';
+  rmcTime.days       = *c++ -'0';
+  rmcTime.tenMonths  = *c++ -'0';
+  rmcTime.months     = *c++ -'0';
+  rmcTime.tenYears   = *c++ -'0';
+  rmcTime.years      = *c++ -'0';
+
+  printf("Unix: %u\n", (int) bcdToTime(&rmcTime)  );
 }
 
 void setBrightness(uint32_t bright){
