@@ -104,7 +104,7 @@ struct {
 uint8_t decisec=0, centisec=0, millisec=0;
 
 struct {
-  time_t t;
+  uint32_t t;
   int16_t offset;
 } rules[162];
 
@@ -486,6 +486,7 @@ int main(void)
 
 
   char cat[14], zo[29];
+  temp:
   printf("Enter cat: ");
   scanf("%s", &cat);
   printf("Enter zone: ");
@@ -521,10 +522,11 @@ int main(void)
     printf("Could not find category\n");
     Error_Handler();
   }
-  f_read(&file, &buf, 3, &rc);
+  uint16_t catAddr;
+  f_read(&file, &catAddr, 2, &rc);
 
-  uint16_t catAddr = (buf[0]<<8) | buf[1];
-  uint8_t numZones = buf[2];
+  uint8_t numZones;
+  f_read(&file, &numZones, 1, &rc);
 
   printf("Cat addr %04X, %d\n", catAddr, numZones);
 
@@ -535,26 +537,28 @@ int main(void)
     Error_Handler();
   } else printf("found zone %04X\n", f_tell(&file));
 
-  f_read(&file, &buf, 4, &rc);
 
-  uint32_t zoAddr = (buf[0]<<16) | (buf[1]<<8) | buf[2];
-  uint8_t numEntries = buf[3];
 
+  uint32_t zoAddr;
+  f_read(&file, &zoAddr, 3, &rc);
+
+  uint8_t numEntries;
+  f_read(&file, &numEntries, 1, &rc);
+
+  printf("zoAddr 0x%X\n",zoAddr);
   f_lseek(&file, zoAddr);
 
   for (int i=0;i<numEntries;i++) {
-    f_read(&file, &buf, rowLength, &rc);
-    rules[i].t = (buf[0]<<32) | (buf[1]<<24) | (buf[2]<<16) | (buf[3]<<8) | buf[4];
-    rules[i].offset = (buf[5]<<8) | buf[6];
+    f_read(&file, &rules[i], rowLength, &rc);
   }
-  printf("rule 0: %d, %d\n", (uint32_t)rules[0].t, rules[0].offset);
-  printf("rule 11: %d, %d\n", (uint32_t)rules[11].t, rules[11].offset);
-  printf("rule 92: %ld, %d\n", (uint32_t)(rules[92].t>>32), rules[92].offset);
+  printf("rule 0: %lu, %d\n", rules[0].t, rules[0].offset);
+  printf("rule 11: %lu, %d\n", rules[11].t, rules[11].offset);
+  printf("rule 92: %lu, %d\n", rules[92].t, rules[11].offset);
 
   f_close(&file);
 
 
-
+goto temp;
 
 
 
