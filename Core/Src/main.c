@@ -107,7 +107,7 @@ struct {
   uint32_t t;
   int16_t offset;
 } rules[162];
-
+#define MAX_RULES (sizeof rules / sizeof rules[0])
 
 time_t bcdToTm(bcdStamp_t *in, struct tm *out ) {
   out->tm_isdst = 0;
@@ -188,6 +188,14 @@ void decodeRMC(void){
   rmcTime = bcdToTm( &rmcBcd, &rmcTm );
 
   nextTime = rmcTime+1;
+
+  int16_t offset = 0;
+  for (uint8_t i=0; i< MAX_RULES; i++) {
+    if (rules[i].t <= nextTime) offset=rules[i].offset;
+    else break;
+  }
+  nextTime += offset;
+
   struct tm * nextTm = gmtime( &nextTime );
 
   tmToBcd( nextTm, &nextBcd );
@@ -356,7 +364,7 @@ void SysTick_CountDown(void)
 
 
 
-uint8_t f_getzcmp(char * str, FIL* fp){
+uint8_t f_getzcmp(FIL* fp, char * str){
   unsigned int rc;
   char * a = str;
   char b[1] = {1};
@@ -371,12 +379,77 @@ uint8_t f_getzcmp(char * str, FIL* fp){
 uint8_t findField( FIL* fp, char* str, uint8_t count, uint8_t padding ) {
   char buf[4], rc;
   for (uint8_t i=0; i<count; i++) {
-    if (f_getzcmp( str, fp ) ==0) return 1;
+    if (f_getzcmp( fp, str ) ==0) return 1;
     f_read(fp, &buf, padding, &rc);
   }
   return 0;
 }
+uint8_t loadRules( char* cat, char* zo ) {
+  FIL file;
 
+  if (f_open(&file, "/TZRULES.BIN", FA_READ) != FR_OK) {
+    //printf("Could not open rules file\n");
+    return 1;
+  }
+
+  unsigned int rc;
+  char buf[7];
+
+  f_read(&file, &buf, 6, &rc);
+
+  if(memcmp(&buf, "MTZ", 3)) {
+    //printf("Error reading rules file\n");
+    return 2;
+  }
+  if (buf[3]!=1) {
+    //printf("version unknown\n");
+    return 3;
+  }
+  uint8_t rowLength=buf[4];
+  uint8_t numCats=buf[5];
+
+  if (findField( &file, cat, numCats, 3 ) ==0) {
+    //printf("Could not find category\n");
+    return 4;
+  }
+  uint16_t catAddr;
+  f_read(&file, &catAddr, 2, &rc);
+
+  uint8_t numZones;
+  f_read(&file, &numZones, 1, &rc);
+
+  //printf("Cat addr %04X, %d\n", catAddr, numZones);
+
+  f_lseek(&file, catAddr);
+
+  if (findField( &file, zo, numZones, 4 ) ==0) {
+    //printf("Could not find zone\n");
+    return 5;
+  }
+
+  //printf("found zone %04X\n", f_tell(&file));
+
+  uint32_t zoAddr = 0;
+  f_read(&file, &zoAddr, 3, &rc);
+
+  uint8_t numEntries;
+  f_read(&file, &numEntries, 1, &rc);
+
+  //printf("zoAddr 0x%X\n",zoAddr);
+  f_lseek(&file, zoAddr);
+
+  int i;
+  for (i=0;i<numEntries;i++) {
+    f_read(&file, &rules[i], rowLength, &rc);
+  }
+  while (i< MAX_RULES ) {
+    rules[i++].t=-1;
+  }
+
+  f_close(&file);
+
+  return 0;
+}
 
 /* USER CODE END 0 */
 
@@ -486,6 +559,7 @@ int main(void)
 
 
   char cat[14], zo[29];
+
   temp:
   printf("Enter cat: ");
   scanf("%s", &cat);
@@ -494,68 +568,10 @@ int main(void)
   printf("%s\n",&zo);
 
 
-
-  FIL file;
-
-  if (f_open(&file, "/TZRULES.BIN", FA_READ) != FR_OK) {
-    printf("Could not open rules file\n");
-    Error_Handler();
-  }
-
-  unsigned int rc;
-  char buf[7];
-
-  f_read(&file, &buf, 6, &rc);
-
-  if(memcmp(&buf, "MTZ", 3)) {
-    printf("Error reading rules file\n");
-    Error_Handler();
-  }
-  if (buf[3]!=1) {
-    printf("version unknown\n");
-    Error_Handler();
-  }
-  uint8_t rowLength=buf[4];
-  uint8_t numCats=buf[5];
-
-  if (findField( &file, &cat, numCats, 3 ) ==0) {
-    printf("Could not find category\n");
-    Error_Handler();
-  }
-  uint16_t catAddr;
-  f_read(&file, &catAddr, 2, &rc);
-
-  uint8_t numZones;
-  f_read(&file, &numZones, 1, &rc);
-
-  printf("Cat addr %04X, %d\n", catAddr, numZones);
-
-  f_lseek(&file, catAddr);
-
-  if (findField( &file, &zo, numZones, 4 ) ==0) {
-    printf("Could not find zone\n");
-    Error_Handler();
-  } else printf("found zone %04X\n", f_tell(&file));
-
-
-
-  uint32_t zoAddr;
-  f_read(&file, &zoAddr, 3, &rc);
-
-  uint8_t numEntries;
-  f_read(&file, &numEntries, 1, &rc);
-
-  printf("zoAddr 0x%X\n",zoAddr);
-  f_lseek(&file, zoAddr);
-
-  for (int i=0;i<numEntries;i++) {
-    f_read(&file, &rules[i], rowLength, &rc);
-  }
+  printf("loading.. %d\n", loadRules( cat, zo ));
   printf("rule 0: %lu, %d\n", rules[0].t, rules[0].offset);
   printf("rule 11: %lu, %d\n", rules[11].t, rules[11].offset);
   printf("rule 92: %lu, %d\n", rules[92].t, rules[11].offset);
-
-  f_close(&file);
 
 
 goto temp;
@@ -564,7 +580,7 @@ goto temp;
 
 
 
-  //FIL file;
+  FIL file;
 
   if (f_open(&file, "/TZMAP.BIN", FA_READ) != FR_OK) {
     printf("Could not open tzmap\n");
