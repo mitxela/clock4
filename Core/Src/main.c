@@ -103,6 +103,11 @@ struct {
 
 uint8_t decisec=0, centisec=0, millisec=0;
 
+struct {
+  time_t t;
+  int16_t offset;
+} rules[162];
+
 
 time_t bcdToTm(bcdStamp_t *in, struct tm *out ) {
   out->tm_isdst = 0;
@@ -265,8 +270,12 @@ void readConfigFile(){
    f_close(&file);
 }
 
+
+
 void EXTI9_5_IRQHandler(void)
 {
+  SysTick->VAL = SysTick->LOAD;
+
   buffer_c[3].low=cLut[0];
   buffer_c[2].low=cLut[0];
   buffer_c[1].low=cLut[0];
@@ -275,10 +284,16 @@ void EXTI9_5_IRQHandler(void)
   centisec=0;
   decisec=0;
 
+  //int y =  SysTick->VAL;
+  //printf("%d\n",x);
+
+  // clear systick flag if set?
 
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_7);
 
 }
+
+//int tsysticks = 0;
 
 void SysTick_CountUp(void)
 {
@@ -306,7 +321,8 @@ void SysTick_CountUp(void)
 
 
   HAL_IncTick();
-
+  //tsysticks++;
+  //if (millisec==0 && centisec==0 && decisec==0) printf("zeros: %d\n", tsysticks);
 }
 
 void SysTick_CountDown(void)
@@ -337,6 +353,30 @@ void SysTick_CountDown(void)
 
 
 #define SetSysTick(x) *((uint32_t *)0x2000003C) = (uint32_t)x
+
+
+
+uint8_t f_getzcmp(char * str, FIL* fp){
+  unsigned int rc;
+  char * a = str;
+  char b[1] = {1};
+  uint8_t ret = 0;
+
+  while (b[0]!=0) {
+    f_read(fp, &b, 1, &rc);
+    if (b[0] != *a++) ret=-1;
+  }
+  return ret;
+}
+uint8_t findField( FIL* fp, char* str, uint8_t count, uint8_t padding ) {
+  char buf[4], rc;
+  for (uint8_t i=0; i<count; i++) {
+    if (f_getzcmp( str, fp ) ==0) return 1;
+    f_read(fp, &buf, padding, &rc);
+  }
+  return 0;
+}
+
 
 /* USER CODE END 0 */
 
@@ -445,11 +485,82 @@ int main(void)
 
 
 
-
+  char cat[14], zo[29];
+  printf("Enter cat: ");
+  scanf("%s", &cat);
+  printf("Enter zone: ");
+  scanf("%s", &zo);
+  printf("%s\n",&zo);
 
 
 
   FIL file;
+
+  if (f_open(&file, "/TZRULES.BIN", FA_READ) != FR_OK) {
+    printf("Could not open rules file\n");
+    Error_Handler();
+  }
+
+  unsigned int rc;
+  char buf[7];
+
+  f_read(&file, &buf, 6, &rc);
+
+  if(memcmp(&buf, "MTZ", 3)) {
+    printf("Error reading rules file\n");
+    Error_Handler();
+  }
+  if (buf[3]!=1) {
+    printf("version unknown\n");
+    Error_Handler();
+  }
+  uint8_t rowLength=buf[4];
+  uint8_t numCats=buf[5];
+
+  if (findField( &file, &cat, numCats, 3 ) ==0) {
+    printf("Could not find category\n");
+    Error_Handler();
+  }
+  f_read(&file, &buf, 3, &rc);
+
+  uint16_t catAddr = (buf[0]<<8) | buf[1];
+  uint8_t numZones = buf[2];
+
+  printf("Cat addr %04X, %d\n", catAddr, numZones);
+
+  f_lseek(&file, catAddr);
+
+  if (findField( &file, &zo, numZones, 4 ) ==0) {
+    printf("Could not find zone\n");
+    Error_Handler();
+  } else printf("found zone %04X\n", f_tell(&file));
+
+  f_read(&file, &buf, 4, &rc);
+
+  uint32_t zoAddr = (buf[0]<<16) | (buf[1]<<8) | buf[2];
+  uint8_t numEntries = buf[3];
+
+  f_lseek(&file, zoAddr);
+
+  for (int i=0;i<numEntries;i++) {
+    f_read(&file, &buf, rowLength, &rc);
+    rules[i].t = (buf[0]<<32) | (buf[1]<<24) | (buf[2]<<16) | (buf[3]<<8) | buf[4];
+    rules[i].offset = (buf[5]<<8) | buf[6];
+  }
+  printf("rule 0: %d, %d\n", (uint32_t)rules[0].t, rules[0].offset);
+  printf("rule 11: %d, %d\n", (uint32_t)rules[11].t, rules[11].offset);
+  printf("rule 92: %ld, %d\n", (uint32_t)(rules[92].t>>32), rules[92].offset);
+
+  f_close(&file);
+
+
+
+
+
+
+
+
+  //FIL file;
 
   if (f_open(&file, "/TZMAP.BIN", FA_READ) != FR_OK) {
     printf("Could not open tzmap\n");
@@ -471,15 +582,15 @@ int main(void)
     scanf("%s", &str);
     printf("%s\n",&str);
     lat = (float)atof(str);
-    Error_Handler();
-    SetSysTick( &SysTick_CountDown );
+
+    //SetSysTick( &SysTick_CountDown );
 
     printf("Enter longitude: ");
     scanf("%s", &str);
     printf("%s\n",&str);
     lon = (float)atof(str);
 
-    setBrightness(1280);
+    //setBrightness(1280);
 
     uint32_t start = HAL_GetTick();
     printf("IANA Timezone is [%s]\n", ZDHelperSimpleLookupString(cd, lat, lon));
@@ -505,13 +616,11 @@ void SystemClock_Config(void)
 
   /** Initializes the CPU, AHB and APB busses clocks 
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
-  RCC_OscInitStruct.MSIState = RCC_MSI_ON;
-  RCC_OscInitStruct.MSICalibrationValue = 0;
-  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
-  RCC_OscInitStruct.PLL.PLLM = 1;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = 5;
   RCC_OscInitStruct.PLL.PLLN = 40;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
   RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
@@ -538,8 +647,8 @@ void SystemClock_Config(void)
   PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
   PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
   PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLLSAI1;
-  PeriphClkInit.PLLSAI1.PLLSAI1Source = RCC_PLLSOURCE_MSI;
-  PeriphClkInit.PLLSAI1.PLLSAI1M = 1;
+  PeriphClkInit.PLLSAI1.PLLSAI1Source = RCC_PLLSOURCE_HSE;
+  PeriphClkInit.PLLSAI1.PLLSAI1M = 5;
   PeriphClkInit.PLLSAI1.PLLSAI1N = 24;
   PeriphClkInit.PLLSAI1.PLLSAI1P = RCC_PLLP_DIV7;
   PeriphClkInit.PLLSAI1.PLLSAI1Q = RCC_PLLQ_DIV2;
@@ -785,6 +894,7 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
