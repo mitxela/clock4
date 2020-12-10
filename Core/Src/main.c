@@ -450,7 +450,12 @@ uint8_t loadRules( char* cat, char* zo ) {
 
   return 0;
 }
-
+uint8_t loadRulesSingle(char * str){
+  char * zo = str;
+  while (*zo && *zo != '/') zo++;
+  *zo=0; zo++;
+  return loadRules( str, zo );
+}
 /* USER CODE END 0 */
 
 /**
@@ -558,6 +563,8 @@ int main(void)
 
 
 
+
+/*
   char cat[14], zo[29];
 
   temp:
@@ -566,16 +573,21 @@ int main(void)
   printf("Enter zone: ");
   scanf("%s", &zo);
   printf("%s\n",&zo);
+*/
+/*
+  temp:
+  printf("Enter tz: ");
+  char str[48];
+  scanf("%s", &str);
 
-
-  printf("loading.. %d\n", loadRules( cat, zo ));
+  printf("loading.. %d\n", loadRulesSingle(&str) );
   printf("rule 0: %lu, %d\n", rules[0].t, rules[0].offset);
   printf("rule 11: %lu, %d\n", rules[11].t, rules[11].offset);
   printf("rule 92: %lu, %d\n", rules[92].t, rules[11].offset);
 
 
 goto temp;
-
+*/
 
 
 
@@ -587,6 +599,13 @@ goto temp;
     Error_Handler();
   }
   ZoneDetect *const cd = ZDOpenDatabase(&file);
+
+
+
+
+
+
+
 
   /* USER CODE END 2 */
 
@@ -603,18 +622,22 @@ goto temp;
     printf("%s\n",&str);
     lat = (float)atof(str);
 
-    //SetSysTick( &SysTick_CountDown );
 
     printf("Enter longitude: ");
     scanf("%s", &str);
     printf("%s\n",&str);
     lon = (float)atof(str);
 
-    //setBrightness(1280);
+
 
     uint32_t start = HAL_GetTick();
-    printf("IANA Timezone is [%s]\n", ZDHelperSimpleLookupString(cd, lat, lon));
+    char* zone = ZDHelperSimpleLookupString(cd, lat, lon);
+
+    printf("IANA Timezone is [%s]\n", zone);
     printf("Took %lu ms\n", (HAL_GetTick()-start));
+
+    loadRulesSingle(zone);
+    free(zone);
 
 
     /* USER CODE END WHILE */
