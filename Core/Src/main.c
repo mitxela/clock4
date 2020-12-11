@@ -105,7 +105,7 @@ uint8_t decisec=0, centisec=0, millisec=0;
 
 struct {
   uint32_t t;
-  int16_t offset;
+  int32_t offset;
 } rules[162];
 #define MAX_RULES (sizeof rules / sizeof rules[0])
 
@@ -189,11 +189,12 @@ void decodeRMC(void){
 
   nextTime = rmcTime+1;
 
-  int16_t offset = 0;
+  int32_t offset = 0;
   for (uint8_t i=0; i< MAX_RULES; i++) {
     if (rules[i].t <= nextTime) offset=rules[i].offset;
     else break;
   }
+
   nextTime += offset;
 
   struct tm * nextTm = gmtime( &nextTime );
@@ -377,7 +378,8 @@ uint8_t f_getzcmp(FIL* fp, char * str){
   return ret;
 }
 uint8_t findField( FIL* fp, char* str, uint8_t count, uint8_t padding ) {
-  char buf[4], rc;
+  char buf[4];
+  unsigned int rc;
   for (uint8_t i=0; i<count; i++) {
     if (f_getzcmp( fp, str ) ==0) return 1;
     f_read(fp, &buf, padding, &rc);
@@ -393,9 +395,9 @@ uint8_t loadRules( char* cat, char* zo ) {
   }
 
   unsigned int rc;
-  char buf[7];
+  char buf[4];
 
-  f_read(&file, &buf, 6, &rc);
+  f_read(&file, &buf, 4, &rc);
 
   if(memcmp(&buf, "MTZ", 3)) {
     //printf("Error reading rules file\n");
@@ -405,8 +407,12 @@ uint8_t loadRules( char* cat, char* zo ) {
     //printf("version unknown\n");
     return 3;
   }
-  uint8_t rowLength=buf[4];
-  uint8_t numCats=buf[5];
+
+  uint8_t rowLength;
+  f_read(&file, &rowLength, 1, &rc);
+
+  uint8_t numCats;
+  f_read(&file, &numCats, 1, &rc);
 
   if (findField( &file, cat, numCats, 3 ) ==0) {
     //printf("Could not find category\n");
