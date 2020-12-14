@@ -90,10 +90,6 @@ uint16_t buffer_b[1280] = {0};
 // NMEA 0183 messages have a max length of 82 characters
 uint8_t nmea[90];
 
-bcdStamp_t rmcBcd;
-struct tm rmcTm;
-time_t rmcTime;
-
 time_t nextTime;
 bcdStamp_t nextBcd;
 struct {
@@ -103,11 +99,37 @@ struct {
 
 uint8_t decisec=0, centisec=0, millisec=0;
 
+float longitude=-9999, latitude=-9999;
+uint8_t data_valid =0, had_pps=0;
+
 struct {
   uint32_t t;
   int32_t offset;
 } rules[162];
 #define MAX_RULES (sizeof rules / sizeof rules[0])
+
+void setNextTimestamp(time_t nextTime){
+
+  int32_t offset = 0;
+  for (uint8_t i=0; i< MAX_RULES; i++) {
+    if (rules[i].t <= nextTime) offset=rules[i].offset;
+    else break;
+  }
+
+  nextTime += offset;
+
+  struct tm * nextTm = gmtime( &nextTime );
+
+  tmToBcd( nextTm, &nextBcd );
+
+  next7seg.c = cLut[nextBcd.seconds];
+
+  next7seg.b[0] = bCat0 | cLut[nextBcd.tenHours]<<2;
+  next7seg.b[1] = bCat1 | cLut[nextBcd.hours]<<2;
+  next7seg.b[2] = bCat2 | cLut[nextBcd.tenMinutes]<<2;
+  next7seg.b[3] = bCat3 | cLut[nextBcd.minutes]<<2;
+  next7seg.b[4] = bCat4 | cLut[nextBcd.tenSeconds]<<2;
+}
 
 time_t bcdToTm(bcdStamp_t *in, struct tm *out ) {
   out->tm_isdst = 0;
@@ -141,8 +163,13 @@ void decodeRMC(void){
   uint8_t *c = &nmea[1], *end = &nmea[sizeof(nmea)];
   uint8_t sum=0;
 
+  bcdStamp_t rmcBcd;
+  struct tm rmcTm;
+  time_t rmcTime;
+
   while (*c !='*') {
     sum ^= *c;
+    if (*c==',') *c=0;
     c++;
     if(c==end) return; //checksum not found
   }
@@ -150,11 +177,11 @@ void decodeRMC(void){
   sprintf(nmea, "%02X", sum);
   if (nmea[0] != c[1] || nmea[1]!=c[2]) return; //checksum error
 
-#define nextField() while (*c!=',' && c!=end) c++; c++;
+#define nextField() while (*c && c!=end) c++; c++;
 
   c=&nmea[7]; // Time
 
-  if (*c==',') {printf("time not present\n");return;}
+  if (*c==0) return; // time not present
 
   rmcBcd.tenHours   = *c++ -'0';
   rmcBcd.hours      = *c++ -'0';
@@ -162,21 +189,37 @@ void decodeRMC(void){
   rmcBcd.minutes    = *c++ -'0';
   rmcBcd.tenSeconds = *c++ -'0';
   rmcBcd.seconds    = *c++ -'0';
-  c++;
-  if (*c!='0') printf("subseconds non-zero\n");
 
+  if (*c++ =='.') { // subseconds not always present
+    if (*c!='0') printf("subseconds non-zero: %s\n", c);
+  }
   nextField() // Navigation receiver warning
-  uint8_t fix = (*c=='A'?1:0);
+  data_valid = (*c=='A'?1:0);
 
   nextField() // Latitude deg
+  if (*c){
+    latitude =  (float)(*c++ -'0')*10.0;
+    latitude += (float)(*c++ -'0');
+    latitude += (float)atof(c) / 60.0;
+  }
   nextField() // Latitude N/S
+  if (*c =='S') latitude =-latitude;
+
   nextField() // Longitude  deg
+  if (*c){
+    longitude =  (float)(*c++ -'0')*100.0;
+    longitude += (float)(*c++ -'0')*10.0;
+    longitude += (float)(*c++ -'0');
+    longitude += (float)atof(c) / 60.0;
+  }
   nextField() // Longitude  E/W
+  if (*c == 'W') longitude =-longitude;
+
   nextField() // Speed over ground, Knots
   nextField() // Course Made Good, True
   nextField() // Date
 
-  if (*c==',') {printf("date not present\n");return;}
+  if (*c==0) return; // date not present
 
   rmcBcd.tenDays    = *c++ -'0';
   rmcBcd.days       = *c++ -'0';
@@ -187,27 +230,9 @@ void decodeRMC(void){
 
   rmcTime = bcdToTm( &rmcBcd, &rmcTm );
 
-  nextTime = rmcTime+1;
+  if ( data_valid || !had_pps )
+    setNextTimestamp( rmcTime+1 );
 
-  int32_t offset = 0;
-  for (uint8_t i=0; i< MAX_RULES; i++) {
-    if (rules[i].t <= nextTime) offset=rules[i].offset;
-    else break;
-  }
-
-  nextTime += offset;
-
-  struct tm * nextTm = gmtime( &nextTime );
-
-  tmToBcd( nextTm, &nextBcd );
-
-  next7seg.c = cLut[nextBcd.seconds];
-
-  next7seg.b[0] = bCat0 | cLut[nextBcd.tenHours]<<2;
-  next7seg.b[1] = bCat1 | cLut[nextBcd.hours]<<2;
-  next7seg.b[2] = bCat2 | cLut[nextBcd.tenMinutes]<<2;
-  next7seg.b[3] = bCat3 | cLut[nextBcd.minutes]<<2;
-  next7seg.b[4] = bCat4 | cLut[nextBcd.tenSeconds]<<2;
 }
 
 void setBrightness(uint32_t bright){
@@ -280,7 +305,7 @@ void readConfigFile(){
 }
 
 
-
+// PPS rising edge
 void EXTI9_5_IRQHandler(void)
 {
   SysTick->VAL = SysTick->LOAD;
@@ -298,6 +323,7 @@ void EXTI9_5_IRQHandler(void)
 
   // clear systick flag if set?
 
+  had_pps = 1;
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_7);
 
 }
@@ -619,32 +645,31 @@ goto temp;
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+/*
     char str[20];
 
-    float lon, lat;
+    float bri;
 
-    printf("Enter latitude: ");
+    printf("Enter brightness: ");
     scanf("%s", &str);
     printf("%s\n",&str);
-    lat = (float)atof(str);
+    bri = (float)atof(str);
+    setBrightness((int)bri);
 
+*/
 
-    printf("Enter longitude: ");
-    scanf("%s", &str);
-    printf("%s\n",&str);
-    lon = (float)atof(str);
+    if (data_valid && latitude>=-90.0 && latitude<=90.0 && longitude>=-180.0 && longitude<=180.0) {
 
+      uint32_t start = HAL_GetTick();
+      char* zone = ZDHelperSimpleLookupString(cd, latitude, longitude);
 
+      printf("IANA Timezone is [%s]\n", zone);
+      printf("Took %lu ms\n", (HAL_GetTick()-start));
 
-    uint32_t start = HAL_GetTick();
-    char* zone = ZDHelperSimpleLookupString(cd, lat, lon);
-
-    printf("IANA Timezone is [%s]\n", zone);
-    printf("Took %lu ms\n", (HAL_GetTick()-start));
-
-    loadRulesSingle(zone);
-    free(zone);
-
+      loadRulesSingle(zone);
+      free(zone);
+      HAL_Delay(2000);
+    }
 
     /* USER CODE END WHILE */
 
@@ -769,7 +794,7 @@ static void MX_TIM1_Init(void)
   htim1.Instance = TIM1;
   htim1.Init.Prescaler = 0;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 64;
+  htim1.Init.Period = 256;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -816,7 +841,7 @@ static void MX_TIM2_Init(void)
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 0;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 64;
+  htim2.Init.Period = 256;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
