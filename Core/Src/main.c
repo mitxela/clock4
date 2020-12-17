@@ -51,6 +51,8 @@
 ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
 
+DAC_HandleTypeDef hdac1;
+
 QSPI_HandleTypeDef hqspi;
 
 TIM_HandleTypeDef htim1;
@@ -78,6 +80,7 @@ static void MX_USART1_UART_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_DAC1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -544,6 +547,7 @@ int main(void)
   MX_TIM4_Init();
   MX_TIM2_Init();
   MX_ADC1_Init();
+  MX_DAC1_Init();
   /* USER CODE BEGIN 2 */
   RetargetInit(&huart2);
 
@@ -566,7 +570,7 @@ int main(void)
     Error_Handler();
   }
 
-  if (HAL_ADC_Start_DMA(&hadc1, (uint32_t*)buffer_adc, 100) != HAL_OK) {
+  if (HAL_ADC_Start_DMA(&hadc1, (uint32_t*)buffer_adc, 40) != HAL_OK) {
     Error_Handler();
   }
 
@@ -579,7 +583,7 @@ int main(void)
 
   //__HAL_TIM_ENABLE(&htim2);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
-  TIM2->CCR1 = 6000;
+  TIM2->CCR1 = 5000;
 
   HAL_TIM_OC_Start(&htim2, TIM_CHANNEL_2);
   TIM2->CCR2 = 4000;
@@ -590,7 +594,7 @@ int main(void)
   buffer_c[2].high=0b11011011;
   buffer_c[3].high=0b11010111;
   buffer_c[4].high=0b11001111;
-  buffer_c[0].low=cSegDecode1;
+  buffer_c[0].low=cSegDecode6;
   buffer_c[1].low=cSegDecode3;
   buffer_c[2].low=cSegDecode5;
   buffer_c[3].low=cSegDecode7;
@@ -599,14 +603,13 @@ int main(void)
 
 
 
+  next7seg.c = buffer_c[0].low;
 
-
-
-  buffer_b[0] = bCat0 | bSegDecode2;
-  buffer_b[1] = bCat1 | bSegDecode4;
-  buffer_b[2] = bCat2 | bSegDecode6;
-  buffer_b[3] = bCat3 | bSegDecode8;
-  buffer_b[4] = bCat4 | bSegDecode0;
+  next7seg.b[0] = buffer_b[0] = bCat0 | bSegDecode1;
+  next7seg.b[1] = buffer_b[1] = bCat1 | bSegDecode2;
+  next7seg.b[2] = buffer_b[2] = bCat2 | bSegDecode3;
+  next7seg.b[3] = buffer_b[3] = bCat3 | bSegDecode4;
+  next7seg.b[4] = buffer_b[4] = bCat4 | bSegDecode5;
 
   setBrightness(5);
 
@@ -642,7 +645,21 @@ int main(void)
 
 goto temp;
 */
+  int dac = 0;
+  while (1){
 
+    TIM2->CCR1 = 5000;
+
+    //HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, dac);
+
+    //if (++dac>4095) dac=0;
+
+    HAL_Delay(1000);
+    TIM2->CCR1 = 10000;
+
+
+    HAL_Delay(1000);
+  }
 
 
 
@@ -828,6 +845,55 @@ static void MX_ADC1_Init(void)
 }
 
 /**
+  * @brief DAC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_DAC1_Init(void)
+{
+
+  /* USER CODE BEGIN DAC1_Init 0 */
+
+  /* USER CODE END DAC1_Init 0 */
+
+  DAC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN DAC1_Init 1 */
+
+  /* USER CODE END DAC1_Init 1 */
+  /** DAC Initialization 
+  */
+  hdac1.Instance = DAC1;
+  if (HAL_DAC_Init(&hdac1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** DAC channel OUT1 config 
+  */
+  sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
+  sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
+  sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
+  sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_DISABLE;
+  sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
+  if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN DAC1_Init 2 */
+  if (HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 4095) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  if (HAL_DAC_Start(&hdac1, DAC_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE END DAC1_Init 2 */
+
+}
+
+/**
   * @brief QUADSPI Initialization Function
   * @param None
   * @retval None
@@ -926,9 +992,9 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 10;
+  htim2.Init.Prescaler = 8;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 8000;
+  htim2.Init.Period = 10000;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
@@ -1116,24 +1182,24 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15|GPIO_PIN_0 
-                          |GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4 
-                          |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_8|GPIO_PIN_9 
-                          |GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13|GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2 
+                          |GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6 
+                          |GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11 
+                          |GPIO_PIN_12, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14 
                           |GPIO_PIN_15|GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5 
                           |GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PC13 PC14 PC15 PC0 
-                           PC1 PC2 PC3 PC4 
-                           PC5 PC6 PC8 PC9 
-                           PC10 PC11 PC12 */
-  GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15|GPIO_PIN_0 
-                          |GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4 
-                          |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_8|GPIO_PIN_9 
-                          |GPIO_PIN_10|GPIO_PIN_11|GPIO_PIN_12;
+  /*Configure GPIO pins : PC13 PC0 PC1 PC2 
+                           PC3 PC4 PC5 PC6 
+                           PC8 PC9 PC10 PC11 
+                           PC12 */
+  GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2 
+                          |GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6 
+                          |GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11 
+                          |GPIO_PIN_12;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;

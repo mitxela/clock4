@@ -23,6 +23,7 @@
 #include "stm32l4xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <math.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -64,6 +65,7 @@ extern UART_HandleTypeDef huart1;
 /* USER CODE BEGIN EV */
 extern uint8_t nmea[90];
 extern uint16_t buffer_adc[100];
+extern DAC_HandleTypeDef hdac1;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -209,13 +211,23 @@ void SysTick_Handler(void)
 void DMA1_Channel1_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA1_Channel1_IRQn 0 */
+  static float dac = 0;
 
   if (DMA1->ISR & DMA_FLAG_TC1) {
     unsigned int sum = 0;
-    for (int i=0;i<100;i++) {
+    for (int i=0;i<40;i++) {
       sum += buffer_adc[i];
     }
-    printf("ADC %d\n",sum);
+    printf("ADC %d\n", sum);
+
+    dac = dac*0.7 + ((float)sum)*0.3 *(1/40.0);
+
+
+    HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R,
+        //(uint32_t)(13.0-logf((float)(sum +1)) * 4095.0/13.0)
+        4095 - (int)dac
+    );
+
     }
 
   /* USER CODE END DMA1_Channel1_IRQn 0 */
