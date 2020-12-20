@@ -58,14 +58,17 @@
 /* External variables --------------------------------------------------------*/
 extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
 extern DMA_HandleTypeDef hdma_adc1;
+extern DMA_HandleTypeDef hdma_dac_ch1;
 extern DMA_HandleTypeDef hdma_tim1_up;
 extern DMA_HandleTypeDef hdma_tim4_up;
 extern DMA_HandleTypeDef hdma_usart1_rx;
 extern UART_HandleTypeDef huart1;
 /* USER CODE BEGIN EV */
 extern uint8_t nmea[90];
-extern uint16_t buffer_adc[100];
+extern uint16_t buffer_adc[ADC_BUFFER_SIZE];
+extern uint16_t buffer_dac[DAC_BUFFER_SIZE];
 extern DAC_HandleTypeDef hdac1;
+extern float dac_target;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -211,30 +214,91 @@ void SysTick_Handler(void)
 void DMA1_Channel1_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA1_Channel1_IRQn 0 */
-  static float dac = 0;
+  //static float dac = 0;
+
+  const struct {
+    float in;
+    float out;
+  } brightnessCurve[] = {
+
+   {0.0, 3450},
+   {0.0625, 3000},
+   {0.125,2700},
+   {0.25, 2200},
+   {0.5, 1500},
+   {1.0, 0},
+
+  };
 
   if (DMA1->ISR & DMA_FLAG_TC1) {
     unsigned int sum = 0;
-    for (int i=0;i<40;i++) {
+    for (int i=0;i<ADC_BUFFER_SIZE;i++) {
       sum += buffer_adc[i];
     }
     printf("ADC %d\n", sum);
 
-    dac = dac*0.7 + ((float)sum)*0.3 *(1/40.0);
+    float avg = ((float)sum) * (1.0 /(float)ADC_BUFFER_SIZE /4095.0);
 
-
-    HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R,
-        //(uint32_t)(13.0-logf((float)(sum +1)) * 4095.0/13.0)
-        4095 - (int)dac
-    );
-
+    uint8_t i;
+    for (i=1; i< sizeof(brightnessCurve)/sizeof(brightnessCurve[0]) -1; i++){
+      if (brightnessCurve[i].in > avg) break;
     }
+    float factor = (avg - brightnessCurve[i-1].in) / (brightnessCurve[i].in - brightnessCurve[i-1].in);
+
+    float out = brightnessCurve[i-1].out*(1.0-factor) + brightnessCurve[i].out*factor;
+
+    dac_target = dac_target*0.5 + out*0.5;
+
+
+    DMA1->IFCR = DMA_ISR_TCIF1;
+    return;
+  }
 
   /* USER CODE END DMA1_Channel1_IRQn 0 */
   HAL_DMA_IRQHandler(&hdma_adc1);
   /* USER CODE BEGIN DMA1_Channel1_IRQn 1 */
 
   /* USER CODE END DMA1_Channel1_IRQn 1 */
+}
+
+/**
+  * @brief This function handles DMA1 channel3 global interrupt.
+  */
+void DMA1_Channel3_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA1_Channel3_IRQn 0 */
+
+  static float dac_last=0;
+
+  if (DMA1->ISR & DMA_FLAG_HT3) {
+
+    float step = (dac_target-dac_last)/(DAC_BUFFER_SIZE*0.5);
+    for (int i=DAC_BUFFER_SIZE/2; i<DAC_BUFFER_SIZE; i++) {
+      buffer_dac[i]= (uint16_t)(dac_last += step);
+    }
+    dac_last=dac_target;
+
+    DMA1->IFCR = DMA_ISR_HTIF3;
+    return;
+
+  } else if (DMA1->ISR & DMA_FLAG_TC3) {
+
+    float step = (dac_target-dac_last)/(DAC_BUFFER_SIZE*0.5);
+    for (int i=0; i<DAC_BUFFER_SIZE/2; i++) {
+      buffer_dac[i]= (uint16_t)(dac_last += step);
+    }
+    dac_last=dac_target;
+
+    DMA1->IFCR = DMA_ISR_TCIF3;
+    return;
+  }
+
+
+  /* USER CODE END DMA1_Channel3_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_dac_ch1);
+  /* USER CODE BEGIN DMA1_Channel3_IRQn 1 */
+
+  /* USER CODE END DMA1_Channel3_IRQn 1 */
 }
 
 /**

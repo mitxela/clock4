@@ -90,6 +90,11 @@ typedef struct {
 #define bCat4 0b0111001000000000
 
 
+// ADC timer is 1000Hz, interrupt at TC
+// DAC timer is 100Hz, interrupt at HT and TC
+#define DAC_BUFFER_SIZE 20
+#define ADC_BUFFER_SIZE 50
+
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
