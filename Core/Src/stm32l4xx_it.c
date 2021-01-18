@@ -249,6 +249,7 @@ void DMA1_Channel1_IRQHandler(void)
 
     dac_target = dac_target*0.5 + out*0.5;
 
+    TIM2->CCR1 = 10000-3500+out;
 
     DMA1->IFCR = DMA_ISR_TCIF1;
     return;
