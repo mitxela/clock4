@@ -5,7 +5,7 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; COPYRIGHT(c) 2020 STMicroelectronics</center></h2>
+  * <h2><center>&copy; COPYRIGHT(c) 2021 STMicroelectronics</center></h2>
   *
   * Redistribution and use in source and binary forms, with or without modification,
   * are permitted provided that the following conditions are met:
@@ -81,7 +81,7 @@
 /*#define HAL_QSPI_MODULE_ENABLED   */
 #define HAL_QSPI_MODULE_ENABLED
 /*#define HAL_RNG_MODULE_ENABLED   */
-/*#define HAL_RTC_MODULE_ENABLED   */
+#define HAL_RTC_MODULE_ENABLED
 /*#define HAL_SAI_MODULE_ENABLED   */
 /*#define HAL_SD_MODULE_ENABLED   */
 /*#define HAL_SMBUS_MODULE_ENABLED   */

@@ -221,11 +221,11 @@ void DMA1_Channel1_IRQHandler(void)
     float out;
   } brightnessCurve[] = {
 
-   {0.0, 3450},
-   {0.0625, 3000},
-   {0.125,2700},
-   {0.25, 2200},
-   {0.5, 1500},
+   {0.0, 4095},
+   //{0.0625, 3000},
+  // {0.125,2700},
+  // {0.25, 2200},
+  // {0.5, 1500},
    {1.0, 0},
 
   };
@@ -249,7 +249,7 @@ void DMA1_Channel1_IRQHandler(void)
 
     dac_target = dac_target*0.5 + out*0.5;
 
-    TIM2->CCR1 = 10000-3500+out;
+    TIM2->CCR1 = 10000-4096+out;
 
     DMA1->IFCR = DMA_ISR_TCIF1;
     return;
