@@ -632,6 +632,11 @@ int main(void)
 
   dac_target=2048;
 
+  HAL_UART_Transmit(&huart2, "\x90", 1, HAL_MAX_DELAY);
+  printf("Test123456789");
+
+  while(1);
+
 while (1){
   char s[10];
   printf("Enter target: ");
