@@ -254,7 +254,7 @@ void DMA1_Channel3_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA1_Channel3_IRQn 0 */
 
-  static float dac_last=0;
+  static float dac_last=4095;
 
   if (DMA1->ISR & DMA_FLAG_HT3) {
 

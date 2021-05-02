@@ -103,7 +103,7 @@ struct {
 uint16_t buffer_b[1280] = {0};
 
 volatile uint16_t buffer_adc[ADC_BUFFER_SIZE] = {0};
-uint16_t buffer_dac[DAC_BUFFER_SIZE] = {0};
+uint16_t buffer_dac[DAC_BUFFER_SIZE] = {[0 ... DAC_BUFFER_SIZE-1] = 4095};
 float dac_target=0;
 
 // NMEA 0183 messages have a max length of 82 characters
@@ -630,7 +630,7 @@ int main(void)
 
  // readConfigFile();
 
-  dac_target=2048;
+  dac_target=4095;
 
   HAL_UART_Transmit(&huart2, "\x90", 1, HAL_MAX_DELAY);
   printf("Test123456789");
@@ -913,7 +913,7 @@ static void MX_DAC1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN DAC1_Init 2 */
-
+  HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1,  DAC_ALIGN_12B_R, 4095);
   /* USER CODE END DAC1_Init 2 */
 
 }
