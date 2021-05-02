@@ -517,7 +517,8 @@ int main(void)
 {
   /* USER CODE BEGIN 1 */
 
-  memcpy((void*)0x20000000, (void const*)0x08000000, 0x188);
+  extern char __VECTORS_START;
+  memcpy((void*)0x20000000, (void const*)(&__VECTORS_START), 0x188);
   SCB->VTOR = 0x20000000;
 
   SetSysTick( &SysTick_CountUp );
