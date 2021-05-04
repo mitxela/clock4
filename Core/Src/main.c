@@ -169,7 +169,6 @@ uint32_t f_crc(FIL* fp)
 }
 
 // Get CRC of loaded image
-// todo: check if this is even remotely valid
 uint32_t app_crc()
 {
   uint32_t * buf = _app_start;
@@ -206,11 +205,34 @@ void launch_app(){
   // 1st entry in the vector table is stack pointer
   // 2nd entry in the vector table is the application entry point
 
-  //__set_MSP(*(_app_start));
-  //((void (*)(void)) (*(_app_start + 1)))();
+  __set_MSP(_app_start[0]);
   ((void (*)(void)) _app_start[1])();
-  hang_error(0);
 }
+
+
+#define progress1() buffer_b[0] = bCat0 | 0b0100000000
+#define progress2() buffer_b[1] = bCat1 | 0b0100000000
+
+
+void progressBar(addr){
+#define CHUNK (0x30000 / 8) /* APP_SIZE / 8 */
+  static uint32_t threshold = 0x8010000 + CHUNK; // (uint32_t)_app_start + CHUNK;
+  static char progress = 2;
+  if (addr>threshold) {
+    switch (++progress){
+      case 3: buffer_b[2] = bCat2 | 0b0100000000; break;
+      case 4: buffer_b[3] = bCat3 | 0b0100000000; break;
+      case 5: buffer_b[4] = bCat4 | 0b0100000000; break;
+      case 6: buffer_c[0].low =     0b01000000  ; break;
+      case 7: buffer_c[1].low =     0b01000000  ; break;
+      case 8: buffer_c[2].low =     0b01000000  ; break;
+      case 9: buffer_c[3].low =     0b01000000  ; break;
+    }
+    threshold += CHUNK;
+  }
+#undef CHUNK
+}
+
 
 void flash_erase(){
   __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_ALL_ERRORS);
@@ -230,6 +252,8 @@ void flash_erase(){
   if (HAL_FLASHEx_Erase(&EraseInitStruct, &PAGEError) != HAL_OK)
     hang_error(ERR_ERASE_FAILED);
 
+  progress1();
+
   // Erase bank 2
   EraseInitStruct.TypeErase   = FLASH_TYPEERASE_PAGES;
   EraseInitStruct.Banks       = FLASH_BANK_2;
@@ -239,11 +263,11 @@ void flash_erase(){
   if (HAL_FLASHEx_Erase(&EraseInitStruct, &PAGEError) != HAL_OK)
     hang_error(ERR_ERASE_FAILED);
 
+  progress2();
 }
 
 void flash_write(FIL* fp){
   uint32_t addr = (uint32_t)_app_start;
-  uint64_t data = 0xDEADBEEF12345678;
 
   unsigned int rc;
   char buf[8];
@@ -253,14 +277,16 @@ void flash_write(FIL* fp){
 
   while (addr < FLASH_BASE + FLASH_SIZE){
     f_read(fp, &buf, 8, &rc);
-    uint32_t low = (buf[3] << 24) + (buf[2] << 16) + (buf[1] << 8) + (buf[0]);
-    uint32_t high= (buf[7] << 24) + (buf[6] << 16) + (buf[5] << 8) + (buf[4]);
-    data = ((uint64_t)high<<32)+low;
+    uint32_t low = (buf[3] << 24) | (buf[2] << 16) | (buf[1] << 8) | (buf[0]);
+    uint32_t high= (buf[7] << 24) | (buf[6] << 16) | (buf[5] << 8) | (buf[4]);
+    uint64_t data = ((uint64_t)high << 32) | low;
 
     if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, addr, data ) == HAL_OK) {
       if (*(uint64_t*)addr != data) hang_error(ERR_WRITE_INVALID);
       addr += 8;
     } else hang_error(ERR_WRITE_FAILED);
+
+    progressBar(addr);
   }
 
 }
@@ -327,17 +353,17 @@ int main(void)
   buffer_c[3].high=0b11010111;
   buffer_c[4].high=0b11001111;
 
-  buffer_c[0].low=0b01011100; //o
-  buffer_c[1].low=0b01011100; //o
-  buffer_c[2].low=0b01111000; //t
-  buffer_c[3].low=0;
-  buffer_c[4].low=0;
-
-  buffer_b[0] = 0;//bCat0 | bSegDecode1;
-  buffer_b[1] = 0;//bCat1 | bSegDecode2;
-  buffer_b[2] = 0;//bCat2 | bSegDecode3;
-  buffer_b[3] = 0;//bCat3 | bSegDecode4;
-  buffer_b[4] = bCat4 | 0b0111110000; //b //bCat4 | bSegDecode5;
+//  buffer_c[0].low=0b01011100; //o
+//  buffer_c[1].low=0b01011100; //o
+//  buffer_c[2].low=0b01111000; //t
+//  buffer_c[3].low=0;
+//  buffer_c[4].low=0;
+//
+//  buffer_b[0] = 0;//bCat0 | bSegDecode1;
+//  buffer_b[1] = 0;//bCat1 | bSegDecode2;
+//  buffer_b[2] = 0;//bCat2 | bSegDecode3;
+//  buffer_b[3] = 0;//bCat3 | bSegDecode4;
+//  buffer_b[4] = bCat4 | 0b0111110000; //b
 
   _Bool new_fw_present;
   uint32_t new_fw_crc;
@@ -356,13 +382,11 @@ int main(void)
   }
 
 
-
-  buffer_b[0] = bCat0 | bSegDecode1;
-
-
+// debug force reload
+// new_fw_crc=0;
 
 
-  if (loaded_fw_crc == byteswap32(*(uint32_t*)(0x8000000 + 1024*256 -4)) ) { // loaded firmware valid
+  if (loaded_fw_crc == byteswap32(*(uint32_t*)(FLASH_BASE + FLASH_SIZE -4)) ) { // loaded firmware valid
 
     if (!new_fw_present) launch_app();
 
@@ -376,16 +400,10 @@ int main(void)
 
   HAL_FLASH_Unlock();
   flash_erase();
-
-  buffer_b[0] = bCat0 | bSegDecode4;
-
   flash_write(&file);
-
-  buffer_b[0] = bCat0 | bSegDecode5;
-
   HAL_FLASH_Lock();
-  // if crc fails following update, try again?
 
+  launch_app();
 
   /* USER CODE END 2 */
 
