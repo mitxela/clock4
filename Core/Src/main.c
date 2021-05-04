@@ -70,6 +70,32 @@ static void MX_TIM4_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+// Firmware image on file system fails CRC check
+#define ERR_FS_IMG_CRC_INVALID    0b0011111100 // 0
+
+// Loaded firmware image is invalid and no replacement found in file system
+#define ERR_INVALID_NO_FW         0b0000011000 // 1
+
+// Flash page erase failed
+#define ERR_ERASE_FAILED          0b0101101100 // 2
+
+// Data written to flash didn't match data read back
+#define ERR_WRITE_INVALID         0b0100111100 // 3
+
+// Write data to flash returned failure
+#define ERR_WRITE_FAILED          0b0110011000 // 4
+
+//0b0110110100 // 5
+//0b0111110100 // 6
+//0b0000011100 // 7
+//0b0111111100 // 8
+//0b0110111100 // 9
+
+#define byteswap32(x) \
+   ( ((x & 0xff000000) >> 24) | ((x & 0x00ff0000) >> 8) \
+   | ((x & 0x0000ff00) <<  8) | ((x & 0x000000ff) << 24))
+
 struct {
   uint8_t low;
   uint8_t high;
@@ -87,31 +113,20 @@ extern uint32_t _app_size[];
 #define APP_SIZE (int)_app_size
 
 
-void hang_error(){
+void hang_error(uint16_t errno){
+  buffer_b[0] = bCat0 | 0b0111110000; //b
+  buffer_b[1] = bCat1 | errno;
+
   buffer_b[4] = bCat4 | 0b0111100100; //E
   buffer_c[0].low=0b01010000; //r
   buffer_c[1].low=0b01010000; //r
   buffer_c[2].low=0b01011100; //o
   buffer_c[3].low=0b01010000; //r
 
+  HAL_FLASH_Lock();
   while(1){}
 }
 
-void fw_error(){
-  // hang with error message that firmware on qspi flash is invalid
-
-  buffer_b[0] = bCat0 | 0b0011100100; //C
-  buffer_b[1] = bCat1 | 0b0101000000; //r
-  buffer_b[2] = bCat2 | 0b0101100000; //c
-  buffer_b[3] = 0;
-
-  hang_error();
-}
-
-void nofw_error(){
-  // loaded fw invalid and no new one found in fatfs
-  hang_error();
-}
 
 
 // Get the CRC of the firmware file on FATFS
@@ -128,7 +143,7 @@ uint32_t f_crc(FIL* fp)
     f_rewind(fp);
 
   if ((fp)->obj.objsize != APP_SIZE)
-    fw_error();
+    hang_error(ERR_FS_IMG_CRC_INVALID);
 
   hcrc.State = HAL_CRC_STATE_BUSY;
   __HAL_CRC_DR_RESET(&hcrc);
@@ -147,7 +162,7 @@ uint32_t f_crc(FIL* fp)
 
   f_read(fp, &buf, 4, &rc);
   if (result != (buf[3] | (buf[2]<<8) | (buf[1]<<16) | (buf[0]<<24)) )
-    fw_error();
+    hang_error(ERR_FS_IMG_CRC_INVALID);
 
   return result;
 #undef READ_BLOCK_SIZE
@@ -161,8 +176,12 @@ uint32_t app_crc()
   hcrc.State = HAL_CRC_STATE_BUSY;
   __HAL_CRC_DR_RESET(&hcrc);
 
-  for (int j=0; j<(APP_SIZE/4); j++)
-    hcrc.Instance->DR = buf[j];
+  int j;
+  uint32_t t;
+  for (j=0; j<(APP_SIZE/4)-1; j++) {
+    t = byteswap32(buf[j]);
+    hcrc.Instance->DR = t;
+  }
 
   uint32_t result = ~(hcrc.Instance->DR);
   hcrc.State = HAL_CRC_STATE_READY;
@@ -186,11 +205,63 @@ void launch_app(){
 
   // 1st entry in the vector table is stack pointer
   // 2nd entry in the vector table is the application entry point
-  __set_MSP(*(_app_start));
-  ((void (*)(void)) (*(_app_start + 4)))();
+
+  //__set_MSP(*(_app_start));
+  //((void (*)(void)) (*(_app_start + 1)))();
+  ((void (*)(void)) _app_start[1])();
+  hang_error(0);
 }
 
-void do_update(){
+void flash_erase(){
+  __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_ALL_ERRORS);
+
+  FLASH_EraseInitTypeDef EraseInitStruct;
+  uint32_t PAGEError = 0;
+
+#define FLASH_PAGES_PER_BANK (FLASH_BANK_SIZE / FLASH_PAGE_SIZE)
+#define APP_START_PAGE (((int)_app_start - FLASH_BASE) / FLASH_PAGE_SIZE )
+
+  // Erase from app start up to end of bank 1
+  EraseInitStruct.TypeErase   = FLASH_TYPEERASE_PAGES;
+  EraseInitStruct.Banks       = FLASH_BANK_1;
+  EraseInitStruct.Page        = APP_START_PAGE;
+  EraseInitStruct.NbPages     = FLASH_PAGES_PER_BANK - APP_START_PAGE;
+
+  if (HAL_FLASHEx_Erase(&EraseInitStruct, &PAGEError) != HAL_OK)
+    hang_error(ERR_ERASE_FAILED);
+
+  // Erase bank 2
+  EraseInitStruct.TypeErase   = FLASH_TYPEERASE_PAGES;
+  EraseInitStruct.Banks       = FLASH_BANK_2;
+  EraseInitStruct.Page        = 0;
+  EraseInitStruct.NbPages     = FLASH_PAGES_PER_BANK;
+
+  if (HAL_FLASHEx_Erase(&EraseInitStruct, &PAGEError) != HAL_OK)
+    hang_error(ERR_ERASE_FAILED);
+
+}
+
+void flash_write(FIL* fp){
+  uint32_t addr = (uint32_t)_app_start;
+  uint64_t data = 0xDEADBEEF12345678;
+
+  unsigned int rc;
+  char buf[8];
+
+  if ((fp)->fptr !=0)
+    f_rewind(fp);
+
+  while (addr < FLASH_BASE + FLASH_SIZE){
+    f_read(fp, &buf, 8, &rc);
+    uint32_t low = (buf[3] << 24) + (buf[2] << 16) + (buf[1] << 8) + (buf[0]);
+    uint32_t high= (buf[7] << 24) + (buf[6] << 16) + (buf[5] << 8) + (buf[4]);
+    data = ((uint64_t)high<<32)+low;
+
+    if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, addr, data ) == HAL_OK) {
+      if (*(uint64_t*)addr != data) hang_error(ERR_WRITE_INVALID);
+      addr += 8;
+    } else hang_error(ERR_WRITE_FAILED);
+  }
 
 }
 
@@ -291,29 +362,29 @@ int main(void)
 
 
 
-  if (loaded_fw_crc == (*(uint32_t*)(0x8000000 + 1024*256 -4)) ) { // loaded firmware valid
+  if (loaded_fw_crc == byteswap32(*(uint32_t*)(0x8000000 + 1024*256 -4)) ) { // loaded firmware valid
 
     if (!new_fw_present) launch_app();
 
     if (loaded_fw_crc == new_fw_crc) launch_app();
 
-    do_update();
-
   } else { // loaded firmware invalid
 
-    if (!new_fw_present) nofw_error();
-
-    do_update();
+    if (!new_fw_present) hang_error(ERR_INVALID_NO_FW);
 
   }
 
+  HAL_FLASH_Unlock();
+  flash_erase();
 
+  buffer_b[0] = bCat0 | bSegDecode4;
 
+  flash_write(&file);
 
+  buffer_b[0] = bCat0 | bSegDecode5;
 
-
-
-
+  HAL_FLASH_Lock();
+  // if crc fails following update, try again?
 
 
   /* USER CODE END 2 */
