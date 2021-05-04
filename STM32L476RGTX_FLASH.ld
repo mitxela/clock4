@@ -41,6 +41,7 @@ MEMORY
   RAM    (xrw)    : ORIGIN = 0x20000188,   LENGTH = 97912
   RAM2    (xrw)    : ORIGIN = 0x10000000,   LENGTH = 32K
   FLASH    (rx)    : ORIGIN = 0x8010000,   LENGTH = 196604
+  PAD      (rx)    : ORIGIN = 0x803fffb,   LENGTH = 1
 }
 /* 64k = 0x10000 */
 /* 196604 = 192*1024 -4 */
@@ -142,12 +143,10 @@ SECTIONS
     
   } >RAM AT> FLASH
 
-  .fill :
+  .pad :
   {
-    FILL(0x55);
-    . = ORIGIN(FLASH) + LENGTH(FLASH) -1;
     BYTE(0x55);
-  } > FLASH
+  } > PAD
 
   /* Uninitialized data section into "RAM" Ram type memory */
   . = ALIGN(4);
