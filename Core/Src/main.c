@@ -79,23 +79,16 @@ uint16_t buffer_b[1280] = {0};
 
 // This method of passing variables from the linker script assumes everything is an address.
 // boot size is obviously not an address, but this still works, so whatever.
-extern char _boot_size[];
-extern char _app_start[];
-extern char _app_size[];
+extern uint32_t _boot_size[];
+extern uint32_t _app_start[];
+extern uint32_t _app_size[];
 
 #define BOOT_SIZE (int)_boot_size
 #define APP_SIZE (int)_app_size
 
 
-void fw_error(){
-  // hang with error message that firmware on qspi flash is invalid
-
-  buffer_b[0] = bCat0 | 0b0011100100; //C
-  buffer_b[1] = bCat1 | 0b0101000000; //r
-  buffer_b[2] = bCat2 | 0b0101100000; //c
-  buffer_b[3] = 0;
+void hang_error(){
   buffer_b[4] = bCat4 | 0b0111100100; //E
-
   buffer_c[0].low=0b01010000; //r
   buffer_c[1].low=0b01010000; //r
   buffer_c[2].low=0b01011100; //o
@@ -104,14 +97,31 @@ void fw_error(){
   while(1){}
 }
 
+void fw_error(){
+  // hang with error message that firmware on qspi flash is invalid
+
+  buffer_b[0] = bCat0 | 0b0011100100; //C
+  buffer_b[1] = bCat1 | 0b0101000000; //r
+  buffer_b[2] = bCat2 | 0b0101100000; //c
+  buffer_b[3] = 0;
+
+  hang_error();
+}
+
+void nofw_error(){
+  // loaded fw invalid and no new one found in fatfs
+  hang_error();
+}
+
 
 // Get the CRC of the firmware file on FATFS
 // If the CRC is wrong, immediately throw an error.
 // The firmware file is padded to a fixed length, we don't need to worry about lengths not divisible by 4.
 uint32_t f_crc(FIL* fp)
 {
+#define READ_BLOCK_SIZE (4096*2)
   unsigned int rc;
-  char buf[4];
+  char buf[READ_BLOCK_SIZE];
   uint32_t result;
 
   if ((fp)->fptr !=0) // pointless but just in case
@@ -123,10 +133,15 @@ uint32_t f_crc(FIL* fp)
   hcrc.State = HAL_CRC_STATE_BUSY;
   __HAL_CRC_DR_RESET(&hcrc);
 
-  while ((fp)->fptr < APP_SIZE -4) {
-    f_read(fp, &buf, 4, &rc);
-    hcrc.Instance->DR = buf[3] | (buf[2]<<8) | (buf[1]<<16) | (buf[0]<<24);
+  while ((fp)->fptr < APP_SIZE -READ_BLOCK_SIZE) {
+    f_read(fp, &buf, READ_BLOCK_SIZE, &rc);
+    for (int j=0; j<READ_BLOCK_SIZE; j+=4)
+      hcrc.Instance->DR = buf[j+3] | (buf[j+2]<<8) | (buf[j+1]<<16) | (buf[j]<<24);
   }
+  f_read(fp, &buf, READ_BLOCK_SIZE-4, &rc);
+  for (int j=0; j<READ_BLOCK_SIZE-4; j+=4)
+    hcrc.Instance->DR = buf[j+3] | (buf[j+2]<<8) | (buf[j+1]<<16) | (buf[j]<<24);
+
   result = ~(hcrc.Instance->DR);
   hcrc.State = HAL_CRC_STATE_READY;
 
@@ -135,8 +150,49 @@ uint32_t f_crc(FIL* fp)
     fw_error();
 
   return result;
+#undef READ_BLOCK_SIZE
 }
 
+// Get CRC of loaded image
+// todo: check if this is even remotely valid
+uint32_t app_crc()
+{
+  uint32_t * buf = _app_start;
+  hcrc.State = HAL_CRC_STATE_BUSY;
+  __HAL_CRC_DR_RESET(&hcrc);
+
+  for (int j=0; j<(APP_SIZE/4); j++)
+    hcrc.Instance->DR = buf[j];
+
+  uint32_t result = ~(hcrc.Instance->DR);
+  hcrc.State = HAL_CRC_STATE_READY;
+  return result;
+}
+
+
+void launch_app(){
+  HAL_RCC_DeInit();
+  HAL_DeInit();
+
+//  SysTick->CTRL = 0;
+//  SysTick->LOAD = 0;
+//  SysTick->VAL = 0;
+
+  //__disable_irq();
+  //__DSB();
+  //__HAL_SYSCFG_REMAPMEMORY_SYSTEMFLASH();
+  //__DSB();
+  //__ISB();
+
+  // 1st entry in the vector table is stack pointer
+  // 2nd entry in the vector table is the application entry point
+  __set_MSP(*(_app_start));
+  ((void (*)(void)) (*(_app_start + 4)))();
+}
+
+void do_update(){
+
+}
 
 /* USER CODE END 0 */
 
@@ -212,49 +268,46 @@ int main(void)
   buffer_b[3] = 0;//bCat3 | bSegDecode4;
   buffer_b[4] = bCat4 | 0b0111110000; //b //bCat4 | bSegDecode5;
 
+  _Bool new_fw_present;
+  uint32_t new_fw_crc;
 
-  // Check firmware file is present and calculate its crc
+  // Calculate CRC of loaded image
+  uint32_t loaded_fw_crc = app_crc();
+
+  // Look for new firmware file and calculate its crc
   FIL file;
 
-   if (f_open(&file, "/FWT.BIN", FA_READ) != FR_OK)
-     Error_Handler();
-
-   uint32_t fwcrc = f_crc(&file);
-
-   buffer_b[0] = bCat0 | bSegDecode1;
-
-
+  if (f_open(&file, "/FWT.BIN", FA_READ) != FR_OK)
+    new_fw_present = 0;
+  else {
+    new_fw_present = 1;
+    new_fw_crc = f_crc(&file);
+  }
 
 
 
+  buffer_b[0] = bCat0 | bSegDecode1;
 
 
 
-   /*
-   - Calculate CRC of loaded image
-   - Check CRC of loaded image
-   - look for fw image
-   - Calculate CRC of fw image
 
-   if (fw crc invalid) hang on error: crc error
+  if (loaded_fw_crc == (*(uint32_t*)(0x8000000 + 1024*256 -4)) ) { // loaded firmware valid
 
-   if (loaded valid) {
+    if (!new_fw_present) launch_app();
 
-     if (no fw present): launch app
+    if (loaded_fw_crc == new_fw_crc) launch_app();
 
-     if (if loaded crc == fw crc) launch app
+    do_update();
 
-     else do update
+  } else { // loaded firmware invalid
 
-   } else { //loaded invalid
+    if (!new_fw_present) nofw_error();
 
-     if (no fw present): hang on error: no fw
+    do_update();
 
-     else do update
+  }
 
-   }
 
-   */
 
 
 
