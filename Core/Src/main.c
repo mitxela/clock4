@@ -43,6 +43,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+CRC_HandleTypeDef hcrc;
+
 QSPI_HandleTypeDef hqspi;
 
 TIM_HandleTypeDef htim1;
@@ -58,6 +60,7 @@ DMA_HandleTypeDef hdma_tim4_up;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
+static void MX_CRC_Init(void);
 static void MX_QUADSPI_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM4_Init(void);
@@ -73,6 +76,68 @@ struct {
 } buffer_c[1280] = {0};
 
 uint16_t buffer_b[1280] = {0};
+
+// This method of passing variables from the linker script assumes everything is an address.
+// boot size is obviously not an address, but this still works, so whatever.
+extern char _boot_size[];
+extern char _app_start[];
+extern char _app_size[];
+
+#define BOOT_SIZE (int)_boot_size
+#define APP_SIZE (int)_app_size
+
+
+void fw_error(){
+  // hang with error message that firmware on qspi flash is invalid
+
+  buffer_b[0] = bCat0 | 0b0011100100; //C
+  buffer_b[1] = bCat1 | 0b0101000000; //r
+  buffer_b[2] = bCat2 | 0b0101100000; //c
+  buffer_b[3] = 0;
+  buffer_b[4] = bCat4 | 0b0111100100; //E
+
+  buffer_c[0].low=0b01010000; //r
+  buffer_c[1].low=0b01010000; //r
+  buffer_c[2].low=0b01011100; //o
+  buffer_c[3].low=0b01010000; //r
+
+  while(1){}
+}
+
+
+// Get the CRC of the firmware file on FATFS
+// If the CRC is wrong, immediately throw an error.
+// The firmware file is padded to a fixed length, we don't need to worry about lengths not divisible by 4.
+uint32_t f_crc(FIL* fp)
+{
+  unsigned int rc;
+  char buf[4];
+  uint32_t result;
+
+  if ((fp)->fptr !=0) // pointless but just in case
+    f_rewind(fp);
+
+  if ((fp)->obj.objsize != APP_SIZE)
+    fw_error();
+
+  hcrc.State = HAL_CRC_STATE_BUSY;
+  __HAL_CRC_DR_RESET(&hcrc);
+
+  while ((fp)->fptr < APP_SIZE -4) {
+    f_read(fp, &buf, 4, &rc);
+    hcrc.Instance->DR = buf[3] | (buf[2]<<8) | (buf[1]<<16) | (buf[0]<<24);
+  }
+  result = ~(hcrc.Instance->DR);
+  hcrc.State = HAL_CRC_STATE_READY;
+
+  f_read(fp, &buf, 4, &rc);
+  if (result != (buf[3] | (buf[2]<<8) | (buf[1]<<16) | (buf[0]<<24)) )
+    fw_error();
+
+  return result;
+}
+
+
 /* USER CODE END 0 */
 
 /**
@@ -104,6 +169,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
+  MX_CRC_Init();
   MX_QUADSPI_Init();
   MX_TIM1_Init();
   MX_TIM4_Init();
@@ -147,16 +213,53 @@ int main(void)
   buffer_b[4] = bCat4 | 0b0111110000; //b //bCat4 | bSegDecode5;
 
 
-
-
-
+  // Check firmware file is present and calculate its crc
   FIL file;
 
-   if (f_open(&file, "/CONFIG.TXT", FA_READ) != FR_OK)
+   if (f_open(&file, "/FWT.BIN", FA_READ) != FR_OK)
      Error_Handler();
 
+   uint32_t fwcrc = f_crc(&file);
 
    buffer_b[0] = bCat0 | bSegDecode1;
+
+
+
+
+
+
+
+
+   /*
+   - Calculate CRC of loaded image
+   - Check CRC of loaded image
+   - look for fw image
+   - Calculate CRC of fw image
+
+   if (fw crc invalid) hang on error: crc error
+
+   if (loaded valid) {
+
+     if (no fw present): launch app
+
+     if (if loaded crc == fw crc) launch app
+
+     else do update
+
+   } else { //loaded invalid
+
+     if (no fw present): hang on error: no fw
+
+     else do update
+
+   }
+
+   */
+
+
+
+
+
 
 
 
@@ -235,6 +338,37 @@ void SystemClock_Config(void)
   /** Enable MSI Auto calibration 
   */
   HAL_RCCEx_EnableMSIPLLMode();
+}
+
+/**
+  * @brief CRC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_CRC_Init(void)
+{
+
+  /* USER CODE BEGIN CRC_Init 0 */
+
+  /* USER CODE END CRC_Init 0 */
+
+  /* USER CODE BEGIN CRC_Init 1 */
+
+  /* USER CODE END CRC_Init 1 */
+  hcrc.Instance = CRC;
+  hcrc.Init.DefaultPolynomialUse = DEFAULT_POLYNOMIAL_ENABLE;
+  hcrc.Init.DefaultInitValueUse = DEFAULT_INIT_VALUE_ENABLE;
+  hcrc.Init.InputDataInversionMode = CRC_INPUTDATA_INVERSION_BYTE;
+  hcrc.Init.OutputDataInversionMode = CRC_OUTPUTDATA_INVERSION_ENABLE;
+  hcrc.InputDataFormat = CRC_INPUTDATA_FORMAT_WORDS;
+  if (HAL_CRC_Init(&hcrc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN CRC_Init 2 */
+
+  /* USER CODE END CRC_Init 2 */
+
 }
 
 /**

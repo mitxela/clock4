@@ -68,7 +68,6 @@
 #define STORAGE_BLK_NBR                  0x1000
 #define STORAGE_BLK_SIZ                  0x1000
 
-
 /* USER CODE BEGIN PRIVATE_DEFINES */
 
 /* USER CODE END PRIVATE_DEFINES */

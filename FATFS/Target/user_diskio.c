@@ -79,7 +79,7 @@ Diskio_drvTypeDef  USER_Driver =
   * @retval DSTATUS: Operation status
   */
 DSTATUS USER_initialize (
-    BYTE pdrv           /* Physical drive nmuber to identify the drive */
+	BYTE pdrv           /* Physical drive nmuber to identify the drive */
 )
 {
   /* USER CODE BEGIN INIT */
@@ -100,7 +100,7 @@ DSTATUS USER_initialize (
   * @retval DSTATUS: Operation status
   */
 DSTATUS USER_status (
-    BYTE pdrv       /* Physical drive number to identify the drive */
+	BYTE pdrv       /* Physical drive number to identify the drive */
 )
 {
   /* USER CODE BEGIN STATUS */
@@ -124,10 +124,10 @@ DSTATUS USER_status (
   * @retval DRESULT: Operation result
   */
 DRESULT USER_read (
-    BYTE pdrv,      /* Physical drive nmuber to identify the drive */
-    BYTE *buff,     /* Data buffer to store read data */
-    DWORD sector,   /* Sector address in LBA */
-    UINT count      /* Number of sectors to read */
+	BYTE pdrv,      /* Physical drive nmuber to identify the drive */
+	BYTE *buff,     /* Data buffer to store read data */
+	DWORD sector,   /* Sector address in LBA */
+	UINT count      /* Number of sectors to read */
 )
 {
   /* USER CODE BEGIN READ */
@@ -152,10 +152,10 @@ DRESULT USER_read (
   */
 #if _USE_WRITE == 1
 DRESULT USER_write (
-    BYTE pdrv,          /* Physical drive nmuber to identify the drive */
-    const BYTE *buff,   /* Data to be written */
-    DWORD sector,       /* Sector address in LBA */
-    UINT count          /* Number of sectors to write */
+	BYTE pdrv,          /* Physical drive nmuber to identify the drive */
+	const BYTE *buff,   /* Data to be written */
+	DWORD sector,       /* Sector address in LBA */
+	UINT count          /* Number of sectors to write */
 )
 { 
   /* USER CODE BEGIN WRITE */
@@ -174,9 +174,9 @@ DRESULT USER_write (
   */
 #if _USE_IOCTL == 1
 DRESULT USER_ioctl (
-    BYTE pdrv,      /* Physical drive nmuber (0..) */
-    BYTE cmd,       /* Control code */
-    void *buff      /* Buffer to send/receive control data */
+	BYTE pdrv,      /* Physical drive nmuber (0..) */
+	BYTE cmd,       /* Control code */
+	void *buff      /* Buffer to send/receive control data */
 )
 {
   /* USER CODE BEGIN IOCTL */

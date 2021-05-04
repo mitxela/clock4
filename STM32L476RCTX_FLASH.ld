@@ -39,8 +39,12 @@ MEMORY
 {
   RAM    (xrw)    : ORIGIN = 0x20000000,   LENGTH = 96K
   RAM2    (xrw)    : ORIGIN = 0x10000000,   LENGTH = 32K
-  FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 256K
+  FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 64K
 }
+
+_boot_size = LENGTH(FLASH);
+_app_start = ORIGIN(FLASH) + LENGTH(FLASH);
+_app_size  = 256K - LENGTH(FLASH);
 
 /* Sections */
 SECTIONS
