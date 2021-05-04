@@ -210,8 +210,8 @@ void launch_app(){
 }
 
 
-#define progress1() buffer_b[0] = bCat0 | 0b0100000000
-#define progress2() buffer_b[1] = bCat1 | 0b0100000000
+//#define progress1() buffer_b[0] = bCat0 | 0b0100000000
+//#define progress2() buffer_b[1] = bCat1 | 0b0100000000
 
 
 void progressBar(addr){
@@ -233,6 +233,23 @@ void progressBar(addr){
 #undef CHUNK
 }
 
+void doAnimation(){
+  static char f=0;
+  switch (f++){
+    case 0:  buffer_b[0] = bCat0 | 0b0000110000; buffer_b[1] = bCat1 | 0b0000000000; break;
+    case 1:  buffer_b[0] = bCat0 | 0b0001100000; buffer_b[1] = bCat1 | 0b0000000000; break;
+    case 2:  buffer_b[0] = bCat0 | 0b0011000000; buffer_b[1] = bCat1 | 0b0000000000; break;
+    case 3:  buffer_b[0] = bCat0 | 0b0010000100; buffer_b[1] = bCat1 | 0b0000000000; break;
+    case 4:  buffer_b[0] = bCat0 | 0b0000001100; buffer_b[1] = bCat1 | 0b0000000000; break;
+    case 5:  buffer_b[0] = bCat0 | 0b0000001000; buffer_b[1] = bCat1 | 0b0001000000; break;
+    case 6:  buffer_b[0] = bCat0 | 0b0000000000; buffer_b[1] = bCat1 | 0b0001100000; break;
+    case 7:  buffer_b[0] = bCat0 | 0b0000000000; buffer_b[1] = bCat1 | 0b0000110000; break;
+    case 8:  buffer_b[0] = bCat0 | 0b0000000000; buffer_b[1] = bCat1 | 0b0000011000; break;
+    case 9:  buffer_b[0] = bCat0 | 0b0000000000; buffer_b[1] = bCat1 | 0b0000001100; break;
+    case 10: buffer_b[0] = bCat0 | 0b0000000000; buffer_b[1] = bCat1 | 0b0010000100; break;
+    case 11: buffer_b[0] = bCat0 | 0b0000010000; buffer_b[1] = bCat1 | 0b0010000000; f=0; break;
+  }
+}
 
 void flash_erase(){
   __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_ALL_ERRORS);
@@ -252,7 +269,7 @@ void flash_erase(){
   if (HAL_FLASHEx_Erase(&EraseInitStruct, &PAGEError) != HAL_OK)
     hang_error(ERR_ERASE_FAILED);
 
-  progress1();
+  //progress1();
 
   // Erase bank 2
   EraseInitStruct.TypeErase   = FLASH_TYPEERASE_PAGES;
@@ -263,7 +280,7 @@ void flash_erase(){
   if (HAL_FLASHEx_Erase(&EraseInitStruct, &PAGEError) != HAL_OK)
     hang_error(ERR_ERASE_FAILED);
 
-  progress2();
+  //progress2();
 }
 
 void flash_write(FIL* fp){

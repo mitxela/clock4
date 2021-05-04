@@ -189,6 +189,12 @@ void SysTick_Handler(void)
   HAL_IncTick();
   /* USER CODE BEGIN SysTick_IRQn 1 */
 
+  static char k =0;
+  if (++k > 50) {
+    k=0;
+    doAnimation();
+  }
+
   /* USER CODE END SysTick_IRQn 1 */
 }
 
