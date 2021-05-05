@@ -103,6 +103,10 @@ struct {
 
 uint16_t buffer_b[1280] = {0};
 
+char animationFrame=99;
+#define startAnimation() animationFrame=0
+#define stopAnimation() animationFrame=99
+
 // This method of passing variables from the linker script assumes everything is an address.
 // boot size is obviously not an address, but this still works, so whatever.
 extern uint32_t _boot_size[];
@@ -113,7 +117,10 @@ extern uint32_t _app_size[];
 #define APP_SIZE (int)_app_size
 
 
+
 void hang_error(uint16_t errno){
+  stopAnimation();
+
   buffer_b[0] = bCat0 | 0b0111110000; //b
   buffer_b[1] = bCat1 | errno;
 
@@ -214,28 +221,28 @@ void launch_app(){
 //#define progress2() buffer_b[1] = bCat1 | 0b0100000000
 
 
-void progressBar(addr){
-#define CHUNK (0x30000 / 8) /* APP_SIZE / 8 */
-  static uint32_t threshold = 0x8010000 + CHUNK; // (uint32_t)_app_start + CHUNK;
+void progressBar(uint32_t addr){
+#define CHUNK (0x30000 / 8) /* ( APP_SIZE / 8)*/
+  static uint32_t threshold = ((uint32_t)_app_start) + CHUNK;
   static char progress = 2;
   if (addr>threshold) {
     switch (++progress){
-      case 3: buffer_b[2] = bCat2 | 0b0100000000; break;
-      case 4: buffer_b[3] = bCat3 | 0b0100000000; break;
-      case 5: buffer_b[4] = bCat4 | 0b0100000000; break;
-      case 6: buffer_c[0].low =     0b01000000  ; break;
-      case 7: buffer_c[1].low =     0b01000000  ; break;
-      case 8: buffer_c[2].low =     0b01000000  ; break;
-      case 9: buffer_c[3].low =     0b01000000  ; break;
+      case 3: buffer_b[2] = bCat2 | 0b0111111100; break;
+      case 4: buffer_b[3] = bCat3 | 0b0111111100; break;
+      case 5: buffer_b[4] = bCat4 | 0b0111111100; break;
+      case 6: buffer_c[0].low =     0b01111111  ; break;
+      case 7: buffer_c[1].low =     0b01111111  ; break;
+      case 8: buffer_c[2].low =     0b01111111  ; break;
+      case 9: buffer_c[3].low =     0b01111111  ; break;
     }
     threshold += CHUNK;
   }
 #undef CHUNK
 }
 
+
 void doAnimation(){
-  static char f=0;
-  switch (f++){
+  switch (animationFrame++){
     case 0:  buffer_b[0] = bCat0 | 0b0000110000; buffer_b[1] = bCat1 | 0b0000000000; break;
     case 1:  buffer_b[0] = bCat0 | 0b0001100000; buffer_b[1] = bCat1 | 0b0000000000; break;
     case 2:  buffer_b[0] = bCat0 | 0b0011000000; buffer_b[1] = bCat1 | 0b0000000000; break;
@@ -247,7 +254,8 @@ void doAnimation(){
     case 8:  buffer_b[0] = bCat0 | 0b0000000000; buffer_b[1] = bCat1 | 0b0000011000; break;
     case 9:  buffer_b[0] = bCat0 | 0b0000000000; buffer_b[1] = bCat1 | 0b0000001100; break;
     case 10: buffer_b[0] = bCat0 | 0b0000000000; buffer_b[1] = bCat1 | 0b0010000100; break;
-    case 11: buffer_b[0] = bCat0 | 0b0000010000; buffer_b[1] = bCat1 | 0b0010000000; f=0; break;
+    case 11: buffer_b[0] = bCat0 | 0b0000010000; buffer_b[1] = bCat1 | 0b0010000000; animationFrame=0; break;
+    case 99: animationFrame=99; // disable animation
   }
 }
 
@@ -347,23 +355,6 @@ int main(void)
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
 
-  if (HAL_DMA_Start(&hdma_tim1_up, (uint32_t)buffer_c, (uint32_t)&GPIOC->ODR, 5) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  if (HAL_DMA_Start(&hdma_tim4_up, (uint32_t)buffer_b, (uint32_t)&GPIOB->ODR, 5) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  __HAL_TIM_ENABLE_DMA(&htim1, TIM_DMA_UPDATE);
-  __HAL_TIM_ENABLE(&htim1);
-
-  __HAL_TIM_ENABLE_DMA(&htim4, TIM_DMA_UPDATE);
-  __HAL_TIM_ENABLE(&htim4);
-
-
-
   buffer_c[0].high=0b11011110;
   buffer_c[1].high=0b11011101;
   buffer_c[2].high=0b11011011;
@@ -381,6 +372,18 @@ int main(void)
 //  buffer_b[2] = 0;//bCat2 | bSegDecode3;
 //  buffer_b[3] = 0;//bCat3 | bSegDecode4;
 //  buffer_b[4] = bCat4 | 0b0111110000; //b
+
+  if (HAL_DMA_Start(&hdma_tim1_up, (uint32_t)buffer_c, (uint32_t)&GPIOC->ODR, 5) != HAL_OK)
+    Error_Handler();
+
+  if (HAL_DMA_Start(&hdma_tim4_up, (uint32_t)buffer_b, (uint32_t)&GPIOB->ODR, 5) != HAL_OK)
+    Error_Handler();
+
+  __HAL_TIM_ENABLE_DMA(&htim1, TIM_DMA_UPDATE);
+  __HAL_TIM_ENABLE(&htim1);
+
+  __HAL_TIM_ENABLE_DMA(&htim4, TIM_DMA_UPDATE);
+  __HAL_TIM_ENABLE(&htim4);
 
   _Bool new_fw_present;
   uint32_t new_fw_crc;
@@ -414,6 +417,8 @@ int main(void)
     if (!new_fw_present) hang_error(ERR_INVALID_NO_FW);
 
   }
+
+  startAnimation();
 
   HAL_FLASH_Unlock();
   flash_erase();
