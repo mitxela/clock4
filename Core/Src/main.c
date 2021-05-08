@@ -109,7 +109,8 @@ float dac_target=0;
 // NMEA 0183 messages have a max length of 82 characters
 uint8_t nmea[90];
 
-time_t nextTime;
+time_t currentTime;
+
 bcdStamp_t nextBcd;
 struct {
   uint8_t c;
@@ -184,7 +185,6 @@ void decodeRMC(void){
 
   bcdStamp_t rmcBcd;
   struct tm rmcTm;
-  time_t rmcTime;
 
   while (*c !='*') {
     sum ^= *c;
@@ -247,10 +247,15 @@ void decodeRMC(void){
   rmcBcd.tenYears   = *c++ -'0';
   rmcBcd.years      = *c++ -'0';
 
-  rmcTime = bcdToTm( &rmcBcd, &rmcTm );
 
-  if ( data_valid || !had_pps )
-    setNextTimestamp( rmcTime+1 );
+  if ( data_valid || !had_pps ) {
+    currentTime = bcdToTm( &rmcBcd, &rmcTm );
+
+    if (decisec >= 9) {
+      currentTime++;
+      setNextTimestamp( currentTime );
+    }
+  }
 
 }
 
@@ -377,6 +382,15 @@ void SysTick_CountUp(void)
   HAL_IncTick();
   //tsysticks++;
   //if (millisec==0 && centisec==0 && decisec==0) printf("zeros: %d\n", tsysticks);
+
+  // At the 0.900 mark, we calculate what the display should read at the next pulse
+  if (decisec==9 && centisec==0 && millisec==0){
+    // Calculating the next display from the unix timestamp takes about 32uS with -O2, -O3 or -Os
+    // takes about 70uS on -O0 so I think it's fine to do this within systick
+    // If needed, we should move this to a lower priority software-triggered interrupt
+    currentTime++;
+    setNextTimestamp( currentTime );
+  }
 }
 
 void SysTick_CountDown(void)
@@ -758,11 +772,10 @@ void SystemClock_Config(void)
   __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_LOW);
   /** Initializes the CPU, AHB and APB busses clocks 
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE
-                              |RCC_OSCILLATORTYPE_LSE|RCC_OSCILLATORTYPE_MSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE|RCC_OSCILLATORTYPE_LSE
+                              |RCC_OSCILLATORTYPE_MSI;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.LSEState = RCC_LSE_ON;
-  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = 0;
   RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_11;
@@ -796,7 +809,7 @@ void SystemClock_Config(void)
   PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
   PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
   PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_SYSCLK;
-  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
+  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
   PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_MSI;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
