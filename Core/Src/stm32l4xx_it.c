@@ -60,15 +60,18 @@ extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
 extern DMA_HandleTypeDef hdma_adc1;
 extern DMA_HandleTypeDef hdma_dac_ch1;
 extern DMA_HandleTypeDef hdma_tim1_up;
-extern DMA_HandleTypeDef hdma_tim4_up;
+extern DMA_HandleTypeDef hdma_tim7_up;
 extern DMA_HandleTypeDef hdma_usart1_rx;
+extern DMA_HandleTypeDef hdma_usart2_tx;
 extern UART_HandleTypeDef huart1;
+extern UART_HandleTypeDef huart2;
 /* USER CODE BEGIN EV */
 extern uint8_t nmea[90];
 extern uint16_t buffer_adc[ADC_BUFFER_SIZE];
 extern uint16_t buffer_dac[DAC_BUFFER_SIZE];
 extern DAC_HandleTypeDef hdac1;
 extern float dac_target;
+extern uint8_t uart2_tx_buffer[32];
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -220,7 +223,13 @@ void DMA1_Channel1_IRQHandler(void)
     for (int i=0;i<ADC_BUFFER_SIZE;i++) {
       sum += buffer_adc[i];
     }
-    printf("ADC %d\n", sum);
+
+
+//    sprintf(uart2_tx_buffer, " ADC %06d\n", sum);
+//    uart2_tx_buffer[0]=0x90;
+////    HAL_UART_AbortTransmit(&huart2);
+//    HAL_UART_Transmit_DMA(&huart2, uart2_tx_buffer, 12);
+
 
     float avg = ((float)sum) * (1.0 /(float)ADC_BUFFER_SIZE /4095.0);
 
@@ -288,6 +297,20 @@ void DMA1_Channel3_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles DMA1 channel4 global interrupt.
+  */
+void DMA1_Channel4_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA1_Channel4_IRQn 0 */
+
+  /* USER CODE END DMA1_Channel4_IRQn 0 */
+  HAL_DMA_IRQHandler(&hdma_tim7_up);
+  /* USER CODE BEGIN DMA1_Channel4_IRQn 1 */
+
+  /* USER CODE END DMA1_Channel4_IRQn 1 */
+}
+
+/**
   * @brief This function handles DMA1 channel5 global interrupt.
   */
 void DMA1_Channel5_IRQHandler(void)
@@ -325,7 +348,7 @@ void DMA1_Channel7_IRQHandler(void)
   /* USER CODE BEGIN DMA1_Channel7_IRQn 0 */
 
   /* USER CODE END DMA1_Channel7_IRQn 0 */
-  HAL_DMA_IRQHandler(&hdma_tim4_up);
+  HAL_DMA_IRQHandler(&hdma_usart2_tx);
   /* USER CODE BEGIN DMA1_Channel7_IRQn 1 */
 
   /* USER CODE END DMA1_Channel7_IRQn 1 */
@@ -355,6 +378,20 @@ void USART1_IRQHandler(void)
   /* USER CODE BEGIN USART1_IRQn 1 */
 
   /* USER CODE END USART1_IRQn 1 */
+}
+
+/**
+  * @brief This function handles USART2 global interrupt.
+  */
+void USART2_IRQHandler(void)
+{
+  /* USER CODE BEGIN USART2_IRQn 0 */
+
+  /* USER CODE END USART2_IRQn 0 */
+  HAL_UART_IRQHandler(&huart2);
+  /* USER CODE BEGIN USART2_IRQn 1 */
+
+  /* USER CODE END USART2_IRQn 1 */
 }
 
 /**

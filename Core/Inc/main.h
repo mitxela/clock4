@@ -116,7 +116,8 @@ void decodeRMC(void);
   buffer_b[1] = next7seg.b[1]; \
   buffer_b[2] = next7seg.b[2]; \
   buffer_b[3] = next7seg.b[3]; \
-  buffer_b[4] = next7seg.b[4];
+  buffer_b[4] = next7seg.b[4]; \
+  HAL_UART_Transmit_DMA(&huart2, "\n", 1);
 
 /* USER CODE END EFP */
 

@@ -60,14 +60,15 @@ RTC_HandleTypeDef hrtc;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
-TIM_HandleTypeDef htim4;
 TIM_HandleTypeDef htim6;
+TIM_HandleTypeDef htim7;
 DMA_HandleTypeDef hdma_tim1_up;
-DMA_HandleTypeDef hdma_tim4_up;
+DMA_HandleTypeDef hdma_tim7_up;
 
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_usart1_rx;
+DMA_HandleTypeDef hdma_usart2_tx;
 
 /* USER CODE BEGIN PV */
 
@@ -81,12 +82,12 @@ static void MX_QUADSPI_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_USART1_UART_Init(void);
-static void MX_TIM4_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_DAC1_Init(void);
 static void MX_TIM6_Init(void);
 static void MX_RTC_Init(void);
+static void MX_TIM7_Init(void);
 /* USER CODE BEGIN PFP */
 void tmToBcd(struct tm *in, bcdStamp_t *out );
 /* USER CODE END PFP */
@@ -98,9 +99,11 @@ const uint8_t cLut[]= { cSegDecode0, cSegDecode1, cSegDecode2, cSegDecode3, cSeg
 struct {
   uint8_t low;
   uint8_t high;
-} buffer_c[1280] = {0};
+} buffer_c[128] = {0};
 
-uint16_t buffer_b[1280] = {0};
+uint16_t buffer_b[128] = {0};
+
+uint8_t uart2_tx_buffer[32];
 
 volatile uint16_t buffer_adc[ADC_BUFFER_SIZE] = {0};
 uint16_t buffer_dac[DAC_BUFFER_SIZE] = {[0 ... DAC_BUFFER_SIZE-1] = 4095};
@@ -161,6 +164,24 @@ void setNextTimestamp(time_t nextTime){
   next7seg.b[3] = bCat3 | cLut[nextBcd.minutes]<<2;
   next7seg.b[4] = bCat4 | cLut[nextBcd.tenSeconds]<<2;
 
+  if (1){
+    sprintf(uart2_tx_buffer, " %010ld", currentTime);
+    uart2_tx_buffer[0] =0x90;
+  }else{
+    uart2_tx_buffer[0] =0x90;
+    uart2_tx_buffer[1] ='2';
+    uart2_tx_buffer[2] ='0';
+    uart2_tx_buffer[3] ='0'+nextBcd.tenYears;
+    uart2_tx_buffer[4] ='0'+nextBcd.years;
+    uart2_tx_buffer[5] ='-';
+    uart2_tx_buffer[6] ='0'+nextBcd.tenMonths;
+    uart2_tx_buffer[7] ='0'+nextBcd.months;
+    uart2_tx_buffer[8] ='-';
+    uart2_tx_buffer[9] ='0'+nextBcd.tenDays;
+    uart2_tx_buffer[10]='0'+nextBcd.days;
+  }
+  HAL_UART_AbortTransmit(&huart2);
+  HAL_UART_Transmit_DMA(&huart2, uart2_tx_buffer, 11);
 }
 
 // Store UTC on RTC
@@ -322,9 +343,9 @@ void decodeRMC(void){
 
 void setBrightness(uint32_t bright){
   HAL_DMA_Abort(&hdma_tim1_up);
-  HAL_DMA_Abort(&hdma_tim4_up);
+  HAL_DMA_Abort(&hdma_tim7_up);
   HAL_DMA_Start(&hdma_tim1_up, (uint32_t)buffer_b, (uint32_t)&GPIOB->ODR, bright);
-  HAL_DMA_Start(&hdma_tim4_up, (uint32_t)buffer_c, (uint32_t)&GPIOC->ODR, bright);
+  HAL_DMA_Start(&hdma_tim7_up, (uint32_t)buffer_c, (uint32_t)&GPIOC->ODR, bright);
 }
 
 void parseConfigString(char const *key, char const *value) {
@@ -630,12 +651,12 @@ int main(void)
   MX_FATFS_Init();
   MX_USB_DEVICE_Init();
   MX_USART1_UART_Init();
-  MX_TIM4_Init();
   MX_TIM2_Init();
   MX_ADC1_Init();
   MX_DAC1_Init();
   MX_TIM6_Init();
   MX_RTC_Init();
+  MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
   RetargetInit(&huart2);
 
@@ -653,7 +674,7 @@ int main(void)
     Error_Handler();
   }
 
-  if (HAL_DMA_Start(&hdma_tim4_up, (uint32_t)buffer_b, (uint32_t)&GPIOB->ODR, 5) != HAL_OK)
+  if (HAL_DMA_Start(&hdma_tim7_up, (uint32_t)buffer_b, (uint32_t)&GPIOB->ODR, 5) != HAL_OK)
   {
     Error_Handler();
   }
@@ -671,8 +692,8 @@ int main(void)
   __HAL_TIM_ENABLE_DMA(&htim1, TIM_DMA_UPDATE);
   __HAL_TIM_ENABLE(&htim1);
 
-  __HAL_TIM_ENABLE_DMA(&htim4, TIM_DMA_UPDATE);
-  __HAL_TIM_ENABLE(&htim4);
+  __HAL_TIM_ENABLE_DMA(&htim7, TIM_DMA_UPDATE);
+  __HAL_TIM_ENABLE(&htim7);
 
 
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
@@ -710,13 +731,13 @@ int main(void)
 
   dac_target=4095;
 
-  HAL_UART_Transmit(&huart2, "\x90", 1, HAL_MAX_DELAY);
-  printf("Test123456789\n");
+  //HAL_UART_Transmit(&huart2, "\x90", 1, HAL_MAX_DELAY);
+  //printf("Test123456789\n");
 
 
 //  char asdf[]="Europe/London";
 //  loadRulesSingle(asdf);
-//  currentTime = 1620563048;
+//  currentTime = 1620582523;
 //  write_rtc();
 //  while(1);
 
@@ -1218,51 +1239,6 @@ static void MX_TIM2_Init(void)
 }
 
 /**
-  * @brief TIM4 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM4_Init(void)
-{
-
-  /* USER CODE BEGIN TIM4_Init 0 */
-
-  /* USER CODE END TIM4_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM4_Init 1 */
-
-  /* USER CODE END TIM4_Init 1 */
-  htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 0;
-  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 256;
-  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM4_Init 2 */
-
-  /* USER CODE END TIM4_Init 2 */
-
-}
-
-/**
   * @brief TIM6 Initialization Function
   * @param None
   * @retval None
@@ -1297,6 +1273,44 @@ static void MX_TIM6_Init(void)
   /* USER CODE BEGIN TIM6_Init 2 */
   HAL_TIM_Base_Start(&htim6);
   /* USER CODE END TIM6_Init 2 */
+
+}
+
+/**
+  * @brief TIM7 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM7_Init(void)
+{
+
+  /* USER CODE BEGIN TIM7_Init 0 */
+
+  /* USER CODE END TIM7_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM7_Init 1 */
+
+  /* USER CODE END TIM7_Init 1 */
+  htim7.Instance = TIM7;
+  htim7.Init.Prescaler = 0;
+  htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim7.Init.Period = 256;
+  htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim7, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM7_Init 2 */
+
+  /* USER CODE END TIM7_Init 2 */
 
 }
 
@@ -1386,6 +1400,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel3_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
+  /* DMA1_Channel4_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel4_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel4_IRQn);
   /* DMA1_Channel5_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel5_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel5_IRQn);
