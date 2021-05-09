@@ -128,6 +128,17 @@ struct {
 } rules[162];
 #define MAX_RULES (sizeof rules / sizeof rules[0])
 
+char loadedRulesString[32];
+
+
+// memcpy() appears to move data by bytes, which doesn't work with the word-accessed backup registers
+// here we explicitly move data a word at a time
+void memcpyword(volatile uint32_t *dest, volatile uint32_t *src, size_t n){
+  while (n--){
+    dest[n] = src[n];
+  }
+}
+
 void setNextTimestamp(time_t nextTime){
 
   int32_t offset = 0;
@@ -179,6 +190,25 @@ void write_rtc(void){
   stimestructure.StoreOperation = RTC_STOREOPERATION_RESET;
 
   HAL_RTC_SetTime(&hrtc,&stimestructure,RTC_FORMAT_BCD);
+
+  // Write zone info to backup registers
+  // There are 32 words of memory, 128 bytes
+  // First 8 words are the zone string including separator and null byte (always less than 32 bytes)
+  // Remaining 24 words is a chunk of the ruleset in use, i.e. 12 years
+
+  uint8_t i;
+  for (i=0; i< MAX_RULES; i++) {
+    if (rules[i].t > currentTime) break;
+  }
+  if (i==0) return; //something has gone wrong, data invalid
+  i--; //include currently active rule
+
+  char numRulesToStore = (i+12>=MAX_RULES-1)? (MAX_RULES-i)*2 : 24;
+
+  HAL_PWR_EnableBkUpAccess();
+  memcpyword( (uint32_t*)&(hrtc.Instance->BKP0R), (uint32_t*)loadedRulesString, 8 );
+  memcpyword( (uint32_t*)&(hrtc.Instance->BKP8R), (uint32_t*)&rules[i], numRulesToStore );
+  HAL_PWR_DisableBkUpAccess();
 
 }
 
@@ -383,11 +413,9 @@ void EXTI9_5_IRQHandler(void)
 
 }
 
-//int tsysticks = 0;
 
 void SysTick_CountUp(void)
 {
-
 
   millisec++;
   if (millisec>=10) {
@@ -409,10 +437,7 @@ void SysTick_CountUp(void)
   buffer_c[2].low=cLut[centisec];
   buffer_c[1].low=cLut[decisec];
 
-
   HAL_IncTick();
-  //tsysticks++;
-  //if (millisec==0 && centisec==0 && decisec==0) printf("zeros: %d\n", tsysticks);
 
   // At the 0.900 mark, we calculate what the display should read at the next pulse
   if (decisec==9 && centisec==0 && millisec==0){
@@ -454,7 +479,7 @@ void SysTick_Dummy(void){
 }
 
 
-#define SetSysTick(x) *((uint32_t *)0x2000003C) = (uint32_t)x
+#define SetSysTick(x) *((volatile uint32_t *)0x2000003C) = (uint32_t)x
 
 
 
@@ -549,7 +574,11 @@ uint8_t loadRules( char* cat, char* zo ) {
 
   return 0;
 }
+
+// loadRulesSingle modifies the input string, can't be used with const str
 uint8_t loadRulesSingle(char * str){
+  strcpy( loadedRulesString, str );
+
   char * zo = str;
   while (*zo && *zo != '/') zo++;
   *zo=0; zo++;
@@ -658,10 +687,10 @@ int main(void)
   buffer_c[2].high=0b11011011;
   buffer_c[3].high=0b11010111;
   buffer_c[4].high=0b11001111;
-  buffer_c[0].low=cSegDecode6;
-  buffer_c[1].low=cSegDecode3;
-  buffer_c[2].low=cSegDecode5;
-  buffer_c[3].low=cSegDecode7;
+  buffer_c[0].low=cSegDecode0;
+  buffer_c[1].low=cSegDecode0;
+  buffer_c[2].low=cSegDecode0;
+  buffer_c[3].low=cSegDecode0;
   buffer_c[4].low=0;
 
 
@@ -669,11 +698,11 @@ int main(void)
 
   next7seg.c = buffer_c[0].low;
 
-  next7seg.b[0] = buffer_b[0] = bCat0 | bSegDecode1;
-  next7seg.b[1] = buffer_b[1] = bCat1 | bSegDecode2;
-  next7seg.b[2] = buffer_b[2] = bCat2 | bSegDecode3;
-  next7seg.b[3] = buffer_b[3] = bCat3 | bSegDecode4;
-  next7seg.b[4] = buffer_b[4] = bCat4 | bSegDecode5;
+  next7seg.b[0] = buffer_b[0] = bCat0 | bSegDecode0;
+  next7seg.b[1] = buffer_b[1] = bCat1 | bSegDecode0;
+  next7seg.b[2] = buffer_b[2] = bCat2 | bSegDecode0;
+  next7seg.b[3] = buffer_b[3] = bCat3 | bSegDecode0;
+  next7seg.b[4] = buffer_b[4] = bCat4 | bSegDecode0;
 
   setBrightness(5);
 
@@ -684,25 +713,25 @@ int main(void)
   HAL_UART_Transmit(&huart2, "\x90", 1, HAL_MAX_DELAY);
   printf("Test123456789\n");
 
-  //currentTime = 1620512730; //22:25
-  //write_rtc();
 
-//  HAL_PWR_EnableBkUpAccess();
-//  HAL_RTCEx_BKUPWrite(&hrtc, 0, 0xDEADBEEF);
-//  HAL_RTCEx_BKUPWrite(&hrtc, 1, 1234);
-//  HAL_RTCEx_BKUPWrite(&hrtc, 2, 0x55555555);
-//  HAL_RTCEx_BKUPWrite(&hrtc, 3, 0xAAAAAAAA);
-//  HAL_PWR_DisableBkUpAccess();
+//  char asdf[]="Europe/London";
+//  loadRulesSingle(asdf);
+//  currentTime = 1620563048;
+//  write_rtc();
+//  while(1);
 
-//  uint32_t tmp[4];
-//  tmp[0]=HAL_RTCEx_BKUPRead(&hrtc, 0);
-//  tmp[1]=HAL_RTCEx_BKUPRead(&hrtc, 1);
-//  tmp[2]=HAL_RTCEx_BKUPRead(&hrtc, 2);
-//  tmp[3]=HAL_RTCEx_BKUPRead(&hrtc, 3);
 
+  if (RTC->ISR & RTC_ISR_INITS) //RTC contains non-zero data
   {
     RTC_DateTypeDef sdate;
     RTC_TimeTypeDef stime;
+
+    char zone[32];
+    memcpyword( (uint32_t*)zone,  (uint32_t*)&(hrtc.Instance->BKP0R), 8 );
+
+    if (loadRulesSingle(zone) != 0){ // takes 34ms -O0, 26ms -O2
+      memcpyword( (uint32_t*)rules, (uint32_t*)&(hrtc.Instance->BKP8R), 24 );
+    }
 
     HAL_RTC_GetTime(&hrtc, &stime, RTC_FORMAT_BIN);
     HAL_RTC_GetDate(&hrtc, &sdate, RTC_FORMAT_BIN);
@@ -730,10 +759,12 @@ int main(void)
     setNextTimestamp( currentTime );
     loadNextTimestamp();
 
-    SetSysTick( &SysTick_CountUp );
+
+  } else { // backup domain reset
+
   }
 
-
+  SetSysTick( &SysTick_CountUp );
 
 
   while(1);
