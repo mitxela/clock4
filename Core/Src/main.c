@@ -88,7 +88,7 @@ static void MX_DAC1_Init(void);
 static void MX_TIM6_Init(void);
 static void MX_RTC_Init(void);
 /* USER CODE BEGIN PFP */
-
+void tmToBcd(struct tm *in, bcdStamp_t *out );
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -149,6 +149,37 @@ void setNextTimestamp(time_t nextTime){
   next7seg.b[2] = bCat2 | cLut[nextBcd.tenMinutes]<<2;
   next7seg.b[3] = bCat3 | cLut[nextBcd.minutes]<<2;
   next7seg.b[4] = bCat4 | cLut[nextBcd.tenSeconds]<<2;
+
+}
+
+// Store UTC on RTC
+// need to also write zone into backup registers
+void write_rtc(void){
+
+  RTC_DateTypeDef sdatestructure;
+  RTC_TimeTypeDef stimestructure;
+  bcdStamp_t cBcd;
+  struct tm * cTm = gmtime( &currentTime );
+
+  tmToBcd( cTm, &cBcd );
+
+  sdatestructure.Year    = (cBcd.tenYears<<4)  | cBcd.years;
+  sdatestructure.Month   = (cBcd.tenMonths<<4) | cBcd.months;
+  sdatestructure.Date    = (cBcd.tenDays<<4)   | cBcd.days;
+  //sdatestructure.WeekDay = RTC_WEEKDAY_MONDAY;
+
+  HAL_RTC_SetDate(&hrtc,&sdatestructure,RTC_FORMAT_BCD);
+
+  stimestructure.Hours          = (cBcd.tenHours<<4)  | cBcd.hours;
+  stimestructure.Minutes        = (cBcd.tenMinutes<<4)  | cBcd.minutes;
+  stimestructure.Seconds        = (cBcd.tenSeconds<<4)  | cBcd.seconds;
+  stimestructure.SubSeconds     = 0x00;
+  stimestructure.TimeFormat     = RTC_HOURFORMAT12_AM;
+  stimestructure.DayLightSaving = RTC_DAYLIGHTSAVING_NONE ;
+  stimestructure.StoreOperation = RTC_STOREOPERATION_RESET;
+
+  HAL_RTC_SetTime(&hrtc,&stimestructure,RTC_FORMAT_BCD);
+
 }
 
 time_t bcdToTm(bcdStamp_t *in, struct tm *out ) {
@@ -418,6 +449,9 @@ void SysTick_CountDown(void)
 
 }
 
+void SysTick_Dummy(void){
+  HAL_IncTick();
+}
 
 
 #define SetSysTick(x) *((uint32_t *)0x2000003C) = (uint32_t)x
@@ -535,7 +569,7 @@ int main(void)
   memcpy((void*)0x20000000, (void const*)(&__VECTORS_START), 0x188);
   SCB->VTOR = 0x20000000;
 
-  SetSysTick( &SysTick_CountUp );
+  SetSysTick( &SysTick_Dummy );
 
 
   /* USER CODE END 1 */
@@ -648,7 +682,59 @@ int main(void)
   dac_target=4095;
 
   HAL_UART_Transmit(&huart2, "\x90", 1, HAL_MAX_DELAY);
-  printf("Test123456789");
+  printf("Test123456789\n");
+
+  //currentTime = 1620512730; //22:25
+  //write_rtc();
+
+//  HAL_PWR_EnableBkUpAccess();
+//  HAL_RTCEx_BKUPWrite(&hrtc, 0, 0xDEADBEEF);
+//  HAL_RTCEx_BKUPWrite(&hrtc, 1, 1234);
+//  HAL_RTCEx_BKUPWrite(&hrtc, 2, 0x55555555);
+//  HAL_RTCEx_BKUPWrite(&hrtc, 3, 0xAAAAAAAA);
+//  HAL_PWR_DisableBkUpAccess();
+
+//  uint32_t tmp[4];
+//  tmp[0]=HAL_RTCEx_BKUPRead(&hrtc, 0);
+//  tmp[1]=HAL_RTCEx_BKUPRead(&hrtc, 1);
+//  tmp[2]=HAL_RTCEx_BKUPRead(&hrtc, 2);
+//  tmp[3]=HAL_RTCEx_BKUPRead(&hrtc, 3);
+
+  {
+    RTC_DateTypeDef sdate;
+    RTC_TimeTypeDef stime;
+
+    HAL_RTC_GetTime(&hrtc, &stime, RTC_FORMAT_BIN);
+    HAL_RTC_GetDate(&hrtc, &sdate, RTC_FORMAT_BIN);
+
+    struct tm out;
+
+    out.tm_isdst = 0;
+
+    out.tm_sec = stime.Seconds;
+    out.tm_min = stime.Minutes;
+    out.tm_hour = stime.Hours;
+    out.tm_mday = sdate.Date;
+    out.tm_mon = sdate.Month -1;
+    out.tm_year = sdate.Year + 100; //Years since 1900
+
+    currentTime = mktime(&out);
+
+    // subseconds ranges up to synchronous prescaler value of 255
+    float fraction = (float)(255 - stime.SubSeconds) / 256.0;
+
+    millisec = (uint32_t)(fraction*1000) % 10;
+    centisec = (uint32_t)(fraction*100) % 10;
+    decisec =  (uint32_t)(fraction*10) % 10;
+
+    setNextTimestamp( currentTime );
+    loadNextTimestamp();
+
+    SetSysTick( &SysTick_CountUp );
+  }
+
+
+
 
   while(1);
 
