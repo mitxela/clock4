@@ -31,6 +31,7 @@
 #include "retarget.h"
 #include "qspi_drv.h"
 #include "zonedetect.h"
+#include "bootloader.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -50,6 +51,8 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
+
+CRC_HandleTypeDef hcrc;
 
 DAC_HandleTypeDef hdac1;
 DMA_HandleTypeDef hdma_dac_ch1;
@@ -88,6 +91,7 @@ static void MX_DAC1_Init(void);
 static void MX_TIM6_Init(void);
 static void MX_RTC_Init(void);
 static void MX_TIM7_Init(void);
+static void MX_CRC_Init(void);
 /* USER CODE BEGIN PFP */
 void tmToBcd(struct tm *in, bcdStamp_t *out );
 /* USER CODE END PFP */
@@ -657,6 +661,7 @@ int main(void)
   MX_TIM6_Init();
   MX_RTC_Init();
   MX_TIM7_Init();
+  MX_CRC_Init();
   /* USER CODE BEGIN 2 */
   RetargetInit(&huart2);
 
@@ -731,8 +736,16 @@ int main(void)
 
   dac_target=4095;
 
-  //HAL_UART_Transmit(&huart2, "\x90", 1, HAL_MAX_DELAY);
-  //printf("Test123456789\n");
+
+
+
+
+  uint8_t x = doDateUpdate();
+
+
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  HAL_UART_Init(&huart2);
 
 
 //  char asdf[]="Europe/London";
@@ -1026,6 +1039,37 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 2 */
 
   /* USER CODE END ADC1_Init 2 */
+
+}
+
+/**
+  * @brief CRC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_CRC_Init(void)
+{
+
+  /* USER CODE BEGIN CRC_Init 0 */
+
+  /* USER CODE END CRC_Init 0 */
+
+  /* USER CODE BEGIN CRC_Init 1 */
+
+  /* USER CODE END CRC_Init 1 */
+  hcrc.Instance = CRC;
+  hcrc.Init.DefaultPolynomialUse = DEFAULT_POLYNOMIAL_ENABLE;
+  hcrc.Init.DefaultInitValueUse = DEFAULT_INIT_VALUE_ENABLE;
+  hcrc.Init.InputDataInversionMode = CRC_INPUTDATA_INVERSION_BYTE;
+  hcrc.Init.OutputDataInversionMode = CRC_OUTPUTDATA_INVERSION_ENABLE;
+  hcrc.InputDataFormat = CRC_INPUTDATA_FORMAT_WORDS;
+  if (HAL_CRC_Init(&hcrc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN CRC_Init 2 */
+
+  /* USER CODE END CRC_Init 2 */
 
 }
 

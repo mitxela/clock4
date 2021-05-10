@@ -1,0 +1,10 @@
+#ifndef __BOOT_H
+#define __BOOT_H
+
+#define DATE_CMD_REPORT_CRC         0x9E
+#define DATE_CMD_START_BOOTLOADER   0x9F
+
+uint8_t doDateUpdate(void);
+
+
+#endif /* __BOOT_H */
