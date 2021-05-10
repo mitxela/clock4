@@ -242,7 +242,11 @@ const uint8_t lut_7seg_inv[] = {
 };
 
 #define CMD_LOAD_TEXT          0x90
+#define CMD_SET_FREQUENCY      0x91
 #define CMD_SET_SCROLL_SPEED   0x92
+
+#define CMD_REPORT_CRC         0x9E
+#define CMD_START_BOOTLOADER   0x9F
 
 uint16_t pre_buffer_a[5] ={0};
 uint16_t pre_buffer_b[5] ={0};
@@ -290,6 +294,43 @@ static void MX_TIM21_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+
+void triggerBootloader(void){
+
+
+  LL_TIM_DisableIT_UPDATE(TIM2);
+  LL_TIM_DisableCounter(TIM2);
+  LL_TIM_DeInit(TIM2);
+
+  LL_TIM_DisableIT_UPDATE(TIM21);
+  LL_TIM_DisableCounter(TIM21);
+  LL_TIM_DeInit(TIM21);
+
+  LL_USART_Disable(USART2);
+  LL_USART_DeInit(USART2);
+
+  GPIOA->ODR=0;
+  GPIOB->ODR=0;
+
+  LL_GPIO_DeInit(GPIOA);
+  LL_GPIO_DeInit(GPIOB);
+
+  LL_APB2_GRP1_ForceReset(LL_APB2_GRP1_PERIPH_SYSCFG);
+  LL_APB1_GRP1_ForceReset(LL_APB1_GRP1_PERIPH_ALL);
+  LL_APB2_GRP1_ReleaseReset(LL_APB2_GRP1_PERIPH_SYSCFG);
+  LL_APB1_GRP1_ReleaseReset(LL_APB1_GRP1_PERIPH_ALL);
+
+  LL_RCC_DeInit();
+  SysTick->CTRL = 0;
+  SysTick->LOAD = 0;
+  SysTick->VAL = 0;
+
+#define SYSMEM 0x1FF00000
+
+  __set_MSP(*(volatile uint32_t*) SYSMEM);
+  ((void (*)(void)) (*((volatile uint32_t *)(SYSMEM + 4))))();
+
+}
 
 
 void setDigitPre(uint8_t digit, uint8_t val){
@@ -379,6 +420,13 @@ static inline uint8_t waitForByte(void){
   return USART2->RDR;
 }
 
+void transmitBlocking(uint8_t * c, size_t n){
+  while (n--){
+    while( !( USART2->ISR & USART_ISR_TXE ) ) {};
+    USART2->TDR = *c++;
+  }
+}
+
 static inline void parseByte(uint8_t x){
 
   if (x=='\n') {
@@ -392,7 +440,7 @@ static inline void parseByte(uint8_t x){
       case CMD_LOAD_TEXT:
         text_idx=0;
         latched=0;
-        memset(text[0], 0, MAX_TEXT_LEN);
+        memset(text, 0, MAX_TEXT_LEN);
 
         pre_buffer_b[0]=0;
         pre_buffer_b[1]=0;
@@ -408,6 +456,15 @@ static inline void parseByte(uint8_t x){
         break;
       case CMD_SET_SCROLL_SPEED:
         break;
+
+      case CMD_REPORT_CRC:
+        transmitBlocking( (uint8_t*)0x8007ffc, 4);
+        break;
+
+      case CMD_START_BOOTLOADER:
+        triggerBootloader();
+        break;
+
       default:
         status=0;
     }

@@ -37,7 +37,8 @@ _Min_Stack_Size = 0x400 ;	/* required amount of stack */
 MEMORY
 {
   RAM    (xrw)    : ORIGIN = 0x20000000,   LENGTH = 8K
-  FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 32K
+  FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 32768
+  PAD      (rx)    : ORIGIN = 0x8007ffb,   LENGTH = 1
 }
 
 /* Sections */
@@ -135,6 +136,11 @@ SECTIONS
     _edata = .;        /* define a global symbol at data end */
     
   } >RAM AT> FLASH
+
+  .pad :
+  {
+    BYTE(0x55);
+  } > PAD
 
   /* Uninitialized data section into "RAM" Ram type memory */
   . = ALIGN(4);
