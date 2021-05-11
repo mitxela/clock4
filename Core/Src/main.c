@@ -31,7 +31,7 @@
 #include "retarget.h"
 #include "qspi_drv.h"
 #include "zonedetect.h"
-#include "bootloader.h"
+#include "chainloader.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -743,9 +743,9 @@ int main(void)
   uint8_t x = doDateUpdate();
 
 
-  huart2.Init.WordLength = UART_WORDLENGTH_8B;
-  huart2.Init.Parity = UART_PARITY_NONE;
-  HAL_UART_Init(&huart2);
+//  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+//  huart2.Init.Parity = UART_PARITY_NONE;
+//  HAL_UART_Init(&huart2);
 
 
 //  char asdf[]="Europe/London";
@@ -1410,9 +1410,9 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
   huart2.Init.BaudRate = 115200;
-  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.WordLength = UART_WORDLENGTH_9B;
   huart2.Init.StopBits = UART_STOPBITS_1;
-  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Parity = UART_PARITY_EVEN;
   huart2.Init.Mode = UART_MODE_TX_RX;
   huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
   huart2.Init.OverSampling = UART_OVERSAMPLING_16;
@@ -1553,7 +1553,7 @@ void Error_Handler(void)
   buffer_b[3] = bCat3;
   buffer_b[4] = bCat4 | 0b0111100100;
 
-  setBrightness(20);
+  //setBrightness(5);
 
 
 
