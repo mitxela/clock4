@@ -30,6 +30,12 @@ enum {ACK =0, NACK=1};
 #define ERR_FS_IMG_CRC_INVALID    0b0000011000 // 1
 #define ERR_DATE_DEAD             0b0101101100 // 2
 #define ERR_GO_FAILED             0b0100111100 // 3
+#define ERR_UNEXPECTED_TIMEOUT    0b0110011000 // 4
+#define ERR_VERSION               0b0110110100 // 5
+#define ERR_ERASE_FAILED          0b0111110100 // 6
+#define ERR_WRITE_PAGE            0b0000011100 // 7
+#define ERR_WRITE                 0b0111111100 // 8
+
 
 #define DATE_APP_SIZE 32768
 
@@ -101,17 +107,8 @@ void uart2_enable_parity(void){
   HAL_UART_Init(&huart2);
 }
 
-void boot_cmd(uint8_t c) {
-  uart2_transmit_byte(c);
-  uart2_transmit_byte(c ^ 0xFF);
-}
-
 uint8_t wait_for_ack(uint32_t timeout){
   uint8_t r;
-//  if (HAL_UART_Receive(&huart2, &r, 1, 1000) == HAL_TIMEOUT)
-//      return 1;
-
-//  while( !( USART2->ISR & USART_ISR_RXNE ) ) {};
 
   if (UART_WaitOnFlagUntilTimeout(&huart2, UART_FLAG_RXNE, RESET, HAL_GetTick(), timeout) != HAL_OK) {
     return HAL_TIMEOUT;
@@ -122,28 +119,80 @@ uint8_t wait_for_ack(uint32_t timeout){
   return (r!= BYTE_ACK);
 }
 
+uint8_t boot_cmd(uint8_t c) {
+  uart2_transmit_byte(c);
+  uart2_transmit_byte(c ^ 0xFF);
+  return wait_for_ack(10);
+}
+
+uint8_t send_addr(uint32_t addr){
+  uint8_t b1 = (addr>>24) & 0xFF;
+  uint8_t b2 = (addr>>16) & 0xFF;
+  uint8_t b3 = (addr>> 8) & 0xFF;
+  uint8_t b4 =  addr      & 0xFF;
+
+  uart2_transmit_byte(b1);
+  uart2_transmit_byte(b2);
+  uart2_transmit_byte(b3);
+  uart2_transmit_byte(b4);
+  uart2_transmit_byte(b1^b2^b3^b4);
+  return wait_for_ack(100);
+}
+
+uint8_t read_byte(void){
+  if (UART_WaitOnFlagUntilTimeout(&huart2, UART_FLAG_RXNE, RESET, HAL_GetTick(), 10) != HAL_OK)
+    hang_error(ERR_UNEXPECTED_TIMEOUT);
+
+  return USART2->RDR;
+}
+
+uint8_t write_page(uint32_t addr, uint8_t* data){
+  if (boot_cmd(BOOT_CMD_WRITE)!=0)
+    hang_error(ERR_WRITE_PAGE);
+
+  if (send_addr(addr)!=0)
+    hang_error(ERR_WRITE_PAGE);
+
+  uint8_t chk = 0xFF;
+  uart2_transmit_byte(0xFF); // N
+
+  for (uint16_t i = 0; i<256; i++) {
+    chk ^= data[i];
+    uart2_transmit_byte(data[i]);
+  }
+  uart2_transmit_byte(chk);
+
+  return wait_for_ack(20000);
+}
 
 uint8_t exit_bootloader(void){
-  boot_cmd(BOOT_CMD_GO);
-  if (wait_for_ack(100) !=0) return NACK;
-  uart2_transmit_byte(0x08);
-  uart2_transmit_byte(0x00);
-  uart2_transmit_byte(0x00);
-  uart2_transmit_byte(0x00);
-  uart2_transmit_byte(0x08); //checksum
-  if (wait_for_ack(100) !=0) return NACK;
-  return ACK;
+  if (boot_cmd(BOOT_CMD_GO) !=0) return NACK;
+  return send_addr(0x08000000);
 }
 
 
 uint8_t doDateUpdate(void) {
 
+  // Possible situations for date chip:
+  // - normal app loaded, should respond to our request for CRC with four bytes
+  //     (will ignore the 0x7F we send)
+  // - system bootloader started, awaiting autobaud byte (i.e. manually triggered with boot0 pin)
+  // - system bootloader loaded, ready for command
+  //     Sending the 0x7F and a dummy byte will cause nack, then ready
+  // - system bootloader loaded, halfway through command
+  //     Sending 0x7F will immediately nack
+  // - system bootloader misconfigured (by launching it while time side was still transmitting data)
+  //     Once the time side hangs on error, the date side can be manually restarted with boot0 before reseting the time side.
+
   FIL file;
 
-//  if (f_open(&file, "/FWD.BIN", FA_READ) != FR_OK)
-//    return 1;
-//
-//  uint32_t new_fw_crc = f_crc(&file);
+  if (f_open(&file, "/FWD.BIN", FA_READ) != FR_OK) {
+    // if no new firmware file on fatfs, then we are powerless to do anything
+    return 1;
+  }
+
+  uint32_t cur_fw_crc = 0;
+  uint32_t new_fw_crc = f_crc(&file);
 
 
   // In the situation where we want to force a recovery, the date chip will have jumped to system memory
@@ -155,7 +204,6 @@ uint8_t doDateUpdate(void) {
 
     uart2_transmit_byte(DATE_CMD_REPORT_CRC);
 
-    uint32_t cur_fw_crc = 0;
     if (HAL_UART_Receive(&huart2, (uint8_t*)&cur_fw_crc, 4, 10) == HAL_TIMEOUT) {
       // Date side not responding - attempt to recover if already in bootloader mode
 
@@ -175,7 +223,7 @@ uint8_t doDateUpdate(void) {
       }
     } else {
 
-      //if (cur_fw_crc == new_fw_crc) return 0;
+      if (cur_fw_crc == new_fw_crc) return 0;
 
 
       uart2_transmit_byte(DATE_CMD_START_BOOTLOADER);
@@ -187,28 +235,66 @@ uint8_t doDateUpdate(void) {
       if (wait_for_ack(100) !=0) // failed to init bootloader
         hang_error(ERR_DATE_DEAD); // no other explanation
 
-
     }
-
   }
 
-//  boot_cmd(0x00);
-//  if (wait_for_ack() !=0)
-//    hang_error(0b0111111100); //8
 
-//  uart2_transmit_byte(0x00);
-//  //HAL_Delay(10);
-//  uart2_transmit_byte(0xFF);
 
-  //if (wait_for_ack() !=0) return 5;
+  if (boot_cmd(0x00)!=0)
+    hang_error(bDig9);
 
-  HAL_Delay(20);
+  uint8_t data[14];
 
-  if (exit_bootloader() == NACK){
-    HAL_Delay(500);
-    if (exit_bootloader() == NACK)
-      hang_error(ERR_GO_FAILED);
+  if (HAL_UART_Receive(&huart2, data, 14, 10) == HAL_TIMEOUT)
+    hang_error(ERR_UNEXPECTED_TIMEOUT);
+
+  if (data[8] != BOOT_CMD_EXTENDED_ERASE)
+    hang_error(ERR_VERSION);
+
+
+
+
+  // L010 Flash pages are 128 bytes, => 32kb is 256 pages
+
+  if (boot_cmd(BOOT_CMD_EXTENDED_ERASE)!=0)
+    hang_error(ERR_ERASE_FAILED);
+
+#define PAGES_TO_ERASE 256
+
+  uart2_transmit_byte(0x00);
+  uart2_transmit_byte(PAGES_TO_ERASE-1);
+  uint8_t chk=PAGES_TO_ERASE-1;
+  for (uint16_t i=0;i< PAGES_TO_ERASE;i++){
+    uart2_transmit_byte((i>>8) & 0xFF);
+    chk ^= (i>>8) & 0xFF;
+    uart2_transmit_byte(i & 0xFF);
+    chk ^= i & 0xFF;
   }
+  uart2_transmit_byte(chk);
+
+  // erase can take a long time
+  if (wait_for_ack(20000) !=0)
+    hang_error(ERR_ERASE_FAILED);
+
+
+  buffer_c[2].low = 0b01101111;
+
+  if (file.fptr !=0)
+    f_rewind(&file);
+
+  for (uint32_t addr=0; addr < DATE_APP_SIZE; addr+=256) {
+    uint8_t data[256];
+    int rc;
+    f_read(&file, data, 256, &rc);
+    if (write_page(addr +0x08000000, data) !=0)
+      hang_error(ERR_WRITE);
+  }
+
+
+
+  if (exit_bootloader() == NACK)
+    hang_error(ERR_GO_FAILED);
+
 
   return 0;
 }
