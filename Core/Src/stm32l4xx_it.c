@@ -72,6 +72,7 @@ extern uint16_t buffer_dac[DAC_BUFFER_SIZE];
 extern DAC_HandleTypeDef hdac1;
 extern float dac_target;
 extern uint8_t uart2_tx_buffer[32];
+extern uint8_t data_valid, had_pps;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -183,6 +184,13 @@ void PendSV_Handler(void)
 {
   /* USER CODE BEGIN PendSV_IRQn 0 */
 
+
+  //HAL_UART_Transmit_DMA(&huart2, "\n", 1);
+  if (had_pps) write_rtc();
+
+  //*((uint32_t volatile *)0xE000ED04) = (1<<27); // clear PendSV
+
+
   /* USER CODE END PendSV_IRQn 0 */
   /* USER CODE BEGIN PendSV_IRQn 1 */
 
@@ -214,7 +222,7 @@ void DMA1_Channel1_IRQHandler(void)
   // {0.125,2700},
   // {0.25, 2200},
   // {0.5, 1500},
-   {1.0, 0},
+   {1.0, 1024},
 
   };
 

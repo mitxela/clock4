@@ -166,7 +166,7 @@ void setNextTimestamp(time_t nextTime){
   next7seg.b[4] = bCat4 | cLut[nextBcd.tenSeconds]<<2;
 
   if (1){
-    sprintf(uart2_tx_buffer, " %010ld", currentTime);
+    sprintf(&uart2_tx_buffer[1], "%010ld", currentTime);
     uart2_tx_buffer[0] =0x90;
   }else{
     uart2_tx_buffer[0] =0x90;
@@ -187,7 +187,12 @@ void setNextTimestamp(time_t nextTime){
 
 // Store UTC on RTC
 // need to also write zone into backup registers
+// Only called at the start of a second, don't attempt to write subseconds.
 void write_rtc(void){
+
+  static time_t lastwrite;
+  if (currentTime == lastwrite) return;
+  lastwrite=currentTime;
 
   RTC_DateTypeDef sdatestructure;
   RTC_TimeTypeDef stimestructure;
@@ -412,6 +417,20 @@ void readConfigFile(){
 }
 
 
+void enablePPS(void){
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+  /*Configure GPIO pin : PC7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_7;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+}
+
 // PPS rising edge
 void EXTI9_5_IRQHandler(void)
 {
@@ -458,6 +477,8 @@ void SysTick_CountUp(void)
   buffer_c[3].low=cLut[millisec];
   buffer_c[2].low=cLut[centisec];
   buffer_c[1].low=cLut[decisec];
+
+
 
   HAL_IncTick();
 
@@ -619,7 +640,7 @@ int main(void)
   extern uint32_t __VECTORS_RAM[];
 
   memcpy(__VECTORS_RAM, __VECTORS_FLASH, 0x188);
-  SCB->VTOR = &__VECTORS_RAM;
+  SCB->VTOR = (uint32_t)&__VECTORS_RAM;
 
 #define SetSysTick(x) __VECTORS_RAM[15] = (uint32_t)x
 
@@ -686,6 +707,8 @@ int main(void)
 
   doDateUpdate();
 
+
+  enablePPS();
 
   // Configure UART1 for NMEA strings from GPS module
   USART1->CR1 |= USART_CR1_CMIE ;
@@ -1511,15 +1534,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PC7 */
-  GPIO_InitStruct.Pin = GPIO_PIN_7;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
 }
 

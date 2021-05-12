@@ -229,7 +229,6 @@ uint8_t doDateUpdate(void) {
       }
     } else {
 
-      if (0)
       if (byteswap32(cur_fw_crc) == new_fw_crc) return 0;
 
 

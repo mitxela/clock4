@@ -119,6 +119,7 @@ void Error_Handler(void);
 /* USER CODE BEGIN EFP */
 void decodeRMC(void);
 void setDisplayPWM(uint32_t bright);
+void write_rtc(void);
 
 #define loadNextTimestamp() \
   buffer_c[0].low = next7seg.c; \
@@ -127,7 +128,8 @@ void setDisplayPWM(uint32_t bright);
   buffer_b[2] = next7seg.b[2]; \
   buffer_b[3] = next7seg.b[3]; \
   buffer_b[4] = next7seg.b[4]; \
-  HAL_UART_Transmit_DMA(&huart2, "\n", 1);
+  huart2.Instance->TDR = '\n'; \
+  *((uint32_t volatile *)0xE000ED04) = 0x10000000; // trigger PendSV
 
 /* USER CODE END EFP */
 
