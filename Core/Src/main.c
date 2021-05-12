@@ -504,7 +504,6 @@ void SysTick_Dummy(void){
 }
 
 
-#define SetSysTick(x) *((volatile uint32_t *)0x2000003C) = (uint32_t)x
 
 
 
@@ -619,9 +618,13 @@ int main(void)
 {
   /* USER CODE BEGIN 1 */
 
-  extern char __VECTORS_START;
-  memcpy((void*)0x20000000, (void const*)(&__VECTORS_START), 0x188);
-  SCB->VTOR = 0x20000000;
+  extern uint32_t __VECTORS_FLASH[];
+  extern uint32_t __VECTORS_RAM[];
+
+  memcpy(__VECTORS_RAM, __VECTORS_FLASH, 0x188);
+  SCB->VTOR = &__VECTORS_RAM;
+
+#define SetSysTick(x) __VECTORS_RAM[15] = (uint32_t)x
 
   SetSysTick( &SysTick_Dummy );
 

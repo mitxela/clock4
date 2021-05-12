@@ -53,10 +53,15 @@ SECTIONS
   .isr_vector :
   {
     . = ALIGN(4);
-    __VECTORS_START = .;
+    __VECTORS_FLASH = .;
     KEEP(*(.isr_vector)) /* Startup code */
     . = ALIGN(4);
   } >FLASH
+
+  .isr_vectors_ram :
+  {
+    __VECTORS_RAM = .;
+  } >VECT
 
   /* The program code and other data into "FLASH" Rom type memory */
   .text :
