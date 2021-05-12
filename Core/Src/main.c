@@ -103,15 +103,15 @@ const uint8_t cLut[]= { cSegDecode0, cSegDecode1, cSegDecode2, cSegDecode3, cSeg
 struct {
   uint8_t low;
   uint8_t high;
-} buffer_c[128] = {0};
+} buffer_c[80] = {0};
 
-uint16_t buffer_b[128] = {0};
+uint16_t buffer_b[80] = {0};
 
 uint8_t uart2_tx_buffer[32];
 
 volatile uint16_t buffer_adc[ADC_BUFFER_SIZE] = {0};
 uint16_t buffer_dac[DAC_BUFFER_SIZE] = {[0 ... DAC_BUFFER_SIZE-1] = 4095};
-float dac_target=0;
+float dac_target=4095;
 
 // NMEA 0183 messages have a max length of 82 characters
 uint8_t nmea[90];
@@ -345,7 +345,7 @@ void decodeRMC(void){
 
 }
 
-void setBrightness(uint32_t bright){
+void setDisplayPWM(uint32_t bright){
   HAL_DMA_Abort(&hdma_tim1_up);
   HAL_DMA_Abort(&hdma_tim7_up);
   HAL_DMA_Start(&hdma_tim1_up, (uint32_t)buffer_b, (uint32_t)&GPIOB->ODR, bright);
@@ -642,7 +642,11 @@ int main(void)
 
   /* USER CODE BEGIN SysInit */
 
-
+  buffer_c[0].high=0b11011110;
+  buffer_c[1].high=0b11011101;
+  buffer_c[2].high=0b11011011;
+  buffer_c[3].high=0b11010111;
+  buffer_c[4].high=0b11001111;
 
   /* USER CODE END SysInit */
 
@@ -666,33 +670,12 @@ int main(void)
   RetargetInit(&huart2);
 
 
-  USART1->CR1 |= USART_CR1_CMIE ;
-
-  USART1->CR1 &= ~(USART_CR1_UE);
-  USART1->CR2 |= '\n'<<24;
-  USART1->CR1 |= USART_CR1_UE;
-
-  HAL_UART_Receive_DMA(&huart1, nmea, sizeof(nmea));
-
+  // Configure display matrix
   if (HAL_DMA_Start(&hdma_tim1_up, (uint32_t)buffer_c, (uint32_t)&GPIOC->ODR, 5) != HAL_OK)
-  {
     Error_Handler();
-  }
 
   if (HAL_DMA_Start(&hdma_tim7_up, (uint32_t)buffer_b, (uint32_t)&GPIOB->ODR, 5) != HAL_OK)
-  {
     Error_Handler();
-  }
-
-  if (HAL_ADC_Start_DMA(&hadc1, (uint32_t*)buffer_adc, ADC_BUFFER_SIZE) != HAL_OK) {
-    Error_Handler();
-  }
-
-
-  if (HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t*)buffer_dac, DAC_BUFFER_SIZE, DAC_ALIGN_12B_R) !=HAL_OK) {
-    Error_Handler();
-  }
-
 
   __HAL_TIM_ENABLE_DMA(&htim1, TIM_DMA_UPDATE);
   __HAL_TIM_ENABLE(&htim1);
@@ -701,6 +684,28 @@ int main(void)
   __HAL_TIM_ENABLE(&htim7);
 
 
+  doDateUpdate();
+
+
+  // Configure UART1 for NMEA strings from GPS module
+  USART1->CR1 |= USART_CR1_CMIE ;
+
+  USART1->CR1 &= ~(USART_CR1_UE);
+  USART1->CR2 |= '\n'<<24;
+  USART1->CR1 |= USART_CR1_UE;
+
+  HAL_UART_Receive_DMA(&huart1, nmea, sizeof(nmea));
+
+
+
+  // Configure ADC and DAC DMA for display brightness
+  if (HAL_ADC_Start_DMA(&hadc1, (uint32_t*)buffer_adc, ADC_BUFFER_SIZE) != HAL_OK)
+    Error_Handler();
+
+  if (HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t*)buffer_dac, DAC_BUFFER_SIZE, DAC_ALIGN_12B_R) !=HAL_OK)
+    Error_Handler();
+
+  // Configure Colon Separators
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
   TIM2->CCR1 = 10000-3500;
 
@@ -708,19 +713,17 @@ int main(void)
   TIM2->CCR2 = 10000-3500;
 
 
+
+
+  //Enable DP for subseconds
   buffer_c[0].high=0b11011110 | cSegDP;
-  buffer_c[1].high=0b11011101;
-  buffer_c[2].high=0b11011011;
-  buffer_c[3].high=0b11010111;
-  buffer_c[4].high=0b11001111;
+
+
+
   buffer_c[0].low=cSegDecode0;
   buffer_c[1].low=cSegDecode0;
   buffer_c[2].low=cSegDecode0;
   buffer_c[3].low=cSegDecode0;
-  buffer_c[4].low=0;
-
-
-
 
   next7seg.c = buffer_c[0].low;
 
@@ -730,17 +733,16 @@ int main(void)
   next7seg.b[3] = buffer_b[3] = bCat3 | bSegDecode0;
   next7seg.b[4] = buffer_b[4] = bCat4 | bSegDecode0;
 
-  setBrightness(5);
+  setDisplayPWM(5);
 
  // readConfigFile();
 
-  dac_target=4095;
 
 
 
 
 
-  uint8_t x = doDateUpdate();
+
 
 
 //  huart2.Init.WordLength = UART_WORDLENGTH_8B;
@@ -883,7 +885,7 @@ goto temp;
     scanf("%s", &str);
     printf("%s\n",&str);
     bri = (float)atof(str);
-    setBrightness((int)bri);
+    setDisplayPWM((int)bri);
 
 */
 
@@ -1553,7 +1555,7 @@ void Error_Handler(void)
   buffer_b[3] = bCat3;
   buffer_b[4] = bCat4 | 0b0111100100;
 
-  //setBrightness(5);
+  //setDisplayPWM(5);
 
 
 

@@ -14,9 +14,10 @@ extern CRC_HandleTypeDef hcrc;
 extern struct {
   uint8_t low;
   uint8_t high;
-} buffer_c[5];
+} buffer_c[80];
 
-extern uint16_t buffer_b[5];
+extern uint16_t buffer_b[80];
+void setDisplayPWM(uint32_t bright);
 
 enum {ACK =0, NACK=1};
 #define BYTE_ACK   0x79
@@ -26,21 +27,21 @@ enum {ACK =0, NACK=1};
    ( ((x & 0xff000000) >> 24) | ((x & 0x00ff0000) >> 8) \
    | ((x & 0x0000ff00) <<  8) | ((x & 0x000000ff) << 24))
 
-// Firmware image on file system fails CRC check
 #define ERR_FS_IMG_CRC_INVALID    0b0000011000 // 1
 #define ERR_DATE_DEAD             0b0101101100 // 2
-#define ERR_GO_FAILED             0b0100111100 // 3
+#define ERR_GET                   0b0100111100 // 3
 #define ERR_UNEXPECTED_TIMEOUT    0b0110011000 // 4
 #define ERR_VERSION               0b0110110100 // 5
 #define ERR_ERASE_FAILED          0b0111110100 // 6
 #define ERR_WRITE_PAGE            0b0000011100 // 7
 #define ERR_WRITE                 0b0111111100 // 8
-
+#define ERR_GO_FAILED             0b0110111100 // 9
 
 #define DATE_APP_SIZE 32768
 
 void hang_error(uint16_t errno){
   //stopAnimation();
+  setDisplayPWM(5);
 
   buffer_b[0] = bCat0 | 0b0101111000; //d
   buffer_b[1] = bCat1 | errno;
@@ -99,12 +100,6 @@ uint32_t f_crc(FIL* fp)
 void uart2_transmit_byte(uint8_t c){
   while( !( USART2->ISR & USART_ISR_TXE ) ) {};
   USART2->TDR = c;
-}
-
-void uart2_enable_parity(void){
-  huart2.Init.WordLength = UART_WORDLENGTH_9B;
-  huart2.Init.Parity = UART_PARITY_EVEN;
-  HAL_UART_Init(&huart2);
 }
 
 uint8_t wait_for_ack(uint32_t timeout){
@@ -171,6 +166,25 @@ uint8_t exit_bootloader(void){
 }
 
 
+#define CHUNK (DATE_APP_SIZE / (8*9))
+void progressBar( uint32_t addr, uint32_t * threshold, char * progress ){
+  if (addr>*threshold) {
+    *progress+=2;
+    switch ((*progress) & 0xF0){
+      case 0x00:  buffer_b[0 + 5*(*progress & 0x0F)] = bCat0 | 0b0100000000; break;
+      case 0x10:  buffer_b[1 + 5*(*progress & 0x0F)] = bCat1 | 0b0100000000; break;
+      case 0x20:  buffer_b[2 + 5*(*progress & 0x0F)] = bCat2 | 0b0100000000; break;
+      case 0x30:  buffer_b[3 + 5*(*progress & 0x0F)] = bCat3 | 0b0100000000; break;
+      case 0x40:  buffer_b[4 + 5*(*progress & 0x0F)] = bCat4 | 0b0100000000; break;
+      case 0x50:  buffer_c[0 + 5*(*progress & 0x0F)].low =     0b01000000  ; break;
+      case 0x60:  buffer_c[1 + 5*(*progress & 0x0F)].low =     0b01000000  ; break;
+      case 0x70:  buffer_c[2 + 5*(*progress & 0x0F)].low =     0b01000000  ; break;
+      case 0x80:  buffer_c[3 + 5*(*progress & 0x0F)].low =     0b01000000  ; break;
+    }
+    *threshold += CHUNK;
+  }
+}
+
 uint8_t doDateUpdate(void) {
 
   // Possible situations for date chip:
@@ -223,7 +237,8 @@ uint8_t doDateUpdate(void) {
       }
     } else {
 
-      if (cur_fw_crc == new_fw_crc) return 0;
+      if (0)
+      if (byteswap32(cur_fw_crc) == new_fw_crc) return 0;
 
 
       uart2_transmit_byte(DATE_CMD_START_BOOTLOADER);
@@ -240,8 +255,8 @@ uint8_t doDateUpdate(void) {
 
 
 
-  if (boot_cmd(0x00)!=0)
-    hang_error(bDig9);
+  if (boot_cmd(BOOT_CMD_GET)!=0)
+    hang_error(ERR_GET);
 
   uint8_t data[14];
 
@@ -254,16 +269,21 @@ uint8_t doDateUpdate(void) {
 
 
 
+
+
+
+  // Mass erase is possibly unsupported by L010
   // L010 Flash pages are 128 bytes, => 32kb is 256 pages
 
   if (boot_cmd(BOOT_CMD_EXTENDED_ERASE)!=0)
     hang_error(ERR_ERASE_FAILED);
 
-#define PAGES_TO_ERASE 256
+#define PAGES_TO_ERASE (DATE_APP_SIZE / 128)
 
-  uart2_transmit_byte(0x00);
-  uart2_transmit_byte(PAGES_TO_ERASE-1);
-  uint8_t chk=PAGES_TO_ERASE-1;
+  uart2_transmit_byte((PAGES_TO_ERASE-1) >> 8);
+  uart2_transmit_byte((PAGES_TO_ERASE-1) & 0xFF);
+  uint8_t chk=((PAGES_TO_ERASE-1)>>8) ^ ((PAGES_TO_ERASE-1) & 0xFF);
+
   for (uint16_t i=0;i< PAGES_TO_ERASE;i++){
     uart2_transmit_byte((i>>8) & 0xFF);
     chk ^= (i>>8) & 0xFF;
@@ -277,23 +297,61 @@ uint8_t doDateUpdate(void) {
     hang_error(ERR_ERASE_FAILED);
 
 
-  buffer_c[2].low = 0b01101111;
+
+  // Set up display for fading individual segments
+  buffer_c[0].low=0;
+  buffer_c[1].low=0;
+  buffer_c[2].low=0;
+  buffer_c[3].low=0;
+  buffer_c[4].low=0;
+  buffer_b[0] = 0;
+  buffer_b[1] = 0;
+  buffer_b[2] = 0;
+  buffer_b[3] = 0;
+  buffer_b[4] = 0;
+  for (uint8_t i=0;i<80;i+=5) {
+    buffer_c[0 + i].high=0b11011110;
+    buffer_c[1 + i].high=0b11011101;
+    buffer_c[2 + i].high=0b11011011;
+    buffer_c[3 + i].high=0b11010111;
+    buffer_c[4 + i].high=0b11001111;
+  }
+  setDisplayPWM(80);
+
+
+
+
+
+  uint32_t threshold = 0;
+  char progress = 0;
 
   if (file.fptr !=0)
     f_rewind(&file);
 
   for (uint32_t addr=0; addr < DATE_APP_SIZE; addr+=256) {
     uint8_t data[256];
-    int rc;
+    unsigned int rc;
     f_read(&file, data, 256, &rc);
     if (write_page(addr +0x08000000, data) !=0)
       hang_error(ERR_WRITE);
+    progressBar(addr, &threshold, &progress);
   }
-
 
 
   if (exit_bootloader() == NACK)
     hang_error(ERR_GO_FAILED);
+
+
+
+  // Teardown
+  for (uint8_t i=5;i<80;i+=5) {
+    buffer_c[0 + i].high=0;
+    buffer_c[1 + i].high=0;
+    buffer_c[2 + i].high=0;
+    buffer_c[3 + i].high=0;
+    buffer_c[4 + i].high=0;
+  }
+  setDisplayPWM(5);
 
 
   return 0;
