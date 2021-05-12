@@ -222,18 +222,38 @@ void launch_app(){
 
 
 void progressBar(uint32_t addr){
-#define CHUNK (0x30000 / 8) /* ( APP_SIZE / 8)*/
-  static uint32_t threshold = ((uint32_t)_app_start) + CHUNK;
-  static char progress = 2;
+#define CHUNK ( APP_SIZE / 22)
+  static uint32_t threshold = ((uint32_t)_app_start);
+  static char progress = 0;
   if (addr>threshold) {
     switch (++progress){
-      case 3: buffer_b[2] = bCat2 | 0b0111111100; break;
-      case 4: buffer_b[3] = bCat3 | 0b0111111100; break;
-      case 5: buffer_b[4] = bCat4 | 0b0111111100; break;
-      case 6: buffer_c[0].low =     0b01111111  ; break;
-      case 7: buffer_c[1].low =     0b01111111  ; break;
-      case 8: buffer_c[2].low =     0b01111111  ; break;
-      case 9: buffer_c[3].low =     0b01111111  ; break;
+      case 1: buffer_b[2] = bCat2 | 0b0011000000; break;
+      case 2: buffer_b[2] = bCat2 | 0b0011100100; break;
+      case 3: buffer_b[2] = bCat2 | 0b0011111100; break;
+
+      case 4: buffer_b[3] = bCat3 | 0b0011000000; break;
+      case 5: buffer_b[3] = bCat3 | 0b0011100100; break;
+      case 6: buffer_b[3] = bCat3 | 0b0011111100; break;
+
+      case 7: buffer_b[4] = bCat4 | 0b0011000000; break;
+      case 8: buffer_b[4] = bCat4 | 0b0011100100; break;
+      case 9: buffer_b[4] = bCat4 | 0b0011111100; break;
+
+      case 10: buffer_c[0].low =    0b00110000  ; break;
+      case 11: buffer_c[0].low =    0b00111001  ; break;
+      case 12: buffer_c[0].low =    0b00111111  ; break;
+
+      case 13: buffer_c[1].low =    0b00110000  ; break;
+      case 14: buffer_c[1].low =    0b00111001  ; break;
+      case 15: buffer_c[1].low =    0b00111111  ; break;
+
+      case 16: buffer_c[2].low =    0b00110000  ; break;
+      case 17: buffer_c[2].low =    0b00111001  ; break;
+      case 18: buffer_c[2].low =    0b00111111  ; break;
+
+      case 19: buffer_c[3].low =    0b00110000  ; break;
+      case 20: buffer_c[3].low =    0b00111001  ; break;
+      case 21: buffer_c[3].low =    0b00111111  ; break;
     }
     threshold += CHUNK;
   }
