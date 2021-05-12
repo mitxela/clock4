@@ -100,10 +100,7 @@ void tmToBcd(struct tm *in, bcdStamp_t *out );
 /* USER CODE BEGIN 0 */
 const uint8_t cLut[]= { cSegDecode0, cSegDecode1, cSegDecode2, cSegDecode3, cSegDecode4, cSegDecode5, cSegDecode6, cSegDecode7, cSegDecode8, cSegDecode9 };
 
-struct {
-  uint8_t low;
-  uint8_t high;
-} buffer_c[80] = {0};
+buffer_c_t buffer_c[80] = {0};
 
 uint16_t buffer_b[80] = {0};
 

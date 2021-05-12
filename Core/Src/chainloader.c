@@ -4,20 +4,12 @@
 // The L476 acts as host to the stm32 uart bootloader protocol.
 
 
-#include "stm32l4xx_hal.h"
+#include "main.h"
 #include "chainloader.h"
 #include "fatfs.h"
 
 extern UART_HandleTypeDef huart2;
 extern CRC_HandleTypeDef hcrc;
-
-extern struct {
-  uint8_t low;
-  uint8_t high;
-} buffer_c[80];
-
-extern uint16_t buffer_b[80];
-void setDisplayPWM(uint32_t bright);
 
 enum {ACK =0, NACK=1};
 #define BYTE_ACK   0x79
@@ -27,15 +19,15 @@ enum {ACK =0, NACK=1};
    ( ((x & 0xff000000) >> 24) | ((x & 0x00ff0000) >> 8) \
    | ((x & 0x0000ff00) <<  8) | ((x & 0x000000ff) << 24))
 
-#define ERR_FS_IMG_CRC_INVALID    0b0000011000 // 1
-#define ERR_DATE_DEAD             0b0101101100 // 2
-#define ERR_GET                   0b0100111100 // 3
-#define ERR_UNEXPECTED_TIMEOUT    0b0110011000 // 4
-#define ERR_VERSION               0b0110110100 // 5
-#define ERR_ERASE_FAILED          0b0111110100 // 6
-#define ERR_WRITE_PAGE            0b0000011100 // 7
-#define ERR_WRITE                 0b0111111100 // 8
-#define ERR_GO_FAILED             0b0110111100 // 9
+#define ERR_FS_IMG_CRC_INVALID    bSegDecode1
+#define ERR_DATE_DEAD             bSegDecode2
+#define ERR_GET                   bSegDecode3
+#define ERR_UNEXPECTED_TIMEOUT    bSegDecode4
+#define ERR_VERSION               bSegDecode5
+#define ERR_ERASE_FAILED          bSegDecode6
+#define ERR_WRITE_PAGE            bSegDecode7
+#define ERR_WRITE                 bSegDecode8
+#define ERR_GO_FAILED             bSegDecode9
 
 #define DATE_APP_SIZE 32768
 
@@ -169,21 +161,21 @@ uint8_t exit_bootloader(void){
 #define CHUNK (DATE_APP_SIZE / (8*9))
 void progressBar( uint32_t addr, uint32_t * threshold, char * progress ){
   if (addr>*threshold) {
-    *progress+=2;
-    switch ((*progress) & 0xF0){
-      case 0x00:  buffer_b[0 + 5*(*progress & 0x0F)] = bCat0 | 0b0100000000; break;
-      case 0x10:  buffer_b[1 + 5*(*progress & 0x0F)] = bCat1 | 0b0100000000; break;
-      case 0x20:  buffer_b[2 + 5*(*progress & 0x0F)] = bCat2 | 0b0100000000; break;
-      case 0x30:  buffer_b[3 + 5*(*progress & 0x0F)] = bCat3 | 0b0100000000; break;
-      case 0x40:  buffer_b[4 + 5*(*progress & 0x0F)] = bCat4 | 0b0100000000; break;
-      case 0x50:  buffer_c[0 + 5*(*progress & 0x0F)].low =     0b01000000  ; break;
-      case 0x60:  buffer_c[1 + 5*(*progress & 0x0F)].low =     0b01000000  ; break;
-      case 0x70:  buffer_c[2 + 5*(*progress & 0x0F)].low =     0b01000000  ; break;
-      case 0x80:  buffer_c[3 + 5*(*progress & 0x0F)].low =     0b01000000  ; break;
+    switch ((++*progress) & 0xF8){
+      case 0x00>>1:  buffer_b[0 + 5*(*progress & 0x07)] = bCat0 | 0b0100000000; break;
+      case 0x10>>1:  buffer_b[1 + 5*(*progress & 0x07)] = bCat1 | 0b0100000000; break;
+      case 0x20>>1:  buffer_b[2 + 5*(*progress & 0x07)] = bCat2 | 0b0100000000; break;
+      case 0x30>>1:  buffer_b[3 + 5*(*progress & 0x07)] = bCat3 | 0b0100000000; break;
+      case 0x40>>1:  buffer_b[4 + 5*(*progress & 0x07)] = bCat4 | 0b0100000000; break;
+      case 0x50>>1:  buffer_c[0 + 5*(*progress & 0x07)].low =     0b01000000  ; break;
+      case 0x60>>1:  buffer_c[1 + 5*(*progress & 0x07)].low =     0b01000000  ; break;
+      case 0x70>>1:  buffer_c[2 + 5*(*progress & 0x07)].low =     0b01000000  ; break;
+      case 0x80>>1:  buffer_c[3 + 5*(*progress & 0x07)].low =     0b01000000  ; break;
     }
     *threshold += CHUNK;
   }
 }
+
 
 uint8_t doDateUpdate(void) {
 
@@ -309,14 +301,14 @@ uint8_t doDateUpdate(void) {
   buffer_b[2] = 0;
   buffer_b[3] = 0;
   buffer_b[4] = 0;
-  for (uint8_t i=0;i<80;i+=5) {
+  for (uint8_t i=0;i<40;i+=5) {
     buffer_c[0 + i].high=0b11011110;
     buffer_c[1 + i].high=0b11011101;
     buffer_c[2 + i].high=0b11011011;
     buffer_c[3 + i].high=0b11010111;
     buffer_c[4 + i].high=0b11001111;
   }
-  setDisplayPWM(80);
+  setDisplayPWM(40);
 
 
 
@@ -344,7 +336,7 @@ uint8_t doDateUpdate(void) {
 
 
   // Teardown
-  for (uint8_t i=5;i<80;i+=5) {
+  for (uint8_t i=5;i<40;i+=5) {
     buffer_c[0 + i].high=0;
     buffer_c[1 + i].high=0;
     buffer_c[2 + i].high=0;

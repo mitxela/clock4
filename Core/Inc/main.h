@@ -54,6 +54,15 @@ typedef struct {
   uint8_t seconds;
 } bcdStamp_t;
 
+typedef struct {
+  uint8_t low;
+  uint8_t high;
+} buffer_c_t;
+
+extern buffer_c_t buffer_c[];
+
+extern uint16_t buffer_b[];
+
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
@@ -109,6 +118,7 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 void decodeRMC(void);
+void setDisplayPWM(uint32_t bright);
 
 #define loadNextTimestamp() \
   buffer_c[0].low = next7seg.c; \
