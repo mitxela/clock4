@@ -99,9 +99,9 @@ static void MX_TIM4_Init(void);
 struct {
   uint8_t low;
   uint8_t high;
-} buffer_c[1280] = {0};
+} buffer_c[80] = {0};
 
-uint16_t buffer_b[1280] = {0};
+uint16_t buffer_b[80] = {0};
 
 char animationFrame=99;
 #define startAnimation() animationFrame=0
@@ -116,10 +116,16 @@ extern uint32_t _app_size[];
 #define BOOT_SIZE (int)_boot_size
 #define APP_SIZE (int)_app_size
 
-
+void setDisplayPWM(uint32_t bright){
+  HAL_DMA_Abort(&hdma_tim1_up);
+  HAL_DMA_Abort(&hdma_tim4_up);
+  HAL_DMA_Start(&hdma_tim1_up, (uint32_t)buffer_b, (uint32_t)&GPIOB->ODR, bright);
+  HAL_DMA_Start(&hdma_tim4_up, (uint32_t)buffer_c, (uint32_t)&GPIOC->ODR, bright);
+}
 
 void hang_error(uint16_t errno){
   stopAnimation();
+  setDisplayPWM(5);
 
   buffer_b[0] = bCat0 | 0b0111110000; //b
   buffer_b[1] = bCat1 | errno;
@@ -199,16 +205,6 @@ void launch_app(){
   HAL_RCC_DeInit();
   HAL_DeInit();
 
-//  SysTick->CTRL = 0;
-//  SysTick->LOAD = 0;
-//  SysTick->VAL = 0;
-
-  //__disable_irq();
-  //__DSB();
-  //__HAL_SYSCFG_REMAPMEMORY_SYSTEMFLASH();
-  //__DSB();
-  //__ISB();
-
   // 1st entry in the vector table is stack pointer
   // 2nd entry in the vector table is the application entry point
 
@@ -217,43 +213,22 @@ void launch_app(){
 }
 
 
-//#define progress1() buffer_b[0] = bCat0 | 0b0100000000
-//#define progress2() buffer_b[1] = bCat1 | 0b0100000000
-
 
 void progressBar(uint32_t addr){
-#define CHUNK ( APP_SIZE / 22)
+#define CHUNK ( APP_SIZE / (9*16))
   static uint32_t threshold = ((uint32_t)_app_start);
   static char progress = 0;
   if (addr>threshold) {
-    switch (++progress){
-      case 1: buffer_b[2] = bCat2 | 0b0011000000; break;
-      case 2: buffer_b[2] = bCat2 | 0b0011100100; break;
-      case 3: buffer_b[2] = bCat2 | 0b0011111100; break;
-
-      case 4: buffer_b[3] = bCat3 | 0b0011000000; break;
-      case 5: buffer_b[3] = bCat3 | 0b0011100100; break;
-      case 6: buffer_b[3] = bCat3 | 0b0011111100; break;
-
-      case 7: buffer_b[4] = bCat4 | 0b0011000000; break;
-      case 8: buffer_b[4] = bCat4 | 0b0011100100; break;
-      case 9: buffer_b[4] = bCat4 | 0b0011111100; break;
-
-      case 10: buffer_c[0].low =    0b00110000  ; break;
-      case 11: buffer_c[0].low =    0b00111001  ; break;
-      case 12: buffer_c[0].low =    0b00111111  ; break;
-
-      case 13: buffer_c[1].low =    0b00110000  ; break;
-      case 14: buffer_c[1].low =    0b00111001  ; break;
-      case 15: buffer_c[1].low =    0b00111111  ; break;
-
-      case 16: buffer_c[2].low =    0b00110000  ; break;
-      case 17: buffer_c[2].low =    0b00111001  ; break;
-      case 18: buffer_c[2].low =    0b00111111  ; break;
-
-      case 19: buffer_c[3].low =    0b00110000  ; break;
-      case 20: buffer_c[3].low =    0b00111001  ; break;
-      case 21: buffer_c[3].low =    0b00111111  ; break;
+    switch ((++progress) & 0xF0){
+      case 0x00:  buffer_b[0 + 5*(progress & 0x0F)] = bCat0 | 0b0100000000; break;
+      case 0x10:  buffer_b[1 + 5*(progress & 0x0F)] = bCat1 | 0b0100000000; break;
+      case 0x20:  buffer_b[2 + 5*(progress & 0x0F)] = bCat2 | 0b0100000000; break;
+      case 0x30:  buffer_b[3 + 5*(progress & 0x0F)] = bCat3 | 0b0100000000; break;
+      case 0x40:  buffer_b[4 + 5*(progress & 0x0F)] = bCat4 | 0b0100000000; break;
+      case 0x50:  buffer_c[0 + 5*(progress & 0x0F)].low =     0b01000000  ; break;
+      case 0x60:  buffer_c[1 + 5*(progress & 0x0F)].low =     0b01000000  ; break;
+      case 0x70:  buffer_c[2 + 5*(progress & 0x0F)].low =     0b01000000  ; break;
+      case 0x80:  buffer_c[3 + 5*(progress & 0x0F)].low =     0b01000000  ; break;
     }
     threshold += CHUNK;
   }
@@ -442,6 +417,21 @@ int main(void)
 
   HAL_FLASH_Unlock();
   flash_erase();
+
+  stopAnimation();
+  buffer_b[0] = 0;
+  buffer_b[1] = 0;
+  // Set up display for fading individual segments
+  for (uint8_t i=0;i<80;i+=5) {
+    buffer_c[0 + i].high=0b11011110;
+    buffer_c[1 + i].high=0b11011101;
+    buffer_c[2 + i].high=0b11011011;
+    buffer_c[3 + i].high=0b11010111;
+    buffer_c[4 + i].high=0b11001111;
+  }
+  setDisplayPWM(80);
+
+
   flash_write(&file);
   HAL_FLASH_Lock();
 
