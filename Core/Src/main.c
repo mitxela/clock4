@@ -684,7 +684,6 @@ int main(void)
   MX_ADC1_Init();
   MX_DAC1_Init();
   MX_TIM6_Init();
-  MX_RTC_Init();
   MX_TIM7_Init();
   MX_CRC_Init();
   /* USER CODE BEGIN 2 */
@@ -778,7 +777,14 @@ int main(void)
 //  currentTime = 1620582523;
 //  write_rtc();
 //  while(1);
-
+  hrtc.Instance = RTC;
+  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
+  hrtc.Init.AsynchPrediv = 127;
+  hrtc.Init.SynchPrediv = 255;
+  hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+  hrtc.Init.OutPutRemap = RTC_OUTPUT_REMAP_NONE;
+  hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+  hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
 
   if (RTC->ISR & RTC_ISR_INITS) //RTC contains non-zero data
   {
@@ -821,6 +827,8 @@ int main(void)
 
   } else { // backup domain reset
 
+
+    MX_RTC_Init();
   }
 
   SetSysTick( &SysTick_CountUp );
@@ -1533,8 +1541,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-
 
 }
 
