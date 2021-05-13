@@ -166,6 +166,18 @@ void setNextTimestamp(time_t nextTime){
   next7seg.b[4] = bCat4 | cLut[nextBcd.tenSeconds]<<2;
 
   if (1){
+    uart2_tx_buffer[0] =0x90;
+    uart2_tx_buffer[1] ='0'+nextBcd.seconds;
+    uart2_tx_buffer[2] ='0';
+    uart2_tx_buffer[3] ='0'+nextBcd.tenYears;
+    uart2_tx_buffer[4] ='0'+nextBcd.years;
+    uart2_tx_buffer[5] ='-';
+    uart2_tx_buffer[6] ='0'+nextBcd.tenMonths;
+    uart2_tx_buffer[7] ='0'+nextBcd.months;
+    uart2_tx_buffer[8] ='-';
+    uart2_tx_buffer[9] ='0'+nextBcd.tenDays;
+    uart2_tx_buffer[10]='0'+nextBcd.days;
+  }else if (1){
     sprintf(&uart2_tx_buffer[1], "%010ld", currentTime);
     uart2_tx_buffer[0] =0x90;
   }else{
@@ -190,10 +202,6 @@ void setNextTimestamp(time_t nextTime){
 // Only called at the start of a second, don't attempt to write subseconds.
 void write_rtc(void){
 
-  static time_t lastwrite;
-  if (currentTime == lastwrite) return;
-  lastwrite=currentTime;
-
   RTC_DateTypeDef sdatestructure;
   RTC_TimeTypeDef stimestructure;
   bcdStamp_t cBcd;
@@ -204,7 +212,7 @@ void write_rtc(void){
   sdatestructure.Year    = (cBcd.tenYears<<4)  | cBcd.years;
   sdatestructure.Month   = (cBcd.tenMonths<<4) | cBcd.months;
   sdatestructure.Date    = (cBcd.tenDays<<4)   | cBcd.days;
-  //sdatestructure.WeekDay = RTC_WEEKDAY_MONDAY;
+  sdatestructure.WeekDay = RTC_WEEKDAY_MONDAY;
 
   HAL_RTC_SetDate(&hrtc,&sdatestructure,RTC_FORMAT_BCD);
 
@@ -232,10 +240,8 @@ void write_rtc(void){
 
   char numRulesToStore = (i+12>=MAX_RULES-1)? (MAX_RULES-i)*2 : 24;
 
-  HAL_PWR_EnableBkUpAccess();
-  memcpyword( (uint32_t*)&(hrtc.Instance->BKP0R), (uint32_t*)loadedRulesString, 8 );
-  memcpyword( (uint32_t*)&(hrtc.Instance->BKP8R), (uint32_t*)&rules[i], numRulesToStore );
-  HAL_PWR_DisableBkUpAccess();
+  memcpyword( (uint32_t*)&(RTC->BKP0R), (uint32_t*)loadedRulesString, 8 );
+  memcpyword( (uint32_t*)&(RTC->BKP8R), (uint32_t*)&rules[i], numRulesToStore );
 
 }
 
@@ -736,7 +742,6 @@ int main(void)
 
 
 
-
   //Enable DP for subseconds
   buffer_c[0].high=0b11011110 | cSegDP;
 
@@ -774,17 +779,9 @@ int main(void)
 
 //  char asdf[]="Europe/London";
 //  loadRulesSingle(asdf);
-//  currentTime = 1620582523;
-//  write_rtc();
+
 //  while(1);
-  hrtc.Instance = RTC;
-  hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
-  hrtc.Init.AsynchPrediv = 127;
-  hrtc.Init.SynchPrediv = 255;
-  hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
-  hrtc.Init.OutPutRemap = RTC_OUTPUT_REMAP_NONE;
-  hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
-  hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+
 
   if (RTC->ISR & RTC_ISR_INITS) //RTC contains non-zero data
   {
@@ -792,12 +789,13 @@ int main(void)
     RTC_TimeTypeDef stime;
 
     char zone[32];
-    memcpyword( (uint32_t*)zone,  (uint32_t*)&(hrtc.Instance->BKP0R), 8 );
+    memcpyword( (uint32_t*)zone,  (uint32_t*)&(RTC->BKP0R), 8 );
 
     if (loadRulesSingle(zone) != 0){ // takes 34ms -O0, 26ms -O2
-      memcpyword( (uint32_t*)rules, (uint32_t*)&(hrtc.Instance->BKP8R), 24 );
+      memcpyword( (uint32_t*)rules, (uint32_t*)&(RTC->BKP8R), 24 );
     }
 
+    hrtc.Instance = RTC;
     HAL_RTC_GetTime(&hrtc, &stime, RTC_FORMAT_BIN);
     HAL_RTC_GetDate(&hrtc, &sdate, RTC_FORMAT_BIN);
 
@@ -827,7 +825,7 @@ int main(void)
 
   } else { // backup domain reset
 
-
+    // The init process blanks the subsecond registers
     MX_RTC_Init();
   }
 
