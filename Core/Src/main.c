@@ -248,6 +248,14 @@ const uint8_t lut_7seg_inv[] = {
 #define CMD_REPORT_CRC         0x9E
 #define CMD_START_BOOTLOADER   0x9F
 
+#define CMD_SET_FREQUENCY_B2   0xA1
+#define CMD_SET_FREQUENCY_B3   0xA2
+
+// 32e6/5/67 = 95522.388 Hz
+#define ARR_MIN                66
+#define ARR_MAX                6399
+// 32e6/5/6400 = 1000Hz
+
 uint16_t pre_buffer_a[5] ={0};
 uint16_t pre_buffer_b[5] ={0};
 uint8_t latched = 0;
@@ -261,6 +269,7 @@ uint8_t buffer_idx=0;
 uint8_t text[MAX_TEXT_LEN] ={0};
 uint8_t text_idx=0;
 
+uint32_t target_freq=0;
 
 const uint16_t cathodes_a[5]={
     0b1001100000000010,
@@ -402,6 +411,16 @@ void TIM21_IRQHandler(void){
   }
 }
 
+static inline setFrequency(void){
+
+  if (target_freq<1 || target_freq>100000) return;
+
+  uint32_t arr = (6400000 / target_freq) -1;
+  if (arr > ARR_MAX) arr = ARR_MAX;
+  if (arr < ARR_MIN) arr = ARR_MIN;
+  TIM2->ARR= arr;
+}
+
 static inline void latchDisplay(void){
   buffer_b[0] = pre_buffer_b[0];
   buffer_b[1] = pre_buffer_b[1];
@@ -457,6 +476,12 @@ static inline void parseByte(uint8_t x){
       case CMD_SET_SCROLL_SPEED:
         break;
 
+      case CMD_SET_FREQUENCY:
+      case CMD_SET_FREQUENCY_B2:
+      case CMD_SET_FREQUENCY_B3:
+        target_freq=0;
+        break;
+
       case CMD_REPORT_CRC:
         transmitBlocking( (uint8_t*)0x8007ffc, 4);
         break;
@@ -471,17 +496,35 @@ static inline void parseByte(uint8_t x){
     return;
   }
 
-  if (status==CMD_SET_SCROLL_SPEED) {
-    //asdf
-    return;
-  }
+  // Process data
+  switch(status){
 
-  if (status==CMD_LOAD_TEXT) {
+  case CMD_LOAD_TEXT:
     if(text_idx > MAX_TEXT_LEN) return;
 
     if (text_idx < 10) setDigitPre(text_idx, x);
     text[text_idx++] = x;
+    return;
+
+  case CMD_SET_SCROLL_SPEED:
+    return;
+
+  case CMD_SET_FREQUENCY:
+    status=CMD_SET_FREQUENCY_B2;
+    target_freq |= x<<14;
+    return;
+  case CMD_SET_FREQUENCY_B2:
+    status=CMD_SET_FREQUENCY_B3;
+    target_freq |= x<<7;
+    return;
+  case CMD_SET_FREQUENCY_B3:
+    status=0;
+    target_freq |= x;
+    setFrequency();
+    return;
   }
+
+
 }
 
 
@@ -543,16 +586,16 @@ int main(void)
   LL_TIM_EnableIT_UPDATE(TIM21);
   LL_TIM_EnableCounter(TIM21);
 
-  setDigitDirect(0, 'S');
-  setDigitDirect(1, 'T');
-  setDigitDirect(2, 'A');
-  setDigitDirect(3, 'R');
-  setDigitDirect(4, 'T');
-  setDigitDirect(5, 's');
-  setDigitDirect(6, 't');
-  setDigitDirect(7, 'u');
-  setDigitDirect(8, 'g');
-  setDigitDirect(9, 'f');
+  setDigitDirect(0, 'l');
+  setDigitDirect(1, 'o');
+  setDigitDirect(2, 'l');
+  setDigitDirect(3, 'o');
+  setDigitDirect(4, 'l');
+  setDigitDirect(5, 'o');
+  setDigitDirect(6, 'l');
+  setDigitDirect(7, 'o');
+  setDigitDirect(8, 'l');
+  setDigitDirect(9, 'o');
 
 
   buffer_a[2] |= 1<<14;
