@@ -185,10 +185,10 @@ void PendSV_Handler(void)
   /* USER CODE BEGIN PendSV_IRQn 0 */
 
 
-  //HAL_UART_Transmit_DMA(&huart2, "\n", 1);
+  // Writing to the RTC is normally very fast, but if something goes wrong
+  // the HAL functions will fail to time out if it's running with the same
+  // preemption priority as systick
   if (had_pps) write_rtc();
-
-  //*((uint32_t volatile *)0xE000ED04) = (1<<27); // clear PendSV
 
 
   /* USER CODE END PendSV_IRQn 0 */

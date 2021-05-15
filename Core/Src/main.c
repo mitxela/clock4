@@ -555,7 +555,7 @@ uint8_t findField( FIL* fp, char* str, uint8_t count, uint8_t padding ) {
 uint8_t loadRules( char* cat, char* zo ) {
   FIL file;
 
-  if (f_open(&file, "/TZRULES.BIN", FA_READ) != FR_OK) {
+  if (f_open(&file, RULES_FILENAME, FA_READ) != FR_OK) {
     //printf("Could not open rules file\n");
     return 1;
   }
@@ -770,17 +770,8 @@ int main(void)
 
 
 
-
-
-//  huart2.Init.WordLength = UART_WORDLENGTH_8B;
-//  huart2.Init.Parity = UART_PARITY_NONE;
-//  HAL_UART_Init(&huart2);
-
-
 //  char asdf[]="Europe/London";
 //  loadRulesSingle(asdf);
-
-//  while(1);
 
 
   if (RTC->ISR & RTC_ISR_INITS) //RTC contains non-zero data
@@ -790,6 +781,7 @@ int main(void)
 
     char zone[32];
     memcpyword( (uint32_t*)zone,  (uint32_t*)&(RTC->BKP0R), 8 );
+    zone[31]=0;
 
     if (loadRulesSingle(zone) != 0){ // takes 34ms -O0, 26ms -O2
       memcpyword( (uint32_t*)rules, (uint32_t*)&(RTC->BKP8R), 24 );
@@ -825,6 +817,8 @@ int main(void)
 
   } else { // backup domain reset
 
+    currentTime=946684800; // 2000-01-01T00:00:00
+
     // The init process blanks the subsecond registers
     MX_RTC_Init();
   }
@@ -832,70 +826,17 @@ int main(void)
   SetSysTick( &SysTick_CountUp );
 
 
-  while(1);
-
-while (1){
-  char s[10];
-  printf("Enter target: ");
-  scanf("%s", &s);
-
-  dac_target=atof(s);
-}
-
-
-/*
-  char cat[14], zo[29];
-
-  temp:
-  printf("Enter cat: ");
-  scanf("%s", &cat);
-  printf("Enter zone: ");
-  scanf("%s", &zo);
-  printf("%s\n",&zo);
-*/
-/*
-  temp:
-  printf("Enter tz: ");
-  char str[48];
-  scanf("%s", &str);
-
-  printf("loading.. %d\n", loadRulesSingle(&str) );
-  printf("rule 0: %lu, %d\n", rules[0].t, rules[0].offset);
-  printf("rule 11: %lu, %d\n", rules[11].t, rules[11].offset);
-  printf("rule 92: %lu, %d\n", rules[92].t, rules[11].offset);
-
-
-goto temp;
-*/
-  //int dac = 0;
-  while (1){
-
-    TIM2->CCR1 = 5000;
-
-    //HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, dac);
-
-    //if (++dac>4095) dac=0;
-
-    HAL_Delay(1000);
-    TIM2->CCR1 = 10000;
-
-
-    HAL_Delay(1000);
-  }
-
-
-
-  FIL file;
-
-  if (f_open(&file, "/TZMAP.BIN", FA_READ) != FR_OK) {
-    printf("Could not open tzmap\n");
-    Error_Handler();
-  }
-  ZoneDetect *const cd = ZDOpenDatabase(&file);
 
 
 
 
+
+
+
+
+  FIL mapfile;
+  f_open(&mapfile, MAP_FILENAME, FA_READ);
+  ZoneDetect *const cd = ZDOpenDatabase(&mapfile);
 
 
 
@@ -905,26 +846,15 @@ goto temp;
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-/*
-    char str[20];
 
-    float bri;
 
-    printf("Enter brightness: ");
-    scanf("%s", &str);
-    printf("%s\n",&str);
-    bri = (float)atof(str);
-    setDisplayPWM((int)bri);
-
-*/
-
-    if (data_valid && latitude>=-90.0 && latitude<=90.0 && longitude>=-180.0 && longitude<=180.0) {
+    if (cd && data_valid && latitude>=-90.0 && latitude<=90.0 && longitude>=-180.0 && longitude<=180.0) {
 
       uint32_t start = HAL_GetTick();
       char* zone = ZDHelperSimpleLookupString(cd, latitude, longitude);
 
-      printf("IANA Timezone is [%s]\n", zone);
-      printf("Took %lu ms\n", (HAL_GetTick()-start));
+      //printf("IANA Timezone is [%s]\n", zone);
+      //printf("Took %lu ms\n", (HAL_GetTick()-start));
 
       loadRulesSingle(zone);
       free(zone);
