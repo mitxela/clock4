@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
 #include "retarget.h"
 #include "qspi_drv.h"
 #include "zonedetect.h"
@@ -166,7 +167,7 @@ void setNextTimestamp(time_t nextTime){
   next7seg.b[4] = bCat4 | cLut[nextBcd.tenSeconds]<<2;
 
   if (1){
-    uart2_tx_buffer[0] =0x90;
+    uart2_tx_buffer[0] = CMD_LOAD_TEXT;
     uart2_tx_buffer[1] ='0'+nextBcd.seconds;
     uart2_tx_buffer[2] ='0';
     uart2_tx_buffer[3] ='0'+nextBcd.tenYears;
@@ -179,9 +180,9 @@ void setNextTimestamp(time_t nextTime){
     uart2_tx_buffer[10]='0'+nextBcd.days;
   }else if (1){
     sprintf(&uart2_tx_buffer[1], "%010ld", currentTime);
-    uart2_tx_buffer[0] =0x90;
+    uart2_tx_buffer[0] = CMD_LOAD_TEXT;
   }else{
-    uart2_tx_buffer[0] =0x90;
+    uart2_tx_buffer[0] = CMD_LOAD_TEXT;
     uart2_tx_buffer[1] ='2';
     uart2_tx_buffer[2] ='0';
     uart2_tx_buffer[3] ='0'+nextBcd.tenYears;
@@ -360,20 +361,34 @@ void setDisplayPWM(uint32_t bright){
   HAL_DMA_Start(&hdma_tim7_up, (uint32_t)buffer_c, (uint32_t)&GPIOC->ODR, bright);
 }
 
+void setDisplayFreq(uint32_t freq){
+
+  uart2_tx_buffer[0]= CMD_SET_FREQUENCY;
+  uart2_tx_buffer[1]= (freq>>14) & 0x7F;
+  uart2_tx_buffer[2]= (freq>>7)  & 0x7F;
+  uart2_tx_buffer[3]= (freq)     & 0x7F;
+  HAL_UART_Transmit_DMA(&huart2, uart2_tx_buffer, 4);
+
+  uint32_t arr = round(16000000.0 / (float)freq) -1.0;
+
+  TIM1->ARR = arr;
+  TIM7->ARR = arr;
+}
+
 void parseConfigString(char const *key, char const *value) {
 
-  if (strcasecmp(key, "brightness") == 0) {
+  if (strcasecmp(key, "MATRIX_FREQUENCY") == 0) {
 
-    printf("found brightness\n");
+    setDisplayFreq(atoi(value));
 
   } else if (strcasecmp(key, "date_format") == 0) {
 
-    printf("found date format\n");
+    //printf("found date format\n");
 
   }
 
 
-  printf("Parsed config key [%s] is value [%s]\n", key, value);
+  //printf("Parsed config key [%s] is value [%s]\n", key, value);
 }
 
 void readConfigFile(){
@@ -381,7 +396,7 @@ void readConfigFile(){
   FIL file;
 
    if (f_open(&file, "/CONFIG.TXT", FA_READ) != FR_OK)
-     Error_Handler();
+     return;
 
    char key[20], value[20], s[1];
    unsigned int rc;
@@ -697,10 +712,10 @@ int main(void)
 
 
   // Configure display matrix
-  if (HAL_DMA_Start(&hdma_tim1_up, (uint32_t)buffer_c, (uint32_t)&GPIOC->ODR, 5) != HAL_OK)
+  if (HAL_DMA_Start(&hdma_tim7_up, (uint32_t)buffer_c, (uint32_t)&GPIOC->ODR, 5) != HAL_OK)
     Error_Handler();
 
-  if (HAL_DMA_Start(&hdma_tim7_up, (uint32_t)buffer_b, (uint32_t)&GPIOB->ODR, 5) != HAL_OK)
+  if (HAL_DMA_Start(&hdma_tim1_up, (uint32_t)buffer_b, (uint32_t)&GPIOB->ODR, 5) != HAL_OK)
     Error_Handler();
 
   __HAL_TIM_ENABLE_DMA(&htim1, TIM_DMA_UPDATE);
@@ -713,7 +728,7 @@ int main(void)
   doDateUpdate();
 
 
-  enablePPS();
+
 
   // Configure UART1 for NMEA strings from GPS module
   USART1->CR1 |= USART_CR1_CMIE ;
@@ -722,7 +737,6 @@ int main(void)
   USART1->CR2 |= '\n'<<24;
   USART1->CR1 |= USART_CR1_UE;
 
-  HAL_UART_Receive_DMA(&huart1, nmea, sizeof(nmea));
 
 
 
@@ -762,10 +776,7 @@ int main(void)
 
   setDisplayPWM(5);
 
- // readConfigFile();
-
-
-
+  readConfigFile();
 
 
 
@@ -824,6 +835,8 @@ int main(void)
   }
 
   SetSysTick( &SysTick_CountUp );
+  enablePPS();
+  HAL_UART_Receive_DMA(&huart1, nmea, sizeof(nmea));
 
 
 

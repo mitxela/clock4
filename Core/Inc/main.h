@@ -107,6 +107,10 @@ extern uint16_t buffer_b[];
 #define DAC_BUFFER_SIZE 20
 #define ADC_BUFFER_SIZE 50
 
+
+#define CMD_LOAD_TEXT          0x90
+#define CMD_SET_FREQUENCY      0x91
+
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
