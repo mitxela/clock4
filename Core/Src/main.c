@@ -815,12 +815,14 @@ int main(void)
 
     currentTime = mktime(&out);
 
-    // subseconds ranges up to synchronous prescaler value of 255
-    float fraction = (float)(255 - stime.SubSeconds) / 256.0;
+    float fraction = (float)(32767 - stime.SubSeconds) / 32768.0;
 
+    //  SysTick->VAL = SysTick->LOAD; ?
     millisec = (uint32_t)(fraction*1000) % 10;
     centisec = (uint32_t)(fraction*100) % 10;
     decisec =  (uint32_t)(fraction*10) % 10;
+
+    if (decisec>=9) currentTime++;
 
     setNextTimestamp( currentTime );
     loadNextTimestamp();
@@ -863,7 +865,6 @@ int main(void)
 
     if (cd && data_valid && latitude>=-90.0 && latitude<=90.0 && longitude>=-180.0 && longitude<=180.0) {
 
-      uint32_t start = HAL_GetTick();
       char* zone = ZDHelperSimpleLookupString(cd, latitude, longitude);
 
       //printf("IANA Timezone is [%s]\n", zone);
@@ -1140,8 +1141,8 @@ static void MX_RTC_Init(void)
   */
   hrtc.Instance = RTC;
   hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
-  hrtc.Init.AsynchPrediv = 127;
-  hrtc.Init.SynchPrediv = 255;
+  hrtc.Init.AsynchPrediv = 0;
+  hrtc.Init.SynchPrediv = 32767;
   hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
   hrtc.Init.OutPutRemap = RTC_OUTPUT_REMAP_NONE;
   hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
