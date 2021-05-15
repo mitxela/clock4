@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <string.h>
+#include <math.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -251,8 +252,9 @@ const uint8_t lut_7seg_inv[] = {
 #define CMD_SET_FREQUENCY_B2   0xA1
 #define CMD_SET_FREQUENCY_B3   0xA2
 
-// 32e6/5/67 = 95522.388 Hz
-#define ARR_MIN                66
+// 32e6/5/50 = 128000 Hz
+// on -O0, ARR_MIN 66 => 95522.388Hz
+#define ARR_MIN                49
 #define ARR_MAX                6399
 // 32e6/5/6400 = 1000Hz
 
@@ -411,11 +413,11 @@ void TIM21_IRQHandler(void){
   }
 }
 
-static inline setFrequency(void){
+static inline void setFrequency(void){
 
   if (target_freq<1 || target_freq>100000) return;
 
-  uint32_t arr = (6400000 / target_freq) -1;
+  uint32_t arr = round(6400000.0 / (float)target_freq) -1.0;
   if (arr > ARR_MAX) arr = ARR_MAX;
   if (arr < ARR_MIN) arr = ARR_MIN;
   TIM2->ARR= arr;
@@ -784,6 +786,11 @@ static void MX_USART2_UART_Init(void)
   LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* USER CODE BEGIN USART2_Init 1 */
+
+  // Disable overrun detection, for two reasons
+  // 1. The command structure should always sort itself out
+  // 2. It makes interactive debugging the assembled clock a lot easier
+  USART2->CR3 = USART_CR3_OVRDIS_Msk;
 
   /* USER CODE END USART2_Init 1 */
   USART_InitStruct.BaudRate = 115200;
