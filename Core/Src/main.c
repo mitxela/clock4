@@ -194,8 +194,9 @@ void setNextTimestamp(time_t nextTime){
     uart2_tx_buffer[9] ='0'+nextBcd.tenDays;
     uart2_tx_buffer[10]='0'+nextBcd.days;
   }
+  uart2_tx_buffer[11]='\n';
   HAL_UART_AbortTransmit(&huart2);
-  HAL_UART_Transmit_DMA(&huart2, uart2_tx_buffer, 11);
+  HAL_UART_Transmit_DMA(&huart2, uart2_tx_buffer, 12);
 }
 
 // Store UTC on RTC
@@ -367,7 +368,7 @@ void setDisplayFreq(uint32_t freq){
   uart2_tx_buffer[1]= (freq>>14) & 0x7F;
   uart2_tx_buffer[2]= (freq>>7)  & 0x7F;
   uart2_tx_buffer[3]= (freq)     & 0x7F;
-  HAL_UART_Transmit_DMA(&huart2, uart2_tx_buffer, 4);
+  HAL_UART_Transmit(&huart2, uart2_tx_buffer, 4, 2);
 
   uint32_t arr = round(16000000.0 / (float)freq) -1.0;
 
@@ -777,7 +778,6 @@ int main(void)
   setDisplayPWM(5);
 
   readConfigFile();
-
 
 
 

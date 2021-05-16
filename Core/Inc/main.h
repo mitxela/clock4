@@ -135,7 +135,7 @@ void write_rtc(void);
   buffer_b[2] = next7seg.b[2]; \
   buffer_b[3] = next7seg.b[3]; \
   buffer_b[4] = next7seg.b[4]; \
-  huart2.Instance->TDR = '\n'; \
+  huart2.Instance->TDR = 0xFE; \
   SCB->ICSR = SCB_ICSR_PENDSVSET_Msk; // trigger PendSV
 
 /* USER CODE END EFP */
