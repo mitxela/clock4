@@ -448,12 +448,22 @@ void transmitBlocking(uint8_t * c, size_t n){
   }
 }
 
-static inline void parseByte(uint8_t x){
+static inline void waitForLatch(void){
+  LL_USART_DisableDirectionRx(USART2);
+  LL_GPIO_SetPinMode( GPIOA, LL_GPIO_PIN_3, LL_GPIO_MODE_INPUT );
 
-  if (x=='\n') {
-    latchDisplay();
-    return;
-  }
+  while (GPIOA->IDR & LL_GPIO_PIN_3) {}
+
+  latchDisplay();
+
+  // The latch byte is 0xFE with even parity, so as soon as the line returns high we can re-enable uart
+  while (!(GPIOA->IDR & LL_GPIO_PIN_3)) {}
+
+  LL_GPIO_SetPinMode( GPIOA, LL_GPIO_PIN_3, LL_GPIO_MODE_ALTERNATE );
+  LL_USART_EnableDirectionRx(USART2);
+}
+
+static inline void parseByte(uint8_t x){
 
   if (x & 0x80) { // command byte
     status = x;
@@ -502,6 +512,10 @@ static inline void parseByte(uint8_t x){
   switch(status){
 
   case CMD_LOAD_TEXT:
+    if (x=='\n') {
+      waitForLatch();
+      return;
+    }
     if(text_idx > MAX_TEXT_LEN) return;
 
     if (text_idx < 10) setDigitPre(text_idx, x);
