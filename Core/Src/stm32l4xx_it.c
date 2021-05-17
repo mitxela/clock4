@@ -403,6 +403,23 @@ void USART2_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles LPTIM1 global interrupt.
+  */
+void LPTIM1_IRQHandler(void)
+{
+  /* USER CODE BEGIN LPTIM1_IRQn 0 */
+
+  /* USER CODE END LPTIM1_IRQn 0 */
+  /* USER CODE BEGIN LPTIM1_IRQn 1 */
+
+  extern uint32_t LPTIM1_high;
+  LPTIM1_high++;
+
+  LL_LPTIM_ClearFLAG_ARRM(LPTIM1);
+  /* USER CODE END LPTIM1_IRQn 1 */
+}
+
+/**
   * @brief This function handles USB OTG FS global interrupt.
   */
 void OTG_FS_IRQHandler(void)

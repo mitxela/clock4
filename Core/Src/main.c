@@ -93,6 +93,7 @@ static void MX_TIM6_Init(void);
 static void MX_RTC_Init(void);
 static void MX_TIM7_Init(void);
 static void MX_CRC_Init(void);
+static void MX_LPTIM1_Init(void);
 /* USER CODE BEGIN PFP */
 void tmToBcd(struct tm *in, bcdStamp_t *out );
 /* USER CODE END PFP */
@@ -135,6 +136,7 @@ struct {
 
 char loadedRulesString[32];
 
+uint32_t LPTIM1_high;
 
 // memcpy() appears to move data by bytes, which doesn't work with the word-accessed backup registers
 // here we explicitly move data a word at a time
@@ -471,8 +473,45 @@ void EXTI9_5_IRQHandler(void)
 
   // clear systick flag if set?
 
+
+
+  static uint32_t calibStart =0;
+  // LPTIM period is 2 seconds
+  // If calibrated well the overflow interrupt should collide with this one
+  // Pick an odd number of seconds to calibrate against
+#define CAL_PERIOD 31
+
+  // No clear documentation on this but experimentally it appears to be 3 LSE cycles
+#define LPTIM_START_DELAY 3
+
+  if (currentTime - calibStart > CAL_PERIOD)  {
+
+    LPTIM1_high=0;
+    LL_LPTIM_StartCounter(LPTIM1, LL_LPTIM_OPERATING_MODE_CONTINUOUS);
+    calibStart = currentTime;
+
+  } else if (currentTime - calibStart == CAL_PERIOD) {
+
+    int32_t error = ((LPTIM1_high<<16) + LPTIM1->CNT) - 32768*CAL_PERIOD + LPTIM_START_DELAY;
+    float e = (float)error * 32.0 / CAL_PERIOD;
+
+    __HAL_RTC_WRITEPROTECTION_DISABLE(&hrtc);
+    RTC->CALR = 0x100 + round(e);
+    __HAL_RTC_WRITEPROTECTION_ENABLE(&hrtc);
+
+    // Prepare the counter for the next calibration
+    // LPTIM1->CNT is read only, the only way to zero it is to disable and re-enable the timer.
+    // There is a further delay associated with this, better to put it here than right at the moment we want to start the timer.
+    LPTIM1->CR &= ~LPTIM_CR_ENABLE;
+    LPTIM1->CR |= LPTIM_CR_ENABLE;
+    LL_LPTIM_SetAutoReload(LPTIM1, 0xFFFF);
+    LL_LPTIM_ClearFLAG_ARRM(LPTIM1); // just in case there's one pending
+  }
+
+
   had_pps = 1;
-  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_7);
+  __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_7);
+
 
 }
 
@@ -708,6 +747,7 @@ int main(void)
   MX_TIM6_Init();
   MX_TIM7_Init();
   MX_CRC_Init();
+  MX_LPTIM1_Init();
   /* USER CODE BEGIN 2 */
   RetargetInit(&huart2);
 
@@ -930,10 +970,11 @@ void SystemClock_Config(void)
     Error_Handler();
   }
   PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC|RCC_PERIPHCLK_USART1
-                              |RCC_PERIPHCLK_USART2|RCC_PERIPHCLK_USB
-                              |RCC_PERIPHCLK_ADC;
+                              |RCC_PERIPHCLK_USART2|RCC_PERIPHCLK_LPTIM1
+                              |RCC_PERIPHCLK_USB|RCC_PERIPHCLK_ADC;
   PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
   PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
+  PeriphClkInit.Lptim1ClockSelection = RCC_LPTIM1CLKSOURCE_LSE;
   PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_SYSCLK;
   PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
   PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_MSI;
@@ -1090,6 +1131,46 @@ static void MX_DAC1_Init(void)
 }
 
 /**
+  * @brief LPTIM1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_LPTIM1_Init(void)
+{
+
+  /* USER CODE BEGIN LPTIM1_Init 0 */
+
+  /* USER CODE END LPTIM1_Init 0 */
+
+  /* Peripheral clock enable */
+  LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_LPTIM1);
+
+  /* LPTIM1 interrupt Init */
+  NVIC_SetPriority(LPTIM1_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),1, 0));
+  NVIC_EnableIRQ(LPTIM1_IRQn);
+
+  /* USER CODE BEGIN LPTIM1_Init 1 */
+
+  /* USER CODE END LPTIM1_Init 1 */
+  LL_LPTIM_SetClockSource(LPTIM1, LL_LPTIM_CLK_SOURCE_INTERNAL);
+  LL_LPTIM_SetPrescaler(LPTIM1, LL_LPTIM_PRESCALER_DIV1);
+  LL_LPTIM_SetPolarity(LPTIM1, LL_LPTIM_OUTPUT_POLARITY_REGULAR);
+  LL_LPTIM_SetUpdateMode(LPTIM1, LL_LPTIM_UPDATE_MODE_IMMEDIATE);
+  LL_LPTIM_SetCounterMode(LPTIM1, LL_LPTIM_COUNTER_MODE_INTERNAL);
+  LL_LPTIM_TrigSw(LPTIM1);
+  LL_LPTIM_SetInput1Src(LPTIM1, LL_LPTIM_INPUT1_SRC_GPIO);
+  LL_LPTIM_SetInput2Src(LPTIM1, LL_LPTIM_INPUT2_SRC_GPIO);
+  /* USER CODE BEGIN LPTIM1_Init 2 */
+
+  LL_LPTIM_Enable(LPTIM1);
+  LL_LPTIM_SetAutoReload(LPTIM1, 0xFFFF);
+  LL_LPTIM_EnableIT_ARRM(LPTIM1);
+
+  /* USER CODE END LPTIM1_Init 2 */
+
+}
+
+/**
   * @brief QUADSPI Initialization Function
   * @param None
   * @retval None
@@ -1142,7 +1223,7 @@ static void MX_RTC_Init(void)
   hrtc.Instance = RTC;
   hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
   hrtc.Init.AsynchPrediv = 0;
-  hrtc.Init.SynchPrediv = 32767;
+  hrtc.Init.SynchPrediv = 32759;
   hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
   hrtc.Init.OutPutRemap = RTC_OUTPUT_REMAP_NONE;
   hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
@@ -1152,6 +1233,11 @@ static void MX_RTC_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN RTC_Init 2 */
+
+  // RM page 1236
+  __HAL_RTC_WRITEPROTECTION_DISABLE(&hrtc);
+  RTC->CALR = 0x100; // CALM to midpoint
+  __HAL_RTC_WRITEPROTECTION_ENABLE(&hrtc);
 
   /* USER CODE END RTC_Init 2 */
 
