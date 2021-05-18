@@ -121,6 +121,7 @@ extern uint16_t buffer_b[];
 
 #define CMD_LOAD_TEXT          0x90
 #define CMD_SET_FREQUENCY      0x91
+#define CMD_RELOAD_TEXT        0x92
 
 /* USER CODE END EC */
 

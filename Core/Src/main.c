@@ -138,12 +138,49 @@ char loadedRulesString[32];
 
 uint32_t LPTIM1_high;
 
+uint8_t displayMode = 0;
+
 // memcpy() appears to move data by bytes, which doesn't work with the word-accessed backup registers
 // here we explicitly move data a word at a time
 void memcpyword(volatile uint32_t *dest, volatile uint32_t *src, size_t n){
   while (n--){
     dest[n] = src[n];
   }
+}
+
+void sendDate( _Bool now ){
+  if (displayMode==0){
+    uart2_tx_buffer[0] = CMD_LOAD_TEXT;
+    uart2_tx_buffer[1] ='0'+nextBcd.seconds;
+    uart2_tx_buffer[2] ='0';
+    uart2_tx_buffer[3] ='0'+nextBcd.tenYears;
+    uart2_tx_buffer[4] ='0'+nextBcd.years;
+    uart2_tx_buffer[5] ='-';
+    uart2_tx_buffer[6] ='0'+nextBcd.tenMonths;
+    uart2_tx_buffer[7] ='0'+nextBcd.months;
+    uart2_tx_buffer[8] ='-';
+    uart2_tx_buffer[9] ='0'+nextBcd.tenDays;
+    uart2_tx_buffer[10]='0'+nextBcd.days;
+  }else if (displayMode==1){
+    sprintf(&uart2_tx_buffer[1], "%010ld", currentTime);
+    uart2_tx_buffer[0] = CMD_LOAD_TEXT;
+  }else{
+    uart2_tx_buffer[0] = CMD_LOAD_TEXT;
+    uart2_tx_buffer[1] ='2';
+    uart2_tx_buffer[2] ='0';
+    uart2_tx_buffer[3] ='0'+nextBcd.tenYears;
+    uart2_tx_buffer[4] ='0'+nextBcd.years;
+    uart2_tx_buffer[5] ='-';
+    uart2_tx_buffer[6] ='0'+nextBcd.tenMonths;
+    uart2_tx_buffer[7] ='0'+nextBcd.months;
+    uart2_tx_buffer[8] ='-';
+    uart2_tx_buffer[9] ='0'+nextBcd.tenDays;
+    uart2_tx_buffer[10]='0'+nextBcd.days;
+  }
+  uart2_tx_buffer[11]= now? CMD_RELOAD_TEXT : '\n';
+  HAL_UART_AbortTransmit(&huart2);
+  HAL_UART_Transmit_DMA(&huart2, uart2_tx_buffer, 12);
+
 }
 
 void setNextTimestamp(time_t nextTime){
@@ -168,37 +205,7 @@ void setNextTimestamp(time_t nextTime){
   next7seg.b[3] = bCat3 | cLut[nextBcd.minutes]<<2;
   next7seg.b[4] = bCat4 | cLut[nextBcd.tenSeconds]<<2;
 
-  if (1){
-    uart2_tx_buffer[0] = CMD_LOAD_TEXT;
-    uart2_tx_buffer[1] ='0'+nextBcd.seconds;
-    uart2_tx_buffer[2] ='0';
-    uart2_tx_buffer[3] ='0'+nextBcd.tenYears;
-    uart2_tx_buffer[4] ='0'+nextBcd.years;
-    uart2_tx_buffer[5] ='-';
-    uart2_tx_buffer[6] ='0'+nextBcd.tenMonths;
-    uart2_tx_buffer[7] ='0'+nextBcd.months;
-    uart2_tx_buffer[8] ='-';
-    uart2_tx_buffer[9] ='0'+nextBcd.tenDays;
-    uart2_tx_buffer[10]='0'+nextBcd.days;
-  }else if (1){
-    sprintf(&uart2_tx_buffer[1], "%010ld", currentTime);
-    uart2_tx_buffer[0] = CMD_LOAD_TEXT;
-  }else{
-    uart2_tx_buffer[0] = CMD_LOAD_TEXT;
-    uart2_tx_buffer[1] ='2';
-    uart2_tx_buffer[2] ='0';
-    uart2_tx_buffer[3] ='0'+nextBcd.tenYears;
-    uart2_tx_buffer[4] ='0'+nextBcd.years;
-    uart2_tx_buffer[5] ='-';
-    uart2_tx_buffer[6] ='0'+nextBcd.tenMonths;
-    uart2_tx_buffer[7] ='0'+nextBcd.months;
-    uart2_tx_buffer[8] ='-';
-    uart2_tx_buffer[9] ='0'+nextBcd.tenDays;
-    uart2_tx_buffer[10]='0'+nextBcd.days;
-  }
-  uart2_tx_buffer[11]='\n';
-  HAL_UART_AbortTransmit(&huart2);
-  HAL_UART_Transmit_DMA(&huart2, uart2_tx_buffer, 12);
+  sendDate(0);
 }
 
 // Store UTC on RTC
@@ -686,6 +693,18 @@ uint8_t loadRulesSingle(char * str){
   while (*zo && *zo != '/') zo++;
   *zo=0; zo++;
   return loadRules( str, zo );
+}
+
+void button1pressed(void){
+
+  // 12 bytes at 115200 8E1 is 1.14ms
+
+
+  displayMode++;
+  if (displayMode>1) displayMode=0;
+
+  sendDate(1);
+
 }
 /* USER CODE END 0 */
 
@@ -1478,12 +1497,15 @@ static void MX_USART2_UART_Init(void)
   huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
   huart2.Init.OverSampling = UART_OVERSAMPLING_16;
   huart2.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-  huart2.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  huart2.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_RXOVERRUNDISABLE_INIT;
+  huart2.AdvancedInit.OverrunDisable = UART_ADVFEATURE_OVERRUN_DISABLE;
   if (HAL_UART_Init(&huart2) != HAL_OK)
   {
     Error_Handler();
   }
   /* USER CODE BEGIN USART2_Init 2 */
+
+  USART2->CR1 |= USART_CR1_RXNEIE;
 
   /* USER CODE END USART2_Init 2 */
 

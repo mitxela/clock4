@@ -43,7 +43,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-
+uint8_t delayButtonPress=0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -73,6 +73,9 @@ extern DAC_HandleTypeDef hdac1;
 extern float dac_target;
 extern uint8_t uart2_tx_buffer[32];
 extern uint8_t data_valid, had_pps;
+extern uint8_t decisec, centisec, millisec;
+
+void button1pressed(void);
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -184,12 +187,13 @@ void PendSV_Handler(void)
 {
   /* USER CODE BEGIN PendSV_IRQn 0 */
 
-
   // Writing to the RTC is normally very fast, but if something goes wrong
   // the HAL functions will fail to time out if it's running with the same
   // preemption priority as systick
   if (had_pps) write_rtc();
 
+
+  if (delayButtonPress) {  delayButtonPress=0; button1pressed(); }
 
   /* USER CODE END PendSV_IRQn 0 */
   /* USER CODE BEGIN PendSV_IRQn 1 */
@@ -394,6 +398,15 @@ void USART1_IRQHandler(void)
 void USART2_IRQHandler(void)
 {
   /* USER CODE BEGIN USART2_IRQn 0 */
+
+  if ( USART2->ISR & UART_IT_RXNE) {
+    if ((USART2->RDR &0xFF) == 0x91) {
+      // if we're beyond 0.9 seconds the date side will already be waiting for latch
+      if (decisec==9) delayButtonPress = 1;
+      else button1pressed();
+    }
+    return;
+  }
 
   /* USER CODE END USART2_IRQn 0 */
   HAL_UART_IRQHandler(&huart2);
