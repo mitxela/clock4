@@ -290,7 +290,7 @@ const uint16_t cathodes_b[5]={
 };
 
 uint8_t inverted=0;
-uint8_t holdoff =0;
+uint8_t held =0;
 
 /* USER CODE END PV */
 
@@ -412,19 +412,26 @@ void TIM21_IRQHandler(void){
     //if (inverted)...
 
 
-    if (holdoff) holdoff--;
+    if ((LL_GPIO_ReadInputPort(GPIOB) & LL_GPIO_PIN_3)==0) {
+      if (++held == 2) {
+          if ( (USART2->ISR & USART_ISR_TXE) ) {
+            USART2->TDR = 0x91;
+          }
+          held=3;
+      }
+    } else held=0;
   }
 }
 
-void EXTI2_3_IRQHandler(void)
-{
-  // Only check once - if the line is busy forget it
-  if ( (USART2->ISR & USART_ISR_TXE) && holdoff==0 ) {
-    USART2->TDR = 0x91;
-    holdoff=5;
-  }
-  LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_3);
-}
+//void EXTI2_3_IRQHandler(void)
+//{
+//  // Only check once - if the line is busy forget it
+//  if ( (USART2->ISR & USART_ISR_TXE) && holdoff==0 ) {
+//    USART2->TDR = 0x91;
+//    holdoff=5;
+//  }
+//  LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_3);
+//}
 
 static inline void setFrequency(void){
 
@@ -846,7 +853,6 @@ static void MX_USART2_UART_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
-  LL_EXTI_InitTypeDef EXTI_InitStruct = {0};
   LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
@@ -1099,6 +1105,12 @@ static void MX_GPIO_Init(void)
   LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /**/
+  GPIO_InitStruct.Pin = LL_GPIO_PIN_3;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_UP;
+  LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /**/
   GPIO_InitStruct.Pin = LL_GPIO_PIN_4;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
   GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
@@ -1145,26 +1157,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
   GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
   LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /**/
-  LL_SYSCFG_SetEXTISource(LL_SYSCFG_EXTI_PORTB, LL_SYSCFG_EXTI_LINE3);
-
-  /**/
-  LL_GPIO_SetPinPull(GPIOB, LL_GPIO_PIN_3, LL_GPIO_PULL_UP);
-
-  /**/
-  LL_GPIO_SetPinMode(GPIOB, LL_GPIO_PIN_3, LL_GPIO_MODE_INPUT);
-
-  /**/
-  EXTI_InitStruct.Line_0_31 = LL_EXTI_LINE_3;
-  EXTI_InitStruct.LineCommand = ENABLE;
-  EXTI_InitStruct.Mode = LL_EXTI_MODE_IT;
-  EXTI_InitStruct.Trigger = LL_EXTI_TRIGGER_FALLING;
-  LL_EXTI_Init(&EXTI_InitStruct);
-
-  /* EXTI interrupt init*/
-  NVIC_SetPriority(EXTI2_3_IRQn, 0);
-  NVIC_EnableIRQ(EXTI2_3_IRQn);
 
 }
 
