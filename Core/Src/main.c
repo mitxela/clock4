@@ -261,7 +261,6 @@ const uint8_t lut_7seg_inv[] = {
 
 uint16_t pre_buffer_a[5] ={0};
 uint16_t pre_buffer_b[5] ={0};
-uint8_t latched = 0;
 uint8_t status = 0;
 
 uint16_t buffer_a[5] ={0};
@@ -271,6 +270,8 @@ uint8_t buffer_idx=0;
 #define MAX_TEXT_LEN 32
 uint8_t text[MAX_TEXT_LEN] ={0};
 uint8_t text_idx=0;
+uint8_t dp_pos=0;
+
 
 uint32_t target_freq=0;
 
@@ -423,16 +424,6 @@ void TIM21_IRQHandler(void){
   }
 }
 
-//void EXTI2_3_IRQHandler(void)
-//{
-//  // Only check once - if the line is busy forget it
-//  if ( (USART2->ISR & USART_ISR_TXE) && holdoff==0 ) {
-//    USART2->TDR = 0x91;
-//    holdoff=5;
-//  }
-//  LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_3);
-//}
-
 static inline void setFrequency(void){
 
   if (target_freq<1 || target_freq>100000) return;
@@ -454,7 +445,22 @@ static inline void latchDisplay(void){
   buffer_a[2] = pre_buffer_a[2];
   buffer_a[3] = pre_buffer_a[3];
   buffer_a[4] = pre_buffer_a[4];
-  latched=1;
+
+  if (!dp_pos) return;
+
+  if (inverted){
+    if (dp_pos>=5) {
+      buffer_b[9-dp_pos] |=1;
+    } else {
+      buffer_a[9-dp_pos-5]  |=1<<14;
+    }
+  } else {
+    if (dp_pos>5) {
+      buffer_a[dp_pos-6] |=1<<14;
+    } else {
+      buffer_b[dp_pos-1] |=1;
+    }
+  }
 }
 static inline uint8_t waitForByte(void){
   while( !( USART2->ISR & USART_ISR_RXNE ) ) {};
@@ -490,7 +496,7 @@ static inline void parseByte(uint8_t x){
     switch (x) {
       case CMD_LOAD_TEXT:
         text_idx=0;
-        latched=0;
+        dp_pos=0;
         memset(text, 0, MAX_TEXT_LEN);
 
         pre_buffer_b[0]=0;
@@ -535,8 +541,12 @@ static inline void parseByte(uint8_t x){
   switch(status){
 
   case CMD_LOAD_TEXT:
-    if (x=='\n') {
+    if (x=='\n' || x==0) {
       waitForLatch();
+      return;
+    }
+    if (x=='.') {
+      dp_pos = text_idx;
       return;
     }
     if(text_idx > MAX_TEXT_LEN) return;
@@ -607,14 +617,6 @@ int main(void)
   MX_TIM21_Init();
   /* USER CODE BEGIN 2 */
 
-#ifdef DISABLE_SWCLK
-  GPIO_InitStruct.Pin = LL_GPIO_PIN_14;
-  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
-  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
-  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
-  LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-#endif
 
   //  (HAL_TIM_Base_Start_IT(&htim2)
 
@@ -637,7 +639,8 @@ int main(void)
   setDigitDirect(9, 'o');
 
 
-  buffer_a[2] |= 1<<14;
+  //buffer_a[2] |= 1<<14;
+  //buffer_b[2] |= 1;
 
 
   /* USER CODE END 2 */
@@ -1158,6 +1161,16 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
   LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+#define DISABLE_SWCLK
+
+#ifdef DISABLE_SWCLK
+  GPIO_InitStruct.Pin = LL_GPIO_PIN_14;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+#endif
 }
 
 /* USER CODE BEGIN 4 */
