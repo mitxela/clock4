@@ -244,7 +244,8 @@ const uint8_t lut_7seg_inv[] = {
 
 #define CMD_LOAD_TEXT          0x90
 #define CMD_SET_FREQUENCY      0x91
-#define CMD_SET_SCROLL_SPEED   0x92
+#define CMD_RELOAD_TEXT        0x92
+#define CMD_SET_SCROLL_SPEED   0x93
 
 #define CMD_REPORT_CRC         0x9E
 #define CMD_START_BOOTLOADER   0x9F
@@ -289,6 +290,7 @@ const uint16_t cathodes_b[5]={
 };
 
 uint8_t inverted=0;
+uint8_t holdoff =0;
 
 /* USER CODE END PV */
 
@@ -410,7 +412,18 @@ void TIM21_IRQHandler(void){
     //if (inverted)...
 
 
+    if (holdoff) holdoff--;
   }
+}
+
+void EXTI2_3_IRQHandler(void)
+{
+  // Only check once - if the line is busy forget it
+  if ( (USART2->ISR & USART_ISR_TXE) && holdoff==0 ) {
+    USART2->TDR = 0x91;
+    holdoff=5;
+  }
+  LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_3);
 }
 
 static inline void setFrequency(void){
@@ -484,6 +497,9 @@ static inline void parseByte(uint8_t x){
         pre_buffer_a[3]=0;
         pre_buffer_a[4]=0;
 
+        break;
+      case CMD_RELOAD_TEXT:
+        latchDisplay();
         break;
       case CMD_SET_SCROLL_SPEED:
         break;
@@ -830,6 +846,7 @@ static void MX_USART2_UART_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
+  LL_EXTI_InitTypeDef EXTI_InitStruct = {0};
   LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
@@ -1128,6 +1145,26 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
   GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
   LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /**/
+  LL_SYSCFG_SetEXTISource(LL_SYSCFG_EXTI_PORTB, LL_SYSCFG_EXTI_LINE3);
+
+  /**/
+  LL_GPIO_SetPinPull(GPIOB, LL_GPIO_PIN_3, LL_GPIO_PULL_UP);
+
+  /**/
+  LL_GPIO_SetPinMode(GPIOB, LL_GPIO_PIN_3, LL_GPIO_MODE_INPUT);
+
+  /**/
+  EXTI_InitStruct.Line_0_31 = LL_EXTI_LINE_3;
+  EXTI_InitStruct.LineCommand = ENABLE;
+  EXTI_InitStruct.Mode = LL_EXTI_MODE_IT;
+  EXTI_InitStruct.Trigger = LL_EXTI_TRIGGER_FALLING;
+  LL_EXTI_Init(&EXTI_InitStruct);
+
+  /* EXTI interrupt init*/
+  NVIC_SetPriority(EXTI2_3_IRQn, 0);
+  NVIC_EnableIRQ(EXTI2_3_IRQn);
 
 }
 
