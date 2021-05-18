@@ -82,7 +82,7 @@ extern uint16_t buffer_b[];
 #define RULES_FILENAME "/TZRULES.BIN"
 #define MAP_FILENAME   "/TZMAP.BIN"
 
-#define cSegDP 0b00100000
+#define cSegDP 0b00010000
 
 #define cSegDecode0 0b00111111
 #define cSegDecode1 0b00000110

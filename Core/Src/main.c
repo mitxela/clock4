@@ -724,10 +724,10 @@ int main(void)
 
   /* USER CODE BEGIN SysInit */
 
-  buffer_c[0].high=0b11011110;
-  buffer_c[1].high=0b11011101;
-  buffer_c[2].high=0b11011011;
-  buffer_c[3].high=0b11010111;
+  buffer_c[0].high=0b11001110;
+  buffer_c[1].high=0b11001101;
+  buffer_c[2].high=0b11001011;
+  buffer_c[3].high=0b11000111;
   buffer_c[4].high=0b11001111;
 
   /* USER CODE END SysInit */
