@@ -116,8 +116,9 @@ float dac_target=4095;
 uint8_t nmea[90];
 
 time_t currentTime;
-
+struct tm * nextTm;
 bcdStamp_t nextBcd;
+
 struct {
   uint8_t c;
   uint16_t b[5];
@@ -149,11 +150,11 @@ void memcpyword(volatile uint32_t *dest, volatile uint32_t *src, size_t n){
 }
 
 void sendDate( _Bool now ){
+  uart2_tx_buffer[0] = CMD_LOAD_TEXT;
   uart2_tx_buffer[11]=' ';
 
   switch (displayMode) {
   case MODE_ISO8601_STD:
-    uart2_tx_buffer[0] = CMD_LOAD_TEXT;
     uart2_tx_buffer[1] ='0'+nextBcd.seconds;
     uart2_tx_buffer[2] ='0';
     uart2_tx_buffer[3] ='0'+nextBcd.tenYears;
@@ -165,20 +166,24 @@ void sendDate( _Bool now ){
     uart2_tx_buffer[9] ='0'+nextBcd.tenDays;
     uart2_tx_buffer[10]='0'+nextBcd.days;
     break;
+  case MODE_ISO8601_ORDINAL:
+    uart2_tx_buffer[1] ='0'+nextBcd.seconds;
+    uart2_tx_buffer[2] ='0';
+    uart2_tx_buffer[3] ='0'+nextBcd.tenYears;
+    uart2_tx_buffer[4] ='0'+nextBcd.years;
+    uart2_tx_buffer[5] ='-';
+    sprintf((char*)&uart2_tx_buffer[6], "%d  ", nextTm->tm_yday+1);
+    break;
   case MODE_UNIXTIME:
-    sprintf(&uart2_tx_buffer[1], "%010ld", currentTime);
-    uart2_tx_buffer[0] = CMD_LOAD_TEXT;
+    sprintf((char*)&uart2_tx_buffer[1], "%010ld", (uint32_t)currentTime);
     break;
   case MODE_JULIAN_DATE:
-    gcvt((double)currentTime/86400.0 + 2440587.5, 11, &uart2_tx_buffer[1]);
-    uart2_tx_buffer[0] = CMD_LOAD_TEXT;
+    sprintf((char*)&uart2_tx_buffer[1], "%10f", (double)currentTime/86400.0 + 2440587.5 );
     break;
   case MODE_MODIFIED_JD:
-    gcvt((double)currentTime/86400.0 + 40587, 11, &uart2_tx_buffer[1]);
-    uart2_tx_buffer[0] = CMD_LOAD_TEXT;
+    sprintf((char*)&uart2_tx_buffer[1], "%10f", (double)currentTime/86400.0 + 40587);
     break;
   default:
-    uart2_tx_buffer[0] = CMD_LOAD_TEXT;
     uart2_tx_buffer[1] ='2';
     uart2_tx_buffer[2] ='0';
     uart2_tx_buffer[3] ='0'+nextBcd.tenYears;
@@ -206,7 +211,7 @@ void setNextTimestamp(time_t nextTime){
 
   nextTime += offset;
 
-  struct tm * nextTm = gmtime( &nextTime );
+  nextTm = gmtime( &nextTime );
 
   tmToBcd( nextTm, &nextBcd );
 
@@ -311,7 +316,7 @@ void decodeRMC(void){
     if(c==end) return; //checksum not found
   }
 
-  sprintf(nmea, "%02X", sum);
+  sprintf((char*)nmea, "%02X", sum);
   if (nmea[0] != c[1] || nmea[1]!=c[2]) return; //checksum error
 
 #define nextField() while (*c && c!=end) c++; c++;
@@ -337,7 +342,7 @@ void decodeRMC(void){
   if (*c){
     latitude =  (float)(*c++ -'0')*10.0;
     latitude += (float)(*c++ -'0');
-    latitude += (float)atof(c) / 60.0;
+    latitude += (float)atof((char*)c) / 60.0;
   }
   nextField() // Latitude N/S
   if (*c =='S') latitude =-latitude;
@@ -347,7 +352,7 @@ void decodeRMC(void){
     longitude =  (float)(*c++ -'0')*100.0;
     longitude += (float)(*c++ -'0')*10.0;
     longitude += (float)(*c++ -'0');
-    longitude += (float)atof(c) / 60.0;
+    longitude += (float)atof((char*)c) / 60.0;
   }
   nextField() // Longitude  E/W
   if (*c == 'W') longitude =-longitude;
@@ -713,8 +718,7 @@ void button1pressed(void){
   // 12 bytes at 115200 8E1 is 1.14ms
 
 
-  displayMode++;
-  if (displayMode>3) displayMode=0;
+  if (++displayMode >=NUM__DISPLAY_MODES) displayMode=0;
 
   sendDate(1);
 
