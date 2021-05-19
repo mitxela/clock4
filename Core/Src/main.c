@@ -149,7 +149,10 @@ void memcpyword(volatile uint32_t *dest, volatile uint32_t *src, size_t n){
 }
 
 void sendDate( _Bool now ){
-  if (displayMode==0){
+  uart2_tx_buffer[11]=' ';
+
+  switch (displayMode) {
+  case MODE_ISO8601_STD:
     uart2_tx_buffer[0] = CMD_LOAD_TEXT;
     uart2_tx_buffer[1] ='0'+nextBcd.seconds;
     uart2_tx_buffer[2] ='0';
@@ -161,10 +164,20 @@ void sendDate( _Bool now ){
     uart2_tx_buffer[8] ='-';
     uart2_tx_buffer[9] ='0'+nextBcd.tenDays;
     uart2_tx_buffer[10]='0'+nextBcd.days;
-  }else if (displayMode==1){
+    break;
+  case MODE_UNIXTIME:
     sprintf(&uart2_tx_buffer[1], "%010ld", currentTime);
     uart2_tx_buffer[0] = CMD_LOAD_TEXT;
-  }else{
+    break;
+  case MODE_JULIAN_DATE:
+    gcvt((double)currentTime/86400.0 + 2440587.5, 11, &uart2_tx_buffer[1]);
+    uart2_tx_buffer[0] = CMD_LOAD_TEXT;
+    break;
+  case MODE_MODIFIED_JD:
+    gcvt((double)currentTime/86400.0 + 40587, 11, &uart2_tx_buffer[1]);
+    uart2_tx_buffer[0] = CMD_LOAD_TEXT;
+    break;
+  default:
     uart2_tx_buffer[0] = CMD_LOAD_TEXT;
     uart2_tx_buffer[1] ='2';
     uart2_tx_buffer[2] ='0';
@@ -177,9 +190,9 @@ void sendDate( _Bool now ){
     uart2_tx_buffer[9] ='0'+nextBcd.tenDays;
     uart2_tx_buffer[10]='0'+nextBcd.days;
   }
-  uart2_tx_buffer[11]= now? CMD_RELOAD_TEXT : '\n';
+  uart2_tx_buffer[12]= now ? CMD_RELOAD_TEXT : '\n';
   HAL_UART_AbortTransmit(&huart2);
-  HAL_UART_Transmit_DMA(&huart2, uart2_tx_buffer, 12);
+  HAL_UART_Transmit_DMA(&huart2, uart2_tx_buffer, 13);
 
 }
 
@@ -701,7 +714,7 @@ void button1pressed(void){
 
 
   displayMode++;
-  if (displayMode>1) displayMode=0;
+  if (displayMode>3) displayMode=0;
 
   sendDate(1);
 

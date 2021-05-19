@@ -123,6 +123,11 @@ extern uint16_t buffer_b[];
 #define CMD_SET_FREQUENCY      0x91
 #define CMD_RELOAD_TEXT        0x92
 
+#define MODE_ISO8601_STD       0
+#define MODE_UNIXTIME          1
+#define MODE_JULIAN_DATE       2
+#define MODE_MODIFIED_JD       3
+
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
