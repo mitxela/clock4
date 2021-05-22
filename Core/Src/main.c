@@ -183,6 +183,9 @@ void sendDate( _Bool now ){
   case MODE_MODIFIED_JD:
     sprintf((char*)&uart2_tx_buffer[1], "%10f", (double)currentTime/86400.0 + 40587);
     break;
+  case MODE_SHOWZONE:
+    snprintf((char*)&uart2_tx_buffer[1], 12,"%s", loadedRulesString);
+    break;
   default:
     uart2_tx_buffer[1] ='2';
     uart2_tx_buffer[2] ='0';
@@ -504,7 +507,7 @@ void EXTI9_5_IRQHandler(void)
   // LPTIM period is 2 seconds
   // If calibrated well the overflow interrupt should collide with this one
   // Pick an odd number of seconds to calibrate against
-#define CAL_PERIOD 31
+#define CAL_PERIOD 63
 
   // No clear documentation on this but experimentally it appears to be 3 LSE cycles
 #define LPTIM_START_DELAY 3
@@ -826,7 +829,7 @@ int main(void)
 
   // Configure Colon Separators
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
-  TIM2->CCR1 = 10000-3500;
+  TIM2->CCR1 = 500;//10000-3500;
 
   HAL_TIM_OC_Start(&htim2, TIM_CHANNEL_2);
   TIM2->CCR2 = 10000-3500;
