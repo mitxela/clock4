@@ -127,7 +127,10 @@ struct {
 uint8_t decisec=0, centisec=0, millisec=0;
 
 float longitude=-9999, latitude=-9999;
-uint8_t data_valid =0, had_pps=0;
+_Bool data_valid=0, had_pps=0, rtc_good=0;
+#define rtc_last_write RTC->BKP30R
+#define rtc_last_calibration RTC->BKP31R
+uint32_t last_pps_time = 0;
 
 struct {
   uint32_t t;
@@ -154,8 +157,9 @@ void sendDate( _Bool now ){
   uart2_tx_buffer[11]=' ';
 
   switch (displayMode) {
+  default:
   case MODE_ISO8601_STD:
-    uart2_tx_buffer[1] ='0'+nextBcd.seconds;
+    uart2_tx_buffer[1] ='2';
     uart2_tx_buffer[2] ='0';
     uart2_tx_buffer[3] ='0'+nextBcd.tenYears;
     uart2_tx_buffer[4] ='0'+nextBcd.years;
@@ -167,12 +171,12 @@ void sendDate( _Bool now ){
     uart2_tx_buffer[10]='0'+nextBcd.days;
     break;
   case MODE_ISO8601_ORDINAL:
-    uart2_tx_buffer[1] ='0'+nextBcd.seconds;
+    uart2_tx_buffer[1] ='2';
     uart2_tx_buffer[2] ='0';
     uart2_tx_buffer[3] ='0'+nextBcd.tenYears;
     uart2_tx_buffer[4] ='0'+nextBcd.years;
     uart2_tx_buffer[5] ='-';
-    sprintf((char*)&uart2_tx_buffer[6], "%d  ", nextTm->tm_yday+1);
+    sprintf((char*)&uart2_tx_buffer[6], "%d    ", nextTm->tm_yday+1);
     break;
   case MODE_UNIXTIME:
     sprintf((char*)&uart2_tx_buffer[1], "%010ld", (uint32_t)currentTime);
@@ -184,19 +188,8 @@ void sendDate( _Bool now ){
     sprintf((char*)&uart2_tx_buffer[1], "%10f", (double)currentTime/86400.0 + 40587);
     break;
   case MODE_SHOWZONE:
-    snprintf((char*)&uart2_tx_buffer[1], 12,"%s", loadedRulesString);
+    snprintf((char*)&uart2_tx_buffer[1], 12,"%s", loadedRulesString); // todo: deal with string empty
     break;
-  default:
-    uart2_tx_buffer[1] ='2';
-    uart2_tx_buffer[2] ='0';
-    uart2_tx_buffer[3] ='0'+nextBcd.tenYears;
-    uart2_tx_buffer[4] ='0'+nextBcd.years;
-    uart2_tx_buffer[5] ='-';
-    uart2_tx_buffer[6] ='0'+nextBcd.tenMonths;
-    uart2_tx_buffer[7] ='0'+nextBcd.months;
-    uart2_tx_buffer[8] ='-';
-    uart2_tx_buffer[9] ='0'+nextBcd.tenDays;
-    uart2_tx_buffer[10]='0'+nextBcd.days;
   }
   uart2_tx_buffer[12]= now ? CMD_RELOAD_TEXT : '\n';
   HAL_UART_AbortTransmit(&huart2);
@@ -261,7 +254,8 @@ void write_rtc(void){
   // Write zone info to backup registers
   // There are 32 words of memory, 128 bytes
   // First 8 words are the zone string including separator and null byte (always less than 32 bytes)
-  // Remaining 24 words is a chunk of the ruleset in use, i.e. 12 years
+  // Next 22 words is a chunk of the ruleset in use, i.e. 11 years
+  // Last two words are time of write, and time of last calibration
 
   uint8_t i;
   for (i=0; i< MAX_RULES; i++) {
@@ -270,11 +264,12 @@ void write_rtc(void){
   if (i==0) return; //something has gone wrong, data invalid
   i--; //include currently active rule
 
-  char numRulesToStore = (i+12>=MAX_RULES-1)? (MAX_RULES-i)*2 : 24;
+  char numRulesToStore = (i+11>=MAX_RULES-1)? (MAX_RULES-i)*2 : 22;
 
   memcpyword( (uint32_t*)&(RTC->BKP0R), (uint32_t*)loadedRulesString, 8 );
   memcpyword( (uint32_t*)&(RTC->BKP8R), (uint32_t*)&rules[i], numRulesToStore );
 
+  rtc_last_write = (uint32_t)currentTime;
 }
 
 time_t bcdToTm(bcdStamp_t *in, struct tm *out ) {
@@ -374,11 +369,15 @@ void decodeRMC(void){
   rmcBcd.years      = *c++ -'0';
 
 
-  if ( data_valid || !had_pps ) {
+  // Immediately after power-up, the GPS module does not know the GPS time/UTC leapsecond offset, and makes a guess
+  // Even if it gets a fix and starts outputting PPS, the time can be off by a few seconds (usually 2 or 3 fast)
+  // Only make use of this invalid data if there is nothing else to go on
+  if ( data_valid || (!had_pps && !rtc_good) ) {
     currentTime = bcdToTm( &rmcBcd, &rmcTm );
 
     if (decisec >= 9) {
       currentTime++;
+      // todo: check we're not <2ms away from rollover
       setNextTimestamp( currentTime );
     }
   }
@@ -496,11 +495,11 @@ void EXTI9_5_IRQHandler(void)
   centisec=0;
   decisec=0;
 
-  //int y =  SysTick->VAL;
-  //printf("%d\n",x);
-
   // clear systick flag if set?
 
+  // During first power up PPS can be emitted before the GPS leapsecond offset is known
+  // In this case, it is safest to pretend PPS hasn't happened
+  if (!data_valid) goto exti_return;
 
 
   static uint32_t calibStart =0;
@@ -526,6 +525,7 @@ void EXTI9_5_IRQHandler(void)
     __HAL_RTC_WRITEPROTECTION_DISABLE(&hrtc);
     RTC->CALR = 0x100 + round(e);
     __HAL_RTC_WRITEPROTECTION_ENABLE(&hrtc);
+    rtc_last_calibration = (uint32_t)currentTime;
 
     // Prepare the counter for the next calibration
     // LPTIM1->CNT is read only, the only way to zero it is to disable and re-enable the timer.
@@ -538,9 +538,10 @@ void EXTI9_5_IRQHandler(void)
 
 
   had_pps = 1;
+  last_pps_time = (uint32_t)currentTime;
+
+exti_return:
   __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_7);
-
-
 }
 
 
@@ -726,6 +727,34 @@ void button1pressed(void){
   sendDate(1);
 
 }
+
+void setPrecision(void){
+  if (1) {
+    uint8_t precision=0;
+
+    // situations not covered:
+    // - short poweroff - not had pps, but RTC calibrated only seconds ago
+    // - last pps more than 100000 seconds ago (27 hours)
+    if (currentTime - last_pps_time < 1000){
+      precision=3;
+    } else if (currentTime - last_pps_time < 10000){
+      precision=2;
+    } else if (currentTime - rtc_last_calibration < 60*60*24*3){
+      precision=1;
+    }
+
+    if (precision>0){
+      buffer_c[1].high= 0b11001101;
+      buffer_c[0].high= 0b11001110 | cSegDP;
+    }else{
+      buffer_c[1].high= 0b11001111;
+      buffer_c[0].high= 0b11001110;
+    }
+
+    buffer_c[2].high= precision>1 ? 0b11001011 : 0b11001111;
+    buffer_c[3].high= precision>2 ? 0b11000111 : 0b11001111;
+  }
+}
 /* USER CODE END 0 */
 
 /**
@@ -874,7 +903,7 @@ int main(void)
     zone[31]=0;
 
     if (loadRulesSingle(zone) != 0){ // takes 34ms -O0, 26ms -O2
-      memcpyword( (uint32_t*)rules, (uint32_t*)&(RTC->BKP8R), 24 );
+      memcpyword( (uint32_t*)rules, (uint32_t*)&(RTC->BKP8R), 22 );
     }
 
     hrtc.Instance = RTC;
@@ -905,7 +934,7 @@ int main(void)
 
     setNextTimestamp( currentTime );
     loadNextTimestamp();
-
+    rtc_good=1;
 
   } else { // backup domain reset
 
@@ -915,6 +944,7 @@ int main(void)
     MX_RTC_Init();
   }
 
+  setPrecision();
   SetSysTick( &SysTick_CountUp );
   enablePPS();
   HAL_UART_Receive_DMA(&huart1, nmea, sizeof(nmea));

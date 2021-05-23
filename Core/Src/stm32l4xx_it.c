@@ -72,10 +72,11 @@ extern uint16_t buffer_dac[DAC_BUFFER_SIZE];
 extern DAC_HandleTypeDef hdac1;
 extern float dac_target;
 extern uint8_t uart2_tx_buffer[32];
-extern uint8_t data_valid, had_pps;
+extern _Bool data_valid, had_pps;
 extern uint8_t decisec, centisec, millisec;
 
 void button1pressed(void);
+void setPrecision(void);
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -192,8 +193,9 @@ void PendSV_Handler(void)
   // preemption priority as systick
   if (had_pps) write_rtc();
 
-
   if (delayButtonPress) {  delayButtonPress=0; button1pressed(); }
+
+  setPrecision();
 
   /* USER CODE END PendSV_IRQn 0 */
   /* USER CODE BEGIN PendSV_IRQn 1 */
