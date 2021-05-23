@@ -153,13 +153,13 @@ void memcpyword(volatile uint32_t *dest, volatile uint32_t *src, size_t n){
 }
 
 void sendDate( _Bool now ){
+  uint8_t i = 10;
   uart2_tx_buffer[0] = CMD_LOAD_TEXT;
-  uart2_tx_buffer[11]=' ';
 
   switch (displayMode) {
   default:
   case MODE_ISO8601_STD:
-    uart2_tx_buffer[1] ='2';
+    uart2_tx_buffer[1] ='2' -2+nextBcd.seconds;
     uart2_tx_buffer[2] ='0';
     uart2_tx_buffer[3] ='0'+nextBcd.tenYears;
     uart2_tx_buffer[4] ='0'+nextBcd.years;
@@ -171,29 +171,34 @@ void sendDate( _Bool now ){
     uart2_tx_buffer[10]='0'+nextBcd.days;
     break;
   case MODE_ISO8601_ORDINAL:
-    uart2_tx_buffer[1] ='2';
+    uart2_tx_buffer[1] ='2' -2+nextBcd.seconds;
     uart2_tx_buffer[2] ='0';
     uart2_tx_buffer[3] ='0'+nextBcd.tenYears;
     uart2_tx_buffer[4] ='0'+nextBcd.years;
     uart2_tx_buffer[5] ='-';
-    sprintf((char*)&uart2_tx_buffer[6], "%d    ", nextTm->tm_yday+1);
+    i = 5 + sprintf((char*)&uart2_tx_buffer[6], "%d", nextTm->tm_yday+1);
     break;
   case MODE_UNIXTIME:
-    sprintf((char*)&uart2_tx_buffer[1], "%010ld", (uint32_t)currentTime);
+    i = sprintf((char*)&uart2_tx_buffer[1], "%010ld", (uint32_t)currentTime);
     break;
   case MODE_JULIAN_DATE:
-    sprintf((char*)&uart2_tx_buffer[1], "%10f", (double)currentTime/86400.0 + 2440587.5 );
+    i = sprintf((char*)&uart2_tx_buffer[1], "%10f", (double)currentTime/86400.0 + 2440587.5 );
     break;
   case MODE_MODIFIED_JD:
-    sprintf((char*)&uart2_tx_buffer[1], "%10f", (double)currentTime/86400.0 + 40587);
+    i = sprintf((char*)&uart2_tx_buffer[1], "%10f", (double)currentTime/86400.0 + 40587);
     break;
   case MODE_SHOWZONE:
-    snprintf((char*)&uart2_tx_buffer[1], 12,"%s", loadedRulesString); // todo: deal with string empty
+    if (loadedRulesString[0])
+      snprintf((char*)&uart2_tx_buffer[1], 11,"%s", loadedRulesString);
+    else {
+      uart2_tx_buffer[1]='-';
+      i=1;
+    }
     break;
   }
-  uart2_tx_buffer[12]= now ? CMD_RELOAD_TEXT : '\n';
+  uart2_tx_buffer[++i]= now ? CMD_RELOAD_TEXT : '\n';
   HAL_UART_AbortTransmit(&huart2);
-  HAL_UART_Transmit_DMA(&huart2, uart2_tx_buffer, 13);
+  HAL_UART_Transmit_DMA(&huart2, uart2_tx_buffer, i+1);
 
 }
 
