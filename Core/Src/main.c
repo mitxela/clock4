@@ -97,6 +97,7 @@ static void MX_LPTIM1_Init(void);
 /* USER CODE BEGIN PFP */
 void tmToBcd(struct tm *in, bcdStamp_t *out );
 uint8_t loadRulesSingle(char * str);
+void nextMode(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -205,6 +206,8 @@ void sendDate( _Bool now ){
       i=1;
     }
     break;
+  case MODE_STANDBY:
+     return;
   }
   uart2_tx_buffer[++i]= now ? CMD_RELOAD_TEXT : '\n';
   HAL_UART_AbortTransmit(&huart2);
@@ -406,9 +409,29 @@ void setDisplayPWM(uint32_t bright){
   HAL_DMA_Start(&hdma_tim7_up, (uint32_t)buffer_c, (uint32_t)&GPIOC->ODR, bright);
 }
 
+void displayOff(void){
+
+  uart2_tx_buffer[0]=' '; //in case already waiting for latch
+  uart2_tx_buffer[1]= CMD_LOAD_TEXT;
+  uart2_tx_buffer[2]= CMD_RELOAD_TEXT;
+  HAL_UART_AbortTransmit(&huart2);
+  HAL_UART_Transmit_DMA(&huart2, uart2_tx_buffer, 3);
+
+  HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_1);
+
+  HAL_DMA_Abort(&hdma_tim1_up);
+  HAL_DMA_Abort(&hdma_tim7_up);
+  GPIOB->ODR=0;
+  GPIOC->ODR=0;
+}
+void displayOn(void){
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+  setDisplayPWM(5);
+}
+
 void setDisplayFreq(uint32_t freq){
 
-  if (freq<1 || freq>100000) return;
+  if (freq<1000 || freq>100000) return;
 
   uart2_tx_buffer[0]= CMD_SET_FREQUENCY;
   uart2_tx_buffer[1]= (freq>>14) & 0x7F;
@@ -524,7 +547,8 @@ void readConfigFile(){
    for (uint8_t i=0; i<NUM__DISPLAY_MODES; i++)
      j+= config.modes_enabled[i];
 
-   if (!j) config.modes_enabled[MODE_ISO8601_STD]=1;
+   if (!j || (j==1 && config.modes_enabled[MODE_STANDBY])) config.modes_enabled[MODE_ISO8601_STD]=1;
+   if (!config.modes_enabled[MODE_ISO8601_STD]) nextMode();
 
    // check tolerances
    if (config.tolerance_1ms == 0)   config.tolerance_1ms   = 0xFFFFFFFF;
@@ -782,14 +806,22 @@ uint8_t loadRulesSingle(char * str){
   return loadRules( str, zo );
 }
 
-void button1pressed(void){
+void nextMode(void){
 
-  // 12 bytes at 115200 8E1 is 1.14ms
+  _Bool wasOff = (displayMode==MODE_STANDBY);
 
   do {
     if (++displayMode >=NUM__DISPLAY_MODES) displayMode=0;
   } while (!config.modes_enabled[displayMode]);
 
+  if (wasOff && displayMode != MODE_STANDBY) displayOn();
+
+}
+void button1pressed(void){
+
+  // 12 bytes at 115200 8E1 is 1.14ms
+
+  nextMode();
   sendDate(1);
 
 }
@@ -923,7 +955,7 @@ int main(void)
     Error_Handler();
 
   // Configure Colon Separators
-  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+  //HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
   TIM2->CCR1 = 500;//10000-3500;
 
   HAL_TIM_OC_Start(&htim2, TIM_CHANNEL_2);
@@ -949,7 +981,8 @@ int main(void)
   next7seg.b[3] = buffer_b[3] = bCat3 | bSegDecode0;
   next7seg.b[4] = buffer_b[4] = bCat4 | bSegDecode0;
 
-  setDisplayPWM(5);
+  //setDisplayPWM(5);
+  displayOn();
 
   readConfigFile();
 

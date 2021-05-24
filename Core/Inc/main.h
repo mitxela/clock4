@@ -156,6 +156,7 @@ void Error_Handler(void);
 void decodeRMC(void);
 void setDisplayPWM(uint32_t bright);
 void write_rtc(void);
+void displayOff(void);
 
 #define loadNextTimestamp() \
   buffer_c[0].low = next7seg.c; \

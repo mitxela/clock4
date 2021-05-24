@@ -74,6 +74,7 @@ extern float dac_target;
 extern uint8_t uart2_tx_buffer[32];
 extern _Bool data_valid, had_pps;
 extern uint8_t decisec, centisec, millisec;
+extern uint8_t displayMode;
 
 void button1pressed(void);
 void setPrecision(void);
@@ -245,17 +246,27 @@ void DMA1_Channel1_IRQHandler(void)
 //    HAL_UART_Transmit_DMA(&huart2, uart2_tx_buffer, 12);
 
 
-    float avg = ((float)sum) * (1.0 /(float)ADC_BUFFER_SIZE /4095.0);
+    if (displayMode == MODE_STANDBY) {
+      dac_target = dac_target*0.9 + 1.2*4095.0*0.1;
+      if (dac_target>4090.0) {
+        dac_target=4095.0;
+        displayOff();
+      }
+    } else {
+      float avg = ((float)sum) * (1.0 /(float)ADC_BUFFER_SIZE /4095.0);
 
-    uint8_t i;
-    for (i=1; i< sizeof(brightnessCurve)/sizeof(brightnessCurve[0]) -1; i++){
-      if (brightnessCurve[i].in > avg) break;
+      uint8_t i;
+      for (i=1; i< sizeof(brightnessCurve)/sizeof(brightnessCurve[0]) -1; i++){
+        if (brightnessCurve[i].in > avg) break;
+      }
+      float factor = (avg - brightnessCurve[i-1].in) / (brightnessCurve[i].in - brightnessCurve[i-1].in);
+
+      float out = brightnessCurve[i-1].out*(1.0-factor) + brightnessCurve[i].out*factor;
+
+      dac_target = dac_target*0.5 + out*0.5;
     }
-    float factor = (avg - brightnessCurve[i-1].in) / (brightnessCurve[i].in - brightnessCurve[i-1].in);
 
-    float out = brightnessCurve[i-1].out*(1.0-factor) + brightnessCurve[i].out*factor;
 
-    dac_target = dac_target*0.5 + out*0.5;
 
    // TIM2->CCR1 = 10000-4096+out;
 
