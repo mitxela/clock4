@@ -96,6 +96,7 @@ static void MX_CRC_Init(void);
 static void MX_LPTIM1_Init(void);
 /* USER CODE BEGIN PFP */
 void tmToBcd(struct tm *in, bcdStamp_t *out );
+uint8_t loadRulesSingle(char * str);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -116,8 +117,8 @@ float dac_target=4095;
 uint8_t nmea[90];
 
 time_t currentTime;
-struct tm * nextTm;
 bcdStamp_t nextBcd;
+int tm_yday;
 
 struct {
   uint8_t c;
@@ -143,6 +144,12 @@ char loadedRulesString[32];
 uint32_t LPTIM1_high;
 
 uint8_t displayMode = 0;
+
+struct {
+  _Bool zone_override;
+  _Bool modes_enabled[NUM__DISPLAY_MODES];
+
+} config = {0};
 
 // memcpy() appears to move data by bytes, which doesn't work with the word-accessed backup registers
 // here we explicitly move data a word at a time
@@ -170,15 +177,15 @@ void sendDate( _Bool now ){
     uart2_tx_buffer[9] ='0'+nextBcd.tenDays;
     uart2_tx_buffer[10]='0'+nextBcd.days;
     break;
-  case MODE_ISO8601_ORDINAL:
+  case MODE_ISO_ORDINAL:
     uart2_tx_buffer[1] ='2' -2+nextBcd.seconds;
     uart2_tx_buffer[2] ='0';
     uart2_tx_buffer[3] ='0'+nextBcd.tenYears;
     uart2_tx_buffer[4] ='0'+nextBcd.years;
     uart2_tx_buffer[5] ='-';
-    i = 5 + sprintf((char*)&uart2_tx_buffer[6], "%d", nextTm->tm_yday+1);
+    i = 5 + sprintf((char*)&uart2_tx_buffer[6], "%d", tm_yday+1);
     break;
-  case MODE_UNIXTIME:
+  case MODE_UNIX:
     i = sprintf((char*)&uart2_tx_buffer[1], "%010ld", (uint32_t)currentTime);
     break;
   case MODE_JULIAN_DATE:
@@ -187,7 +194,7 @@ void sendDate( _Bool now ){
   case MODE_MODIFIED_JD:
     i = sprintf((char*)&uart2_tx_buffer[1], "%10f", (double)currentTime/86400.0 + 40587);
     break;
-  case MODE_SHOWZONE:
+  case MODE_SHOW_TZ_NAME:
     if (loadedRulesString[0])
       snprintf((char*)&uart2_tx_buffer[1], 11,"%s", loadedRulesString);
     else {
@@ -212,9 +219,9 @@ void setNextTimestamp(time_t nextTime){
 
   nextTime += offset;
 
-  nextTm = gmtime( &nextTime );
-
+  struct tm * nextTm = gmtime( &nextTime );
   tmToBcd( nextTm, &nextBcd );
+  tm_yday = nextTm->tm_yday;
 
   next7seg.c = cLut[nextBcd.seconds];
 
@@ -398,6 +405,8 @@ void setDisplayPWM(uint32_t bright){
 
 void setDisplayFreq(uint32_t freq){
 
+  if (freq<1 || freq>100000) return;
+
   uart2_tx_buffer[0]= CMD_SET_FREQUENCY;
   uart2_tx_buffer[1]= (freq>>14) & 0x7F;
   uart2_tx_buffer[2]= (freq>>7)  & 0x7F;
@@ -410,16 +419,42 @@ void setDisplayFreq(uint32_t freq){
   TIM7->ARR = arr;
 }
 
-void parseConfigString(char const *key, char const *value) {
+_Bool truthy(char const* str){
+  if (strcasecmp(str, "on")==0) return 1;
+  if (strcasecmp(str, "enabled")==0) return 1;
+  if (strcasecmp(str, "1")==0) return 1;
+  return 0;
+}
+
+void parseConfigString(char *key, char *value) {
 
   if (strcasecmp(key, "MATRIX_FREQUENCY") == 0) {
 
     setDisplayFreq(atoi(value));
 
-  } else if (strcasecmp(key, "date_format") == 0) {
+  } else if (strcasecmp(key, "zone_override") == 0) {
 
-    //printf("found date format\n");
+    config.zone_override = 1;
+    loadRulesSingle(value);
 
+  } else if (strcasecmp(key, "MODE_ISO8601_STD") == 0) {
+    config.modes_enabled[MODE_ISO8601_STD]  = truthy(value);
+  } else if (strcasecmp(key, "MODE_ISO_ORDINAL") == 0) {
+    config.modes_enabled[MODE_ISO_ORDINAL]  = truthy(value);
+  } else if (strcasecmp(key, "MODE_ISO_WEEK") == 0) {
+    config.modes_enabled[MODE_ISO_WEEK]     = truthy(value);
+  } else if (strcasecmp(key, "MODE_UNIX") == 0) {
+    config.modes_enabled[MODE_UNIX]         = truthy(value);
+  } else if (strcasecmp(key, "MODE_JULIAN_DATE") == 0) {
+    config.modes_enabled[MODE_JULIAN_DATE]  = truthy(value);
+  } else if (strcasecmp(key, "MODE_MODIFIED_JD") == 0) {
+    config.modes_enabled[MODE_MODIFIED_JD]  = truthy(value);
+  } else if (strcasecmp(key, "MODE_SHOW_OFFSET") == 0) {
+    config.modes_enabled[MODE_SHOW_OFFSET]  = truthy(value);
+  } else if (strcasecmp(key, "MODE_SHOW_TZ_NAME") == 0) {
+    config.modes_enabled[MODE_SHOW_TZ_NAME] = truthy(value);
+  } else if (strcasecmp(key, "MODE_STANDBY") == 0) {
+    config.modes_enabled[MODE_STANDBY]      = truthy(value);
   }
 
 
@@ -430,10 +465,10 @@ void readConfigFile(){
 
   FIL file;
 
-   if (f_open(&file, "/CONFIG.TXT", FA_READ) != FR_OK)
+   if (f_open(&file, CONFIG_FILENAME, FA_READ) != FR_OK)
      return;
 
-   char key[20], value[20], s[1];
+   char key[20], value[32], s[1];
    unsigned int rc;
    uint16_t col=0;
 
@@ -470,6 +505,12 @@ void readConfigFile(){
    }
 
    f_close(&file);
+
+   uint8_t j = 0;
+   for (uint8_t i=0; i<NUM__DISPLAY_MODES; i++)
+     j+= config.modes_enabled[i];
+
+   if (!j) config.modes_enabled[MODE_ISO8601_STD]=1;
 }
 
 
@@ -726,8 +767,9 @@ void button1pressed(void){
 
   // 12 bytes at 115200 8E1 is 1.14ms
 
-
-  if (++displayMode >=NUM__DISPLAY_MODES) displayMode=0;
+  do {
+    if (++displayMode >=NUM__DISPLAY_MODES) displayMode=0;
+  } while (!config.modes_enabled[displayMode]);
 
   sendDate(1);
 
@@ -894,22 +936,22 @@ int main(void)
 
 
 
-//  char asdf[]="Europe/London";
-//  loadRulesSingle(asdf);
-
 
   if (RTC->ISR & RTC_ISR_INITS) //RTC contains non-zero data
   {
     RTC_DateTypeDef sdate;
     RTC_TimeTypeDef stime;
 
-    char zone[32];
-    memcpyword( (uint32_t*)zone,  (uint32_t*)&(RTC->BKP0R), 8 );
-    zone[31]=0;
+    if (!config.zone_override){
+      char zone[32];
+      memcpyword( (uint32_t*)zone,  (uint32_t*)&(RTC->BKP0R), 8 );
+      zone[31]=0;
 
-    if (loadRulesSingle(zone) != 0){ // takes 34ms -O0, 26ms -O2
-      memcpyword( (uint32_t*)rules, (uint32_t*)&(RTC->BKP8R), 22 );
+      if (loadRulesSingle(zone) != 0){ // takes 34ms -O0, 26ms -O2
+        memcpyword( (uint32_t*)rules, (uint32_t*)&(RTC->BKP8R), 22 );
+      }
     }
+
 
     hrtc.Instance = RTC;
     HAL_RTC_GetTime(&hrtc, &stime, RTC_FORMAT_BIN);
@@ -977,7 +1019,7 @@ int main(void)
   {
 
 
-    if (cd && data_valid && latitude>=-90.0 && latitude<=90.0 && longitude>=-180.0 && longitude<=180.0) {
+    if (!config.zone_override && cd && data_valid && latitude>=-90.0 && latitude<=90.0 && longitude>=-180.0 && longitude<=180.0) {
 
       char* zone = ZDHelperSimpleLookupString(cd, latitude, longitude);
 

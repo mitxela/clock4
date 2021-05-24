@@ -79,8 +79,9 @@ extern uint16_t buffer_b[];
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
 
-#define RULES_FILENAME "/TZRULES.BIN"
-#define MAP_FILENAME   "/TZMAP.BIN"
+#define RULES_FILENAME  "/TZRULES.BIN"
+#define MAP_FILENAME    "/TZMAP.BIN"
+#define CONFIG_FILENAME "/CONFIG.TXT"
 
 #define cSegDP 0b00010000
 
@@ -125,11 +126,14 @@ extern uint16_t buffer_b[];
 
 enum {
   MODE_ISO8601_STD =0,
-  MODE_ISO8601_ORDINAL,
-  MODE_UNIXTIME,
+  MODE_ISO_ORDINAL,
+  MODE_ISO_WEEK,
+  MODE_UNIX,
   MODE_JULIAN_DATE,
   MODE_MODIFIED_JD,
-  MODE_SHOWZONE,
+  MODE_SHOW_OFFSET,
+  MODE_SHOW_TZ_NAME,
+  MODE_STANDBY,
 
   NUM__DISPLAY_MODES
 };
