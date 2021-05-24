@@ -146,6 +146,9 @@ uint32_t LPTIM1_high;
 uint8_t displayMode = 0;
 
 struct {
+  uint32_t tolerance_1ms;
+  uint32_t tolerance_10ms;
+  uint32_t tolerance_100ms;
   _Bool zone_override;
   _Bool modes_enabled[NUM__DISPLAY_MODES];
 
@@ -455,6 +458,12 @@ void parseConfigString(char *key, char *value) {
     config.modes_enabled[MODE_SHOW_TZ_NAME] = truthy(value);
   } else if (strcasecmp(key, "MODE_STANDBY") == 0) {
     config.modes_enabled[MODE_STANDBY]      = truthy(value);
+  } else if (strcasecmp(key, "Tolerance_time_1ms") == 0) {
+    config.tolerance_1ms = atoi(value);
+  } else if (strcasecmp(key, "Tolerance_time_10ms") == 0) {
+    config.tolerance_10ms = atoi(value);
+  } else if (strcasecmp(key, "Tolerance_time_100ms") == 0) {
+    config.tolerance_100ms = atoi(value);
   }
 
 
@@ -463,12 +472,16 @@ void parseConfigString(char *key, char *value) {
 
 void readConfigFile(){
 
+  config.tolerance_1ms   = 1000;
+  config.tolerance_10ms  = 10000;
+  config.tolerance_100ms = 100000;
+
   FIL file;
 
    if (f_open(&file, CONFIG_FILENAME, FA_READ) != FR_OK)
      return;
 
-   char key[20], value[32], s[1];
+   char key[32], value[32], s[1];
    unsigned int rc;
    uint16_t col=0;
 
@@ -506,11 +519,17 @@ void readConfigFile(){
 
    f_close(&file);
 
+   // check at least one mode is enabled
    uint8_t j = 0;
    for (uint8_t i=0; i<NUM__DISPLAY_MODES; i++)
      j+= config.modes_enabled[i];
 
    if (!j) config.modes_enabled[MODE_ISO8601_STD]=1;
+
+   // check tolerances
+   if (config.tolerance_1ms == 0)   config.tolerance_1ms   = 0xFFFFFFFF;
+   if (config.tolerance_10ms == 0)  config.tolerance_10ms  = 0xFFFFFFFF;
+   if (config.tolerance_100ms == 0) config.tolerance_100ms = 0xFFFFFFFF;
 }
 
 
@@ -782,11 +801,11 @@ void setPrecision(void){
     // situations not covered:
     // - short poweroff - not had pps, but RTC calibrated only seconds ago
     // - last pps more than 100000 seconds ago (27 hours)
-    if (currentTime - last_pps_time < 1000){
+    if (currentTime - last_pps_time < config.tolerance_1ms){
       precision=3;
-    } else if (currentTime - last_pps_time < 10000){
+    } else if (currentTime - last_pps_time < config.tolerance_10ms){
       precision=2;
-    } else if (currentTime - rtc_last_calibration < 60*60*24*3){
+    } else if (currentTime - rtc_last_calibration < config.tolerance_100ms){
       precision=1;
     }
 
