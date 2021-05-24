@@ -634,7 +634,7 @@ exti_return:
 }
 
 
-void SysTick_CountUp(void)
+void SysTick_CountUp_P3(void)
 {
 
   millisec++;
@@ -670,6 +670,100 @@ void SysTick_CountUp(void)
     setNextTimestamp( currentTime );
   }
 }
+
+void SysTick_CountUp_P2(void) {
+  millisec++;
+  if (millisec>=10) {
+    millisec=0;
+    centisec++;
+    if (centisec>=10) {
+      centisec=0;
+      decisec++;
+      if (decisec>=10) {
+        decisec=0;
+        loadNextTimestamp();
+      }
+    }
+  }
+  buffer_c[2].low=cLut[centisec];
+  buffer_c[1].low=cLut[decisec];
+
+  HAL_IncTick();
+
+  if (decisec==9 && centisec==0 && millisec==0){
+    currentTime++;
+    setNextTimestamp( currentTime );
+  }
+}
+void SysTick_CountUp_P1(void) {
+  millisec++;
+  if (millisec>=10) {
+    millisec=0;
+    centisec++;
+    if (centisec>=10) {
+      centisec=0;
+      decisec++;
+      if (decisec>=10) {
+        decisec=0;
+        loadNextTimestamp();
+      }
+    }
+  }
+  buffer_c[1].low=cLut[decisec];
+
+  HAL_IncTick();
+
+  if (decisec==9 && centisec==0 && millisec==0){
+    currentTime++;
+    setNextTimestamp( currentTime );
+  }
+}
+
+void SysTick_CountUp_P0(void) {
+  millisec++;
+  if (millisec>=10) {
+    millisec=0;
+    centisec++;
+    if (centisec>=10) {
+      centisec=0;
+      decisec++;
+      if (decisec>=10) {
+        decisec=0;
+        loadNextTimestamp();
+      }
+    }
+  }
+
+  HAL_IncTick();
+
+  if (decisec==9 && centisec==0 && millisec==0){
+    currentTime++;
+    setNextTimestamp( currentTime );
+  }
+}
+
+void SysTick_CountUp_NoUpdate(void) {
+  millisec++;
+  if (millisec>=10) {
+    millisec=0;
+    centisec++;
+    if (centisec>=10) {
+      centisec=0;
+      decisec++;
+      if (decisec>=10) {
+        decisec=0;
+      }
+    }
+  }
+
+  HAL_IncTick();
+
+  if (decisec==9 && centisec==0 && millisec==0){
+    currentTime++;
+    setNextTimestamp( currentTime );
+  }
+}
+
 
 void SysTick_CountDown(void)
 {
@@ -828,29 +922,30 @@ void button1pressed(void){
 
 void setPrecision(void){
   if (1) {
-    uint8_t precision=0;
 
     // situations not covered:
     // - short poweroff - not had pps, but RTC calibrated only seconds ago
     // - last pps more than 100000 seconds ago (27 hours)
     if (currentTime - last_pps_time < config.tolerance_1ms){
-      precision=3;
-    } else if (currentTime - last_pps_time < config.tolerance_10ms){
-      precision=2;
-    } else if (currentTime - rtc_last_calibration < config.tolerance_100ms){
-      precision=1;
-    }
-
-    if (precision>0){
-      buffer_c[1].high= 0b11001101;
       buffer_c[0].high= 0b11001110 | cSegDP;
-    }else{
-      buffer_c[1].high= 0b11001111;
+      SetSysTick( &SysTick_CountUp_P3 );
+    } else if (currentTime - last_pps_time < config.tolerance_10ms){
+      buffer_c[3].low = 0b01000000;
+      buffer_c[0].high= 0b11001110 | cSegDP;
+      SetSysTick( &SysTick_CountUp_P2 );
+    } else if (currentTime - rtc_last_calibration < config.tolerance_100ms){
+      buffer_c[3].low = 0b01000000;
+      buffer_c[2].low = 0b01000000;
+      buffer_c[0].high= 0b11001110 | cSegDP;
+      SetSysTick( &SysTick_CountUp_P1 );
+    } else {
+      buffer_c[3].low = 0b01000000;
+      buffer_c[2].low = 0b01000000;
+      buffer_c[1].low = 0b01000000;
       buffer_c[0].high= 0b11001110;
+      SetSysTick( &SysTick_CountUp_P0 );
     }
 
-    buffer_c[2].high= precision>1 ? 0b11001011 : 0b11001111;
-    buffer_c[3].high= precision>2 ? 0b11000111 : 0b11001111;
   }
 }
 /* USER CODE END 0 */
@@ -863,13 +958,8 @@ int main(void)
 {
   /* USER CODE BEGIN 1 */
 
-  extern uint32_t __VECTORS_FLASH[];
-  extern uint32_t __VECTORS_RAM[];
-
   memcpy(__VECTORS_RAM, __VECTORS_FLASH, 0x188);
   SCB->VTOR = (uint32_t)&__VECTORS_RAM;
-
-#define SetSysTick(x) __VECTORS_RAM[15] = (uint32_t)x
 
   SetSysTick( &SysTick_Dummy );
 
@@ -1044,7 +1134,6 @@ int main(void)
   }
 
   setPrecision();
-  SetSysTick( &SysTick_CountUp );
   enablePPS();
   HAL_UART_Receive_DMA(&huart1, nmea, sizeof(nmea));
 

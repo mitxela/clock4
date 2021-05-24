@@ -168,6 +168,10 @@ void displayOff(void);
   huart2.Instance->TDR = 0xFE; \
   SCB->ICSR = SCB_ICSR_PENDSVSET_Msk; // trigger PendSV
 
+extern uint32_t __VECTORS_FLASH[];
+extern uint32_t __VECTORS_RAM[];
+#define SetSysTick(x) __VECTORS_RAM[15] = (uint32_t)x
+
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
