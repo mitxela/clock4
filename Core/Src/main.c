@@ -144,14 +144,14 @@ char loadedRulesString[32];
 
 uint32_t LPTIM1_high;
 
-uint8_t displayMode = 0;
+uint8_t displayMode = 0, countMode = 0;
 
 struct {
   uint32_t tolerance_1ms;
   uint32_t tolerance_10ms;
   uint32_t tolerance_100ms;
   _Bool zone_override;
-  _Bool modes_enabled[NUM__DISPLAY_MODES];
+  _Bool modes_enabled[NUM_DISPLAY_MODES];
 
 } config = {0};
 
@@ -237,7 +237,6 @@ void setNextTimestamp(time_t nextTime){
   next7seg.b[3] = bCat3 | cLut[nextBcd.minutes]<<2;
   next7seg.b[4] = bCat4 | cLut[nextBcd.tenSeconds]<<2;
 
-  sendDate(0);
 }
 
 // Store UTC on RTC
@@ -396,7 +395,10 @@ void decodeRMC(void){
     if (decisec >= 9) {
       currentTime++;
       // todo: check we're not <2ms away from rollover
+      // Under normal conditions, we should only be parsing nmea at around .300 to .400
+      // USART1 preemption priority is currently 1, so we could be interrupted by systick here
       setNextTimestamp( currentTime );
+      sendDate(0);
     }
   }
 
@@ -544,7 +546,7 @@ void readConfigFile(){
 
    // check at least one mode is enabled
    uint8_t j = 0;
-   for (uint8_t i=0; i<NUM__DISPLAY_MODES; i++)
+   for (uint8_t i=0; i<NUM_DISPLAY_MODES; i++)
      j+= config.modes_enabled[i];
 
    if (!j || (j==1 && config.modes_enabled[MODE_STANDBY])) config.modes_enabled[MODE_ISO8601_STD]=1;
@@ -556,40 +558,8 @@ void readConfigFile(){
    if (config.tolerance_100ms == 0) config.tolerance_100ms = 0xFFFFFFFF;
 }
 
-
-void enablePPS(void){
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-
-  /*Configure GPIO pin : PC7 */
-  GPIO_InitStruct.Pin = GPIO_PIN_7;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
-}
-
-// PPS rising edge
-void EXTI9_5_IRQHandler(void)
-{
-  SysTick->VAL = SysTick->LOAD;
-
-  buffer_c[3].low=cLut[0];
-  buffer_c[2].low=cLut[0];
-  buffer_c[1].low=cLut[0];
-  loadNextTimestamp();
-  millisec=0;
-  centisec=0;
-  decisec=0;
-
-  // clear systick flag if set?
-
-  // During first power up PPS can be emitted before the GPS leapsecond offset is known
-  // In this case, it is safest to pretend PPS hasn't happened
-  if (!data_valid) goto exti_return;
-
+void calibrateRTC(void){
+  // Called by PPS EXTI
 
   static uint32_t calibStart =0;
   // LPTIM period is 2 seconds
@@ -624,15 +594,70 @@ void EXTI9_5_IRQHandler(void)
     LL_LPTIM_SetAutoReload(LPTIM1, 0xFFFF);
     LL_LPTIM_ClearFLAG_ARRM(LPTIM1); // just in case there's one pending
   }
+}
 
+void EXTI9_5_IRQHandler(void){__HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_7);}
+
+// PPS rising edge
+void PPS(void)
+{
+  SysTick->VAL = SysTick->LOAD;
+
+  buffer_c[3].low=cLut[0];
+  buffer_c[2].low=cLut[0];
+  buffer_c[1].low=cLut[0];
+  loadNextTimestamp();
+  millisec=0;
+  centisec=0;
+  decisec=0;
+
+  __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_7);
+
+  // clear systick flag if set?
+
+  // During first power up PPS can be emitted before the GPS leapsecond offset is known
+  // In this case, it is safest to pretend PPS hasn't happened
+  if (!data_valid) return;
+
+  calibrateRTC();
 
   had_pps = 1;
   last_pps_time = (uint32_t)currentTime;
-
-exti_return:
-  __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_7);
 }
 
+void PPS_NoUpdate(void)
+{
+  SysTick->VAL = SysTick->LOAD;
+
+  millisec=0;
+  centisec=0;
+  decisec=0;
+
+  __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_7);
+
+  if (!data_valid) return;
+
+  calibrateRTC();
+
+  had_pps = 1;
+  last_pps_time = (uint32_t)currentTime;
+}
+
+void PPS_Init(void){
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+  /*Configure GPIO pin : PC7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_7;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+  SetPPS( &PPS );
+}
 
 void SysTick_CountUp_P3(void)
 {
@@ -668,6 +693,7 @@ void SysTick_CountUp_P3(void)
     // If needed, we should move this to a lower priority software-triggered interrupt
     currentTime++;
     setNextTimestamp( currentTime );
+    sendDate(0);
   }
 }
 
@@ -693,6 +719,7 @@ void SysTick_CountUp_P2(void) {
   if (decisec==9 && centisec==0 && millisec==0){
     currentTime++;
     setNextTimestamp( currentTime );
+    sendDate(0);
   }
 }
 void SysTick_CountUp_P1(void) {
@@ -716,6 +743,7 @@ void SysTick_CountUp_P1(void) {
   if (decisec==9 && centisec==0 && millisec==0){
     currentTime++;
     setNextTimestamp( currentTime );
+    sendDate(0);
   }
 }
 
@@ -739,6 +767,7 @@ void SysTick_CountUp_P0(void) {
   if (decisec==9 && centisec==0 && millisec==0){
     currentTime++;
     setNextTimestamp( currentTime );
+    sendDate(0);
   }
 }
 
@@ -760,7 +789,8 @@ void SysTick_CountUp_NoUpdate(void) {
 
   if (decisec==9 && centisec==0 && millisec==0){
     currentTime++;
-    setNextTimestamp( currentTime );
+    //setNextTimestamp( currentTime );
+    //sendDate(0);
   }
 }
 
@@ -900,28 +930,8 @@ uint8_t loadRulesSingle(char * str){
   return loadRules( str, zo );
 }
 
-void nextMode(void){
-
-  _Bool wasOff = (displayMode==MODE_STANDBY);
-
-  do {
-    if (++displayMode >=NUM__DISPLAY_MODES) displayMode=0;
-  } while (!config.modes_enabled[displayMode]);
-
-  if (wasOff && displayMode != MODE_STANDBY) displayOn();
-
-}
-void button1pressed(void){
-
-  // 12 bytes at 115200 8E1 is 1.14ms
-
-  nextMode();
-  sendDate(1);
-
-}
-
 void setPrecision(void){
-  if (1) {
+  if (countMode == COUNT_NORMAL) {
 
     // situations not covered:
     // - short poweroff - not had pps, but RTC calibrated only seconds ago
@@ -948,6 +958,69 @@ void setPrecision(void){
 
   }
 }
+
+void nextMode(void){
+
+  _Bool wasOff = (displayMode==MODE_STANDBY);
+
+  do {
+    if (++displayMode >=NUM_DISPLAY_MODES) displayMode=0;
+  } while (!config.modes_enabled[displayMode]);
+
+  if (wasOff && displayMode != MODE_STANDBY) displayOn();
+
+  if (displayMode == MODE_SHOW_OFFSET) {
+    if (countMode != COUNT_HIDDEN) {
+      countMode = COUNT_HIDDEN;
+      SetSysTick( &SysTick_CountUp_NoUpdate );
+      SetPPS( &PPS_NoUpdate );
+    }
+  }
+  else {
+    if (countMode != COUNT_NORMAL) {
+      countMode = COUNT_NORMAL;
+      setPrecision();
+
+      SetPPS( &PPS );
+
+      // To think about: if we're at .899, is there a chance of a nested interrupt causing havoc here?
+      // We'd normally be running in the context of the usart2 interrupt, currently priority 0
+      // If called by PendSV, seconds will always be .000
+
+      // If we're at .999, don't do anything since it'll be set in <1ms anyway
+      if (decisec!=9 || centisec!=9 || millisec!=9) {
+        setNextTimestamp( currentTime );
+        latchSegments();
+      }
+
+//        buffer_c[0].high = 0b11001110;
+//        buffer_c[0].low =  0b01000000;
+//        buffer_b[0] = bCat0 | 0b0100000000;
+//        buffer_b[1] = bCat1 | 0b0100000000;
+//        buffer_b[2] = bCat2 | 0b0100000000;
+//        buffer_b[3] = bCat3 | 0b0100000000;
+//        buffer_b[4] = bCat4 | 0b0100000000;
+
+    }
+  }
+
+}
+void button1pressed(void){
+
+  // 12 bytes at 115200 8E1 is 1.14ms
+
+  nextMode();
+
+  // Normally this routine is only called when it is safe to do so
+  // But if we have just left COUNT_HIDDEN, the button press could have been called at any time, so
+  // avoid transmission if <3ms till rollover.
+  // If we are still in COUNT_HIDDEN, always send.
+  if (countMode == COUNT_HIDDEN || decisec!=9 || centisec!=9 || millisec<7)
+    sendDate(1);
+
+}
+
+
 /* USER CODE END 0 */
 
 /**
@@ -1122,7 +1195,8 @@ int main(void)
     if (decisec>=9) currentTime++;
 
     setNextTimestamp( currentTime );
-    loadNextTimestamp();
+    sendDate(1);
+    latchSegments();
     rtc_good=1;
 
   } else { // backup domain reset
@@ -1134,7 +1208,7 @@ int main(void)
   }
 
   setPrecision();
-  enablePPS();
+  PPS_Init();
   HAL_UART_Receive_DMA(&huart1, nmea, sizeof(nmea));
 
 

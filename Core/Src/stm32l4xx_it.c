@@ -74,7 +74,7 @@ extern float dac_target;
 extern uint8_t uart2_tx_buffer[32];
 extern _Bool data_valid, had_pps;
 extern uint8_t decisec, centisec, millisec;
-extern uint8_t displayMode;
+extern uint8_t displayMode, countMode;
 
 void button1pressed(void);
 void setPrecision(void);
@@ -415,7 +415,7 @@ void USART2_IRQHandler(void)
   if ( USART2->ISR & UART_IT_RXNE) {
     if ((USART2->RDR &0xFF) == 0x91) {
       // if we're beyond 0.9 seconds the date side will already be waiting for latch
-      if (decisec==9) delayButtonPress = 1;
+      if (decisec==9 && countMode!=COUNT_HIDDEN) delayButtonPress = 1;
       else button1pressed();
     }
     return;

@@ -135,7 +135,13 @@ enum {
   MODE_SHOW_TZ_NAME,
   MODE_STANDBY,
 
-  NUM__DISPLAY_MODES
+  NUM_DISPLAY_MODES
+};
+
+enum {
+  COUNT_NORMAL =0,
+  COUNT_HIDDEN,
+  COUND_DOWN
 };
 
 
@@ -158,19 +164,26 @@ void setDisplayPWM(uint32_t bright);
 void write_rtc(void);
 void displayOff(void);
 
-#define loadNextTimestamp() \
+#define latchSegments() \
   buffer_c[0].low = next7seg.c; \
   buffer_b[0] = next7seg.b[0]; \
   buffer_b[1] = next7seg.b[1]; \
   buffer_b[2] = next7seg.b[2]; \
   buffer_b[3] = next7seg.b[3]; \
-  buffer_b[4] = next7seg.b[4]; \
+  buffer_b[4] = next7seg.b[4];
+
+#define loadNextTimestamp() \
+  latchSegments() \
   huart2.Instance->TDR = 0xFE; \
   SCB->ICSR = SCB_ICSR_PENDSVSET_Msk; // trigger PendSV
 
 extern uint32_t __VECTORS_FLASH[];
 extern uint32_t __VECTORS_RAM[];
-#define SetSysTick(x) __VECTORS_RAM[15] = (uint32_t)x
+#define SetSysTick(x) __VECTORS_RAM[ 16 + SysTick_IRQn ] = (uint32_t)x
+#define SetPPS(x)     __VECTORS_RAM[ 16 + EXTI9_5_IRQn ] = (uint32_t)x
+
+#define SetVector(x,y) __VECTORS_RAM[ 16 + x ] = (uint32_t)y
+#define GetVector(x)   ((void (*)(void)) __VECTORS_RAM[ 16 + x ]
 
 /* USER CODE END EFP */
 
