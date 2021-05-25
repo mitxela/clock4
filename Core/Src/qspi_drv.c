@@ -10,6 +10,7 @@ static QSPI_STATUS QSPI_Write_Page(uint8_t *pData, uint32_t address);
 
 uint8_t initialized = 0;
 uint8_t locked = 0;
+uint32_t qspi_write_time = 0;
 
 uint8_t QSPI_Initialized()
 {

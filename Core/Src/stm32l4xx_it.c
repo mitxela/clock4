@@ -76,8 +76,8 @@ extern _Bool data_valid, had_pps;
 extern uint8_t decisec, centisec, millisec;
 extern uint8_t displayMode, countMode;
 
-void button1pressed(void);
-void setPrecision(void);
+extern uint32_t qspi_write_time;
+
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -197,6 +197,14 @@ void PendSV_Handler(void)
   if (delayButtonPress) {  delayButtonPress=0; button1pressed(); }
 
   setPrecision();
+
+  if (displayMode==MODE_SHOW_OFFSET) {sendDate(1);}
+
+  uint32_t x = qspi_write_time;
+  if (x && uwTick - x > 100) {
+    readConfigFile();
+    if (x == qspi_write_time) qspi_write_time=0;
+  }
 
   /* USER CODE END PendSV_IRQn 0 */
   /* USER CODE BEGIN PendSV_IRQn 1 */

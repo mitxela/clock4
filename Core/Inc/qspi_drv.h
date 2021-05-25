@@ -60,4 +60,6 @@ QSPI_STATUS QSPI_Write_Sector(uint8_t *pData, uint32_t address);
 uint8_t QSPI_Initialized();
 uint8_t QSPI_Locked();
 
+extern uint32_t qspi_write_time;
+
 #endif

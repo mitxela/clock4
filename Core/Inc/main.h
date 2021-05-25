@@ -163,6 +163,10 @@ void decodeRMC(void);
 void setDisplayPWM(uint32_t bright);
 void write_rtc(void);
 void displayOff(void);
+void button1pressed(void);
+void setPrecision(void);
+void sendDate( _Bool now );
+void readConfigFile(void);
 
 #define latchSegments() \
   buffer_c[0].low = next7seg.c; \
@@ -172,10 +176,13 @@ void displayOff(void);
   buffer_b[3] = next7seg.b[3]; \
   buffer_b[4] = next7seg.b[4];
 
+#define triggerPendSV() \
+  SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
+
 #define loadNextTimestamp() \
   latchSegments() \
   huart2.Instance->TDR = 0xFE; \
-  SCB->ICSR = SCB_ICSR_PENDSVSET_Msk; // trigger PendSV
+  triggerPendSV()
 
 extern uint32_t __VECTORS_FLASH[];
 extern uint32_t __VECTORS_RAM[];

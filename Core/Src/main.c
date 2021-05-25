@@ -103,6 +103,7 @@ void nextMode(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 const uint8_t cLut[]= { cSegDecode0, cSegDecode1, cSegDecode2, cSegDecode3, cSegDecode4, cSegDecode5, cSegDecode6, cSegDecode7, cSegDecode8, cSegDecode9 };
+const uint16_t bLut[]={ bSegDecode0, bSegDecode1, bSegDecode2, bSegDecode3, bSegDecode4, bSegDecode5, bSegDecode6, bSegDecode7, bSegDecode8, bSegDecode9 };
 
 buffer_c_t buffer_c[80] = {0};
 
@@ -120,6 +121,7 @@ uint8_t nmea[90];
 time_t currentTime;
 bcdStamp_t nextBcd;
 int tm_yday;
+int32_t currentOffset=0;
 
 struct {
   uint8_t c;
@@ -198,6 +200,40 @@ void sendDate( _Bool now ){
   case MODE_MODIFIED_JD:
     i = sprintf((char*)&uart2_tx_buffer[1], "%10f", (double)currentTime/86400.0 + 40587);
     break;
+  case MODE_SHOW_OFFSET:
+    // This probably isn't the best place to do it, but the data is static anyway
+
+    if (currentOffset<0){
+      buffer_b[0]=bCat0 | 0b0000000000;
+      buffer_b[1]=bCat1 | 0b0100000000;
+    } else {
+      buffer_b[0]=bCat0 | 0b0100011000;
+      buffer_b[1]=bCat1 | 0b0111000000;
+    }
+    int minutes = ((abs(currentOffset)/60) %60);
+    int hours = (abs(currentOffset)/3600);
+
+    buffer_b[2]=bCat2 | bLut[ hours/10 ];
+    buffer_b[3]=bCat3 | bLut[ hours%10 ];
+    buffer_b[4]=bCat4 | bLut[ minutes/10 ];
+
+    buffer_c[0].low= cLut[ minutes%10 ];
+    buffer_c[0].high=0b11001110;
+    buffer_c[1].low=0;
+    buffer_c[2].low=0;
+    buffer_c[3].low=0;
+
+    uart2_tx_buffer[1] ='u';
+    uart2_tx_buffer[2] ='t';
+    uart2_tx_buffer[3] ='c';
+    uart2_tx_buffer[4] =' ';
+    uart2_tx_buffer[5] ='o';
+    uart2_tx_buffer[6] ='f';
+    uart2_tx_buffer[7] ='f';
+    uart2_tx_buffer[8] ='s';
+    uart2_tx_buffer[9] ='e';
+    uart2_tx_buffer[10]='t';
+    break;
   case MODE_SHOW_TZ_NAME:
     if (loadedRulesString[0])
       snprintf((char*)&uart2_tx_buffer[1], 11,"%s", loadedRulesString);
@@ -222,7 +258,9 @@ void setNextTimestamp(time_t nextTime){
     if (rules[i].t <= nextTime) offset=rules[i].offset;
     else break;
   }
-
+  // in case of the remote chance that we're interrupted while calculating,
+  // don't assign to currentOffset until the end of the loop
+  currentOffset = offset;
   nextTime += offset;
 
   struct tm * nextTm = gmtime( &nextTime );
@@ -462,6 +500,7 @@ void parseConfigString(char *key, char *value) {
 
   } else if (strcasecmp(key, "zone_override") == 0) {
 
+    if (!value[0]) return;
     config.zone_override = 1;
     loadRulesSingle(value);
 
@@ -495,11 +534,12 @@ void parseConfigString(char *key, char *value) {
   //printf("Parsed config key [%s] is value [%s]\n", key, value);
 }
 
-void readConfigFile(){
+void readConfigFile(void){
 
   config.tolerance_1ms   = 1000;
   config.tolerance_10ms  = 10000;
   config.tolerance_100ms = 100000;
+  config.zone_override = 0;
 
   FIL file;
 
@@ -550,7 +590,7 @@ void readConfigFile(){
      j+= config.modes_enabled[i];
 
    if (!j || (j==1 && config.modes_enabled[MODE_STANDBY])) config.modes_enabled[MODE_ISO8601_STD]=1;
-   if (!config.modes_enabled[MODE_ISO8601_STD]) nextMode();
+   if (!config.modes_enabled[displayMode]) nextMode();
 
    // check tolerances
    if (config.tolerance_1ms == 0)   config.tolerance_1ms   = 0xFFFFFFFF;
@@ -628,6 +668,7 @@ void PPS(void)
 void PPS_NoUpdate(void)
 {
   SysTick->VAL = SysTick->LOAD;
+  triggerPendSV();
 
   millisec=0;
   centisec=0;
@@ -781,6 +822,8 @@ void SysTick_CountUp_NoUpdate(void) {
       decisec++;
       if (decisec>=10) {
         decisec=0;
+        // write_rtc still needs to happen
+        triggerPendSV();
       }
     }
   }
@@ -789,7 +832,7 @@ void SysTick_CountUp_NoUpdate(void) {
 
   if (decisec==9 && centisec==0 && millisec==0){
     currentTime++;
-    //setNextTimestamp( currentTime );
+    setNextTimestamp( currentTime );
     //sendDate(0);
   }
 }
@@ -980,27 +1023,8 @@ void nextMode(void){
     if (countMode != COUNT_NORMAL) {
       countMode = COUNT_NORMAL;
       setPrecision();
-
       SetPPS( &PPS );
-
-      // To think about: if we're at .899, is there a chance of a nested interrupt causing havoc here?
-      // We'd normally be running in the context of the usart2 interrupt, currently priority 0
-      // If called by PendSV, seconds will always be .000
-
-      // If we're at .999, don't do anything since it'll be set in <1ms anyway
-      if (decisec!=9 || centisec!=9 || millisec!=9) {
-        setNextTimestamp( currentTime );
-        latchSegments();
-      }
-
-//        buffer_c[0].high = 0b11001110;
-//        buffer_c[0].low =  0b01000000;
-//        buffer_b[0] = bCat0 | 0b0100000000;
-//        buffer_b[1] = bCat1 | 0b0100000000;
-//        buffer_b[2] = bCat2 | 0b0100000000;
-//        buffer_b[3] = bCat3 | 0b0100000000;
-//        buffer_b[4] = bCat4 | 0b0100000000;
-
+      latchSegments();
     }
   }
 
@@ -1017,6 +1041,7 @@ void button1pressed(void){
   // If we are still in COUNT_HIDDEN, always send.
   if (countMode == COUNT_HIDDEN || decisec!=9 || centisec!=9 || millisec<7)
     sendDate(1);
+  // todo: detect this and resend date in pendsv
 
 }
 
@@ -1127,7 +1152,7 @@ int main(void)
 
 
   //Enable DP for subseconds
-  buffer_c[0].high=0b11011110 | cSegDP;
+  buffer_c[0].high=0b11001110 | cSegDP;
 
 
 
@@ -1214,16 +1239,10 @@ int main(void)
 
 
 
-
-
-
-
-
-
+  // todo: reload mapfile each time, and abort zonedetect if USB write happens
   FIL mapfile;
   f_open(&mapfile, MAP_FILENAME, FA_READ);
   ZoneDetect *const cd = ZDOpenDatabase(&mapfile);
-
 
 
   /* USER CODE END 2 */
