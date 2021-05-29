@@ -1136,8 +1136,8 @@ int main(void)
 
 
   // Configure ADC and DAC DMA for display brightness
-  if (HAL_ADC_Start_DMA(&hadc1, (uint32_t*)buffer_adc, ADC_BUFFER_SIZE) != HAL_OK)
-    Error_Handler();
+  HAL_ADC_Start(&hadc1);
+  HAL_TIM_Base_Start(&htim6);
 
   if (HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t*)buffer_dac, DAC_BUFFER_SIZE, DAC_ALIGN_12B_R) !=HAL_OK)
     Error_Handler();
@@ -1148,6 +1148,7 @@ int main(void)
 
   HAL_TIM_OC_Start(&htim2, TIM_CHANNEL_2);
   TIM2->CCR2 = 10000-3500;
+
 
 
 
@@ -1726,7 +1727,7 @@ static void MX_TIM6_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM6_Init 2 */
-  HAL_TIM_Base_Start(&htim6);
+
   /* USER CODE END TIM6_Init 2 */
 
 }
