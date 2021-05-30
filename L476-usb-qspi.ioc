@@ -1,7 +1,7 @@
 #MicroXplorer Configuration settings - do not modify
 ADC1.Channel-0\#ChannelRegularConversion=ADC_CHANNEL_10
 ADC1.DMAContinuousRequests=ENABLE
-ADC1.ExternalTrigConv=ADC_EXTERNALTRIG_T2_CC2
+ADC1.ExternalTrigConv=ADC_SOFTWARE_START
 ADC1.IPParameters=Rank-0\#ChannelRegularConversion,master,Channel-0\#ChannelRegularConversion,SamplingTime-0\#ChannelRegularConversion,OffsetNumber-0\#ChannelRegularConversion,NbrOfConversionFlag,DMAContinuousRequests,Overrun,ExternalTrigConv,NbrOfConversion
 ADC1.NbrOfConversion=1
 ADC1.NbrOfConversionFlag=1
@@ -170,7 +170,7 @@ MxCube.Version=5.6.0
 MxDb.Version=DB.5.0.60
 NVIC.BusFault_IRQn=true\:0\:0\:false\:false\:true\:false\:false
 NVIC.DMA1_Channel1_IRQn=true\:0\:0\:false\:false\:true\:false\:true
-NVIC.DMA1_Channel3_IRQn=true\:0\:0\:false\:false\:true\:false\:true
+NVIC.DMA1_Channel3_IRQn=true\:1\:0\:true\:false\:true\:false\:true
 NVIC.DMA1_Channel4_IRQn=true\:0\:0\:false\:false\:true\:false\:true
 NVIC.DMA1_Channel5_IRQn=true\:0\:0\:false\:false\:true\:false\:true
 NVIC.DMA1_Channel6_IRQn=true\:0\:0\:false\:false\:true\:false\:true

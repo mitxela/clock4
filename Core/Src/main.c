@@ -1045,6 +1045,56 @@ void button1pressed(void){
 
 }
 
+void generateDACbuffer(uint16_t * buf) {
+
+  const struct {
+    float in;
+    float out;
+  } brightnessCurve[] = {
+
+   {0.0, 4095},
+   //{0.0625, 3000},
+  // {0.125,2700},
+  // {0.25, 2200},
+  // {0.5, 1500},
+   {1.0, 2048},
+
+  };
+
+  static float dac_last=4095;
+
+
+  if (displayMode == MODE_STANDBY) {
+    dac_target = dac_target*0.9 + 1.2*4095.0*0.1;
+    if (dac_target>4090.0) {
+      dac_target=4095.0;
+      displayOff();
+    }
+  } else {
+    float avg = ((float) ADC1->DR ) * (1.0 /4095.0);
+
+    uint8_t i;
+    for (i=1; i< sizeof(brightnessCurve)/sizeof(brightnessCurve[0]) -1; i++){
+      if (brightnessCurve[i].in > avg) break;
+    }
+    float factor = (avg - brightnessCurve[i-1].in) / (brightnessCurve[i].in - brightnessCurve[i-1].in);
+
+    float out = brightnessCurve[i-1].out*(1.0-factor) + brightnessCurve[i].out*factor;
+
+    dac_target = dac_target*0.5 + out*0.5;
+  }
+
+
+  HAL_ADC_Start(&hadc1);
+
+
+
+  float step = (dac_target-dac_last)/(DAC_BUFFER_SIZE*0.5);
+  for (size_t i=0; i<DAC_BUFFER_SIZE/2; i++) {
+    buf[i]= (uint16_t)(dac_last += step);
+  }
+  dac_last=dac_target;
+}
 
 /* USER CODE END 0 */
 
@@ -1375,8 +1425,8 @@ static void MX_ADC1_Init(void)
   hadc1.Init.NbrOfConversion = 1;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.NbrOfDiscConversion = 1;
-  hadc1.Init.ExternalTrigConv = ADC_EXTERNALTRIG_T2_CC2;
-  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc1.Init.DMAContinuousRequests = ENABLE;
   hadc1.Init.Overrun = ADC_OVR_DATA_OVERWRITTEN;
   hadc1.Init.OversamplingMode = DISABLE;
@@ -1857,7 +1907,7 @@ static void MX_DMA_Init(void)
   HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
   /* DMA1_Channel3_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
   /* DMA1_Channel4_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel4_IRQn, 0, 0);

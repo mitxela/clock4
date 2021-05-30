@@ -167,6 +167,7 @@ void button1pressed(void);
 void setPrecision(void);
 void sendDate( _Bool now );
 void readConfigFile(void);
+void generateDACbuffer(uint16_t * buf);
 
 #define latchSegments() \
   buffer_c[0].low = next7seg.c; \
