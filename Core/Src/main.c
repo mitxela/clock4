@@ -152,7 +152,7 @@ char loadedRulesString[32];
 
 uint32_t LPTIM1_high;
 
-uint8_t displayMode = 0, countMode = 0;
+uint8_t displayMode = 0, countMode = 0, colonMode = 0;
 
 struct {
   uint32_t tolerance_1ms;
@@ -493,6 +493,80 @@ void setDisplayFreq(uint32_t freq){
   TIM7->ARR = arr;
 }
 
+#define colonAnimationStart() \
+  TIM5->CNT=0; \
+  HAL_DMA_Start(&hdma_tim5_ch1, (uint32_t)buffer_colons_R, (uint32_t)&TIM2->CCR1, 200); \
+  HAL_DMA_Start(&hdma_tim5_ch2, (uint32_t)buffer_colons_L, (uint32_t)&TIM2->CCR2, 200);
+
+#define colonAnimationStop() \
+  HAL_DMA_Abort(&hdma_tim5_ch1); \
+  HAL_DMA_Abort(&hdma_tim5_ch2);
+
+#define colonAnimationSync() \
+  colonAnimationStop() \
+  colonAnimationStart()
+
+void loadColonAnimation(void){
+
+
+  switch (colonMode) {
+    case COLON_MODE_SLOWFADE:
+      for (int k=0;k<100;k++) {
+        buffer_colons_R[k] =
+        buffer_colons_L[k] = k*2;
+        buffer_colons_R[k+100] =
+        buffer_colons_L[k+100] = 198-k*2;
+      }
+      break;
+    case COLON_MODE_HEARTBEAT:
+      for (int k=0;k<50;k++) {
+        buffer_colons_L[k] = k*4;
+      }
+      for (int k=0;k<100;k++) {
+        buffer_colons_L[k+50] = 200 - k*2;
+      }
+      for (int k=0;k<50;k++) {
+        buffer_colons_L[k+150] = 0;
+      }
+      for (int k=0;k<200;k++) {
+        buffer_colons_R[k] = buffer_colons_L[(k+175)%200];
+      }
+
+      break;
+    case COLON_MODE_1PPS_SAWTOOTH:
+      for (int k=0;k<100;k++) {
+        buffer_colons_R[k] =
+        buffer_colons_L[k] = 196-(k*k)/50;
+        buffer_colons_R[k+100] =
+        buffer_colons_L[k+100] = 196-(k*k)/50;
+      }
+      break;
+    case COLON_MODE_ALT_SAWTOOTH:
+      for (int k=0;k<100;k++) {
+        buffer_colons_R[k]     = 0;
+        buffer_colons_L[k+100] = 0;
+        buffer_colons_L[k]     = 196-(k*k)/50;
+        buffer_colons_R[k+100] = 196-(k*k)/50;
+      }
+      break;
+    case COLON_MODE_TOGGLE:
+      for (int k=0;k<100;k++) {
+        buffer_colons_R[k] = 200;
+        buffer_colons_L[k] = 200;
+        buffer_colons_R[k+100] = 0;
+        buffer_colons_L[k+100] = 0;
+      }
+      break;
+    case COLON_MODE_SOLID:
+      for (int k=0;k<200;k++) {
+        buffer_colons_R[k] = 200;
+        buffer_colons_L[k] = 200;
+      }
+      break;
+  }
+
+}
+
 _Bool truthy(char const* str){
   if (strcasecmp(str, "on")==0) return 1;
   if (strcasecmp(str, "enabled")==0) return 1;
@@ -536,10 +610,23 @@ void parseConfigString(char *key, char *value) {
     config.tolerance_10ms = atoi(value);
   } else if (strcasecmp(key, "Tolerance_time_100ms") == 0) {
     config.tolerance_100ms = atoi(value);
+  } else if (strcasecmp(key, "colon_mode") == 0) {
+
+    if (strcasecmp(value, "solid") == 0) {
+      colonMode = COLON_MODE_SOLID;
+    } else if (strcasecmp(value, "heartbeat") == 0) {
+      colonMode = COLON_MODE_HEARTBEAT;
+    } else if (strcasecmp(value, "sawtooth") == 0) {
+      colonMode = COLON_MODE_1PPS_SAWTOOTH;
+    } else if (strcasecmp(value, "alt_sawtooth") == 0) {
+      colonMode = COLON_MODE_ALT_SAWTOOTH;
+    } else if (strcasecmp(value, "toggle") == 0) {
+      colonMode = COLON_MODE_TOGGLE;
+    } else colonMode = COLON_MODE_SLOWFADE;
+
   }
 
 
-  //printf("Parsed config key [%s] is value [%s]\n", key, value);
 }
 
 void readConfigFile(void){
@@ -548,6 +635,7 @@ void readConfigFile(void){
   config.tolerance_10ms  = 10000;
   config.tolerance_100ms = 100000;
   config.zone_override = 0;
+  colonMode = 0;
 
   FIL file;
 
@@ -591,6 +679,8 @@ void readConfigFile(void){
    }
 
    f_close(&file);
+
+   loadColonAnimation();
 
    // check at least one mode is enabled
    uint8_t j = 0;
@@ -666,6 +756,8 @@ void PPS(void)
   // During first power up PPS can be emitted before the GPS leapsecond offset is known
   // In this case, it is safest to pretend PPS hasn't happened
   if (!data_valid) return;
+
+  if ((currentTime & 1) ==0) {colonAnimationSync()}
 
   calibrateRTC();
 
@@ -1025,6 +1117,9 @@ void nextMode(void){
       countMode = COUNT_HIDDEN;
       SetSysTick( &SysTick_CountUp_NoUpdate );
       SetPPS( &PPS_NoUpdate );
+      colonAnimationStop()
+      TIM2->CCR1 = 300; // specific to show_offset
+      TIM2->CCR2 = 0;
     }
   }
   else {
@@ -1032,6 +1127,8 @@ void nextMode(void){
       countMode = COUNT_NORMAL;
       setPrecision();
       SetPPS( &PPS );
+      TIM2->CCR1 = 0;
+      TIM2->CCR2 = 0;
       latchSegments();
     }
   }
@@ -1202,23 +1299,15 @@ int main(void)
     Error_Handler();
 
   // Configure Colon Separators
-  //HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
-  TIM2->CCR1 = 500;
+  TIM2->CCR1 = 0;
+  TIM2->CCR2 = 0;
 
-  //HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
-  TIM2->CCR2 = 500;
+  //loadColonAnimation();
 
-  for (int k=0;k<200;k++) {
-    buffer_colons_R[k]=k;
-    buffer_colons_L[k]=199-k;
-  }
-
-  HAL_DMA_Start(&hdma_tim5_ch1, (uint32_t)buffer_colons_R, (uint32_t)&TIM2->CCR1, 200);
-  HAL_DMA_Start(&hdma_tim5_ch2, (uint32_t)buffer_colons_L, (uint32_t)&TIM2->CCR2, 200);
   __HAL_TIM_ENABLE_DMA(&htim5, TIM_DMA_CC1 | TIM_DMA_CC2);
   __HAL_TIM_ENABLE(&htim5);
-  //HAL_TIM_OC_Start(&htim5, TIM_CHANNEL_1);
-  //HAL_TIM_OC_Start(&htim5, TIM_CHANNEL_2);
+
+  //colonAnimationStart()
 
 
   //Enable DP for subseconds
