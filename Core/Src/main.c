@@ -457,6 +457,7 @@ void displayOff(void){
   HAL_UART_Transmit_DMA(&huart2, uart2_tx_buffer, 3);
 
   HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_2);
 
   HAL_DMA_Abort(&hdma_tim1_up);
   HAL_DMA_Abort(&hdma_tim7_up);
@@ -465,6 +466,7 @@ void displayOff(void){
 }
 void displayOn(void){
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
   setDisplayPWM(5);
 }
 
@@ -1193,10 +1195,10 @@ int main(void)
 
   // Configure Colon Separators
   //HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
-  TIM2->CCR1 = 500;//10000-3500;
+  TIM2->CCR1 = 500;
 
-  HAL_TIM_OC_Start(&htim2, TIM_CHANNEL_2);
-  TIM2->CCR2 = 10000-3500;
+  //HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
+  TIM2->CCR2 = 500;
 
 
 
