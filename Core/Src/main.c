@@ -63,9 +63,12 @@ RTC_HandleTypeDef hrtc;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim5;
 TIM_HandleTypeDef htim6;
 TIM_HandleTypeDef htim7;
 DMA_HandleTypeDef hdma_tim1_up;
+DMA_HandleTypeDef hdma_tim5_ch1;
+DMA_HandleTypeDef hdma_tim5_ch2;
 DMA_HandleTypeDef hdma_tim7_up;
 
 UART_HandleTypeDef huart1;
@@ -93,6 +96,7 @@ static void MX_RTC_Init(void);
 static void MX_TIM7_Init(void);
 static void MX_CRC_Init(void);
 static void MX_LPTIM1_Init(void);
+static void MX_TIM5_Init(void);
 /* USER CODE BEGIN PFP */
 void tmToBcd(struct tm *in, bcdStamp_t *out );
 uint8_t loadRulesSingle(char * str);
@@ -113,6 +117,9 @@ uint8_t uart2_tx_buffer[32];
 volatile uint16_t buffer_adc[ADC_BUFFER_SIZE] = {0};
 uint16_t buffer_dac[DAC_BUFFER_SIZE] = {[0 ... DAC_BUFFER_SIZE-1] = 4095};
 float dac_target=4095;
+
+uint16_t buffer_colons_L[200] = {0};
+uint16_t buffer_colons_R[200] = {0};
 
 // NMEA 0183 messages have a max length of 82 characters
 uint8_t nmea[90];
@@ -1153,6 +1160,7 @@ int main(void)
   MX_TIM7_Init();
   MX_CRC_Init();
   MX_LPTIM1_Init();
+  MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
   RetargetInit(&huart2);
 
@@ -1200,7 +1208,17 @@ int main(void)
   //HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
   TIM2->CCR2 = 500;
 
+  for (int k=0;k<200;k++) {
+    buffer_colons_R[k]=k;
+    buffer_colons_L[k]=199-k;
+  }
 
+  HAL_DMA_Start(&hdma_tim5_ch1, (uint32_t)buffer_colons_R, (uint32_t)&TIM2->CCR1, 200);
+  HAL_DMA_Start(&hdma_tim5_ch2, (uint32_t)buffer_colons_L, (uint32_t)&TIM2->CCR2, 200);
+  __HAL_TIM_ENABLE_DMA(&htim5, TIM_DMA_CC1 | TIM_DMA_CC2);
+  __HAL_TIM_ENABLE(&htim5);
+  //HAL_TIM_OC_Start(&htim5, TIM_CHANNEL_1);
+  //HAL_TIM_OC_Start(&htim5, TIM_CHANNEL_2);
 
 
   //Enable DP for subseconds
@@ -1746,6 +1764,68 @@ static void MX_TIM2_Init(void)
 }
 
 /**
+  * @brief TIM5 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM5_Init(void)
+{
+
+  /* USER CODE BEGIN TIM5_Init 0 */
+
+  /* USER CODE END TIM5_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM5_Init 1 */
+
+  /* USER CODE END TIM5_Init 1 */
+  htim5.Instance = TIM5;
+  htim5.Init.Prescaler = 7999;
+  htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim5.Init.Period = 99;
+  htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim5) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim5, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_OC_Init(&htim5) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim5, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_TIMING;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_OC_ConfigChannel(&htim5, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_OC_ConfigChannel(&htim5, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM5_Init 2 */
+
+  /* USER CODE END TIM5_Init 2 */
+
+}
+
+/**
   * @brief TIM6 Initialization Function
   * @param None
   * @retval None
@@ -1902,6 +1982,7 @@ static void MX_DMA_Init(void)
 
   /* DMA controller clock enable */
   __HAL_RCC_DMA1_CLK_ENABLE();
+  __HAL_RCC_DMA2_CLK_ENABLE();
 
   /* DMA interrupt init */
   /* DMA1_Channel3_IRQn interrupt configuration */
@@ -1919,6 +2000,12 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel7_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel7_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel7_IRQn);
+  /* DMA2_Channel4_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Channel4_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Channel4_IRQn);
+  /* DMA2_Channel5_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Channel5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Channel5_IRQn);
 
 }
 
