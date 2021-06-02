@@ -291,7 +291,8 @@ const uint16_t cathodes_b[5]={
 };
 
 uint8_t inverted=0;
-uint8_t held =0;
+uint8_t b1_held =0;
+uint8_t b2_held =0;
 
 /* USER CODE END PV */
 
@@ -414,13 +415,21 @@ void TIM21_IRQHandler(void){
 
 
     if ((LL_GPIO_ReadInputPort(GPIOB) & LL_GPIO_PIN_3)==0) {
-      if (++held == 2) {
+      if (++b1_held == 2) {
           if ( (USART2->ISR & USART_ISR_TXE) ) {
             USART2->TDR = 0x91;
           }
-          held=3;
+          b1_held=3;
       }
-    } else held=0;
+    } else b1_held=0;
+    if ((LL_GPIO_ReadInputPort(GPIOC) & LL_GPIO_PIN_13)==0) {
+      if (++b2_held == 2) {
+          if ( (USART2->ISR & USART_ISR_TXE) ) {
+            USART2->TDR = 0x92;
+          }
+          b2_held=3;
+      }
+    } else b2_held=0;
   }
 }
 
@@ -943,6 +952,12 @@ static void MX_GPIO_Init(void)
 
   /**/
   GPIO_InitStruct.Pin = LL_GPIO_PIN_0;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_UP;
+  LL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /**/
+  GPIO_InitStruct.Pin = LL_GPIO_PIN_13;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = LL_GPIO_PULL_UP;
   LL_GPIO_Init(GPIOC, &GPIO_InitStruct);
