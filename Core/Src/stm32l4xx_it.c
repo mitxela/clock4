@@ -196,7 +196,8 @@ void PendSV_Handler(void)
   // preemption priority as systick
   if (had_pps) write_rtc();
 
-  if (delayButtonPress) {  delayButtonPress=0; button1pressed(); }
+  if (delayButtonPress & 1) {  delayButtonPress &= ~1; button1pressed(); }
+  if (delayButtonPress & 2) {  delayButtonPress &= ~2; button2pressed(); }
 
   setPrecision();
 
@@ -343,10 +344,14 @@ void USART2_IRQHandler(void)
   /* USER CODE BEGIN USART2_IRQn 0 */
 
   if ( USART2->ISR & UART_IT_RXNE) {
-    if ((USART2->RDR &0xFF) == 0x91) {
+    uint8_t x = (USART2->RDR &0xFF);
+    if (x == 0x91) {
       // if we're beyond 0.9 seconds the date side will already be waiting for latch
-      if (decisec==9 && countMode!=COUNT_HIDDEN) delayButtonPress = 1;
+      if (decisec==9 && countMode!=COUNT_HIDDEN) delayButtonPress |= 1;
       else button1pressed();
+    } else if (x == 0x92) {
+      if (decisec==9 && countMode!=COUNT_HIDDEN) delayButtonPress |= 2;
+      else button2pressed();
     }
     return;
   }

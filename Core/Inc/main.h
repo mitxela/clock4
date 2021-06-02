@@ -172,6 +172,7 @@ void setDisplayPWM(uint32_t bright);
 void write_rtc(void);
 void displayOff(void);
 void button1pressed(void);
+void button2pressed(void);
 void setPrecision(void);
 void sendDate( _Bool now );
 void readConfigFile(void);

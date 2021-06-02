@@ -1149,6 +1149,11 @@ void button1pressed(void){
   // todo: detect this and resend date in pendsv
 
 }
+void button2pressed(void){
+  nextMode();
+  if (countMode == COUNT_HIDDEN || decisec!=9 || centisec!=9 || millisec<7)
+    sendDate(1);
+}
 
 void generateDACbuffer(uint16_t * buf) {
 
