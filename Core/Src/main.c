@@ -350,10 +350,10 @@ int main(void)
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
 
-  buffer_c[0].high=0b11011110;
-  buffer_c[1].high=0b11011101;
-  buffer_c[2].high=0b11011011;
-  buffer_c[3].high=0b11010111;
+  buffer_c[0].high=0b11001110;
+  buffer_c[1].high=0b11001101;
+  buffer_c[2].high=0b11001011;
+  buffer_c[3].high=0b11000111;
   buffer_c[4].high=0b11001111;
 
 //  buffer_c[0].low=0b01011100; //o
@@ -423,10 +423,10 @@ int main(void)
   buffer_b[1] = 0;
   // Set up display for fading individual segments
   for (uint8_t i=0;i<80;i+=5) {
-    buffer_c[0 + i].high=0b11011110;
-    buffer_c[1 + i].high=0b11011101;
-    buffer_c[2 + i].high=0b11011011;
-    buffer_c[3 + i].high=0b11010111;
+    buffer_c[0 + i].high=0b11001110;
+    buffer_c[1 + i].high=0b11001101;
+    buffer_c[2 + i].high=0b11001011;
+    buffer_c[3 + i].high=0b11000111;
     buffer_c[4 + i].high=0b11001111;
   }
   setDisplayPWM(80);
