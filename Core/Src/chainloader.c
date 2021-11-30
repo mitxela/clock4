@@ -301,10 +301,10 @@ uint8_t doDateUpdate(void) {
   buffer_b[3] = 0;
   buffer_b[4] = 0;
   for (uint8_t i=0;i<40;i+=5) {
-    buffer_c[0 + i].high=0b11011110;
-    buffer_c[1 + i].high=0b11011101;
-    buffer_c[2 + i].high=0b11011011;
-    buffer_c[3 + i].high=0b11010111;
+    buffer_c[0 + i].high=0b11001110;
+    buffer_c[1 + i].high=0b11001101;
+    buffer_c[2 + i].high=0b11001011;
+    buffer_c[3 + i].high=0b11000111;
     buffer_c[4 + i].high=0b11001111;
   }
   setDisplayPWM(40);

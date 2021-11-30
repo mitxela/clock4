@@ -495,8 +495,8 @@ void setDisplayFreq(uint32_t freq){
 
 #define colonAnimationStart() \
   TIM5->CNT=0; \
-  HAL_DMA_Start(&hdma_tim5_ch1, (uint32_t)buffer_colons_R, (uint32_t)&TIM2->CCR1, 200); \
-  HAL_DMA_Start(&hdma_tim5_ch2, (uint32_t)buffer_colons_L, (uint32_t)&TIM2->CCR2, 200);
+  HAL_DMA_Start(&hdma_tim5_ch1, (uint32_t)buffer_colons_L, (uint32_t)&TIM2->CCR1, 200); \
+  HAL_DMA_Start(&hdma_tim5_ch2, (uint32_t)buffer_colons_R, (uint32_t)&TIM2->CCR2, 200);
 
 #define colonAnimationStop() \
   HAL_DMA_Abort(&hdma_tim5_ch1); \
