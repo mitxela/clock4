@@ -100,7 +100,7 @@ static void MX_TIM5_Init(void);
 /* USER CODE BEGIN PFP */
 void tmToBcd(struct tm *in, bcdStamp_t *out );
 uint8_t loadRulesSingle(char * str);
-void nextMode(void);
+void nextMode(_Bool);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -178,7 +178,7 @@ void sendDate( _Bool now ){
   switch (displayMode) {
   default:
   case MODE_ISO8601_STD:
-    uart2_tx_buffer[1] ='2' -2+nextBcd.seconds;
+    uart2_tx_buffer[1] ='2' ;//-2+nextBcd.seconds;
     uart2_tx_buffer[2] ='0';
     uart2_tx_buffer[3] ='0'+nextBcd.tenYears;
     uart2_tx_buffer[4] ='0'+nextBcd.years;
@@ -190,7 +190,7 @@ void sendDate( _Bool now ){
     uart2_tx_buffer[10]='0'+nextBcd.days;
     break;
   case MODE_ISO_ORDINAL:
-    uart2_tx_buffer[1] ='2' -2+nextBcd.seconds;
+    uart2_tx_buffer[1] ='2' ;//-2+nextBcd.seconds;
     uart2_tx_buffer[2] ='0';
     uart2_tx_buffer[3] ='0'+nextBcd.tenYears;
     uart2_tx_buffer[4] ='0'+nextBcd.years;
@@ -688,7 +688,7 @@ void readConfigFile(void){
      j+= config.modes_enabled[i];
 
    if (!j || (j==1 && config.modes_enabled[MODE_STANDBY])) config.modes_enabled[MODE_ISO8601_STD]=1;
-   if (!config.modes_enabled[displayMode]) nextMode();
+   if (!config.modes_enabled[displayMode]) nextMode(0);
 
    // check tolerances
    if (config.tolerance_1ms == 0)   config.tolerance_1ms   = 0xFFFFFFFF;
@@ -1102,13 +1102,19 @@ void setPrecision(void){
   }
 }
 
-void nextMode(void){
+void nextMode(_Bool reverse){
 
   _Bool wasOff = (displayMode==MODE_STANDBY);
 
-  do {
-    if (++displayMode >=NUM_DISPLAY_MODES) displayMode=0;
-  } while (!config.modes_enabled[displayMode]);
+  if (reverse) {
+    do {
+      if (--displayMode > NUM_DISPLAY_MODES) displayMode=NUM_DISPLAY_MODES;
+    } while (!config.modes_enabled[displayMode]);
+  } else {
+    do {
+      if (++displayMode >=NUM_DISPLAY_MODES) displayMode=0;
+    } while (!config.modes_enabled[displayMode]);
+  }
 
   if (wasOff && displayMode != MODE_STANDBY) displayOn();
 
@@ -1138,7 +1144,7 @@ void button1pressed(void){
 
   // 12 bytes at 115200 8E1 is 1.14ms
 
-  nextMode();
+  nextMode(0);
 
   // Normally this routine is only called when it is safe to do so
   // But if we have just left COUNT_HIDDEN, the button press could have been called at any time, so
@@ -1150,7 +1156,7 @@ void button1pressed(void){
 
 }
 void button2pressed(void){
-  nextMode();
+  nextMode(1);
   if (countMode == COUNT_HIDDEN || decisec!=9 || centisec!=9 || millisec<7)
     sendDate(1);
 }
