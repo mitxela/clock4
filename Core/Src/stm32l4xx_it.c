@@ -60,7 +60,7 @@ extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
 extern DMA_HandleTypeDef hdma_tim1_up;
 extern DMA_HandleTypeDef hdma_tim4_up;
 /* USER CODE BEGIN EV */
-
+extern uint8_t animationPeriod;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -190,7 +190,7 @@ void SysTick_Handler(void)
   /* USER CODE BEGIN SysTick_IRQn 1 */
 
   static char k =0;
-  if (++k > 50) {
+  if (++k > animationPeriod) {
     k=0;
     doAnimation();
   }

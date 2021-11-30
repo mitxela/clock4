@@ -102,6 +102,7 @@ struct {
 } buffer_c[80] = {0};
 
 uint16_t buffer_b[80] = {0};
+uint8_t animationPeriod = 2;
 
 char animationFrame=99;
 #define startAnimation() animationFrame=0
@@ -272,7 +273,7 @@ void flash_erase(){
   if (HAL_FLASHEx_Erase(&EraseInitStruct, &PAGEError) != HAL_OK)
     hang_error(ERR_ERASE_FAILED);
 
-  //progress1();
+  animationPeriod = 50;
 
   // Erase bank 2
   EraseInitStruct.TypeErase   = FLASH_TYPEERASE_PAGES;
@@ -283,7 +284,6 @@ void flash_erase(){
   if (HAL_FLASHEx_Erase(&EraseInitStruct, &PAGEError) != HAL_OK)
     hang_error(ERR_ERASE_FAILED);
 
-  //progress2();
 }
 
 void flash_write(FIL* fp){
