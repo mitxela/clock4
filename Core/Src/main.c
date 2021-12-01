@@ -261,6 +261,9 @@ void flash_erase(){
   FLASH_EraseInitTypeDef EraseInitStruct;
   uint32_t PAGEError = 0;
 
+  // Bank size / flash size are not constants, they're read from the chip
+  // on STM32L476RCT6, flash is 256K and bank size is 128K
+  // on STM32L476RGT6, flash is 1MB and bank size is 512K
 #define FLASH_PAGES_PER_BANK (FLASH_BANK_SIZE / FLASH_PAGE_SIZE)
 #define APP_START_PAGE (((int)_app_start - FLASH_BASE) / FLASH_PAGE_SIZE )
 
@@ -268,10 +271,16 @@ void flash_erase(){
   EraseInitStruct.TypeErase   = FLASH_TYPEERASE_PAGES;
   EraseInitStruct.Banks       = FLASH_BANK_1;
   EraseInitStruct.Page        = APP_START_PAGE;
-  EraseInitStruct.NbPages     = FLASH_PAGES_PER_BANK - APP_START_PAGE;
+
+  if (FLASH_BANK_SIZE > BOOT_SIZE + APP_SIZE)
+    EraseInitStruct.NbPages   = (BOOT_SIZE + APP_SIZE)/FLASH_PAGE_SIZE - APP_START_PAGE;
+  else
+    EraseInitStruct.NbPages   = FLASH_PAGES_PER_BANK - APP_START_PAGE;
 
   if (HAL_FLASHEx_Erase(&EraseInitStruct, &PAGEError) != HAL_OK)
     hang_error(ERR_ERASE_FAILED);
+
+  if (FLASH_BANK_SIZE > BOOT_SIZE + APP_SIZE) return;
 
   animationPeriod = 50;
 
@@ -279,7 +288,7 @@ void flash_erase(){
   EraseInitStruct.TypeErase   = FLASH_TYPEERASE_PAGES;
   EraseInitStruct.Banks       = FLASH_BANK_2;
   EraseInitStruct.Page        = 0;
-  EraseInitStruct.NbPages     = FLASH_PAGES_PER_BANK;
+  EraseInitStruct.NbPages     = (BOOT_SIZE + APP_SIZE - FLASH_BANK_SIZE)/FLASH_PAGE_SIZE;
 
   if (HAL_FLASHEx_Erase(&EraseInitStruct, &PAGEError) != HAL_OK)
     hang_error(ERR_ERASE_FAILED);
@@ -295,7 +304,7 @@ void flash_write(FIL* fp){
   if ((fp)->fptr !=0)
     f_rewind(fp);
 
-  while (addr < FLASH_BASE + FLASH_SIZE){
+  while (addr < FLASH_BASE + BOOT_SIZE + APP_SIZE){
     f_read(fp, &buf, 8, &rc);
     uint32_t low = (buf[3] << 24) | (buf[2] << 16) | (buf[1] << 8) | (buf[0]);
     uint32_t high= (buf[7] << 24) | (buf[6] << 16) | (buf[5] << 8) | (buf[4]);
@@ -401,7 +410,7 @@ int main(void)
 // new_fw_crc=0;
 
 
-  if (loaded_fw_crc == byteswap32(*(uint32_t*)(FLASH_BASE + FLASH_SIZE -4)) ) { // loaded firmware valid
+  if (loaded_fw_crc == byteswap32(*(uint32_t*)(FLASH_BASE + BOOT_SIZE + APP_SIZE -4)) ) { // loaded firmware valid
 
     if (!new_fw_present) launch_app();
 
