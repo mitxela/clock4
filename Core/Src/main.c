@@ -636,16 +636,16 @@ int main(void)
   LL_TIM_EnableIT_UPDATE(TIM21);
   LL_TIM_EnableCounter(TIM21);
 
-  setDigitDirect(0, 'l');
-  setDigitDirect(1, 'o');
-  setDigitDirect(2, 'l');
-  setDigitDirect(3, 'o');
-  setDigitDirect(4, 'l');
-  setDigitDirect(5, 'o');
-  setDigitDirect(6, 'l');
-  setDigitDirect(7, 'o');
-  setDigitDirect(8, 'l');
-  setDigitDirect(9, 'o');
+//  setDigitDirect(0, 'l');
+//  setDigitDirect(1, 'o');
+//  setDigitDirect(2, 'l');
+//  setDigitDirect(3, 'o');
+//  setDigitDirect(4, 'l');
+//  setDigitDirect(5, 'o');
+//  setDigitDirect(6, 'l');
+//  setDigitDirect(7, 'o');
+//  setDigitDirect(8, 'l');
+//  setDigitDirect(9, 'o');
 
 
   //buffer_a[2] |= 1<<14;
