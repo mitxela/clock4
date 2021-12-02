@@ -140,16 +140,16 @@ void HAL_QSPI_MspInit(QSPI_HandleTypeDef* hqspi)
   /* USER CODE END QUADSPI_MspInit 0 */
     /* Peripheral clock enable */
     __HAL_RCC_QSPI_CLK_ENABLE();
-  
+
     __HAL_RCC_GPIOA_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE();
-    /**QUADSPI GPIO Configuration    
+    /**QUADSPI GPIO Configuration
     PA6     ------> QUADSPI_BK1_IO3
     PA7     ------> QUADSPI_BK1_IO2
     PB0     ------> QUADSPI_BK1_IO1
     PB1     ------> QUADSPI_BK1_IO0
     PB10     ------> QUADSPI_CLK
-    PB11     ------> QUADSPI_NCS 
+    PB11     ------> QUADSPI_NCS
     */
     GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_7;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -187,14 +187,14 @@ void HAL_QSPI_MspDeInit(QSPI_HandleTypeDef* hqspi)
   /* USER CODE END QUADSPI_MspDeInit 0 */
     /* Peripheral clock disable */
     __HAL_RCC_QSPI_CLK_DISABLE();
-  
-    /**QUADSPI GPIO Configuration    
+
+    /**QUADSPI GPIO Configuration
     PA6     ------> QUADSPI_BK1_IO3
     PA7     ------> QUADSPI_BK1_IO2
     PB0     ------> QUADSPI_BK1_IO1
     PB1     ------> QUADSPI_BK1_IO0
     PB10     ------> QUADSPI_CLK
-    PB11     ------> QUADSPI_NCS 
+    PB11     ------> QUADSPI_NCS
     */
     HAL_GPIO_DeInit(GPIOA, GPIO_PIN_6|GPIO_PIN_7);
 
@@ -222,7 +222,7 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* htim_base)
   /* USER CODE END TIM1_MspInit 0 */
     /* Peripheral clock enable */
     __HAL_RCC_TIM1_CLK_ENABLE();
-  
+
     /* TIM1 DMA Init */
     /* TIM1_UP Init */
     hdma_tim1_up.Instance = DMA1_Channel6;
@@ -252,7 +252,7 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* htim_base)
   /* USER CODE END TIM4_MspInit 0 */
     /* Peripheral clock enable */
     __HAL_RCC_TIM4_CLK_ENABLE();
-  
+
     /* TIM4 DMA Init */
     /* TIM4_UP Init */
     hdma_tim4_up.Instance = DMA1_Channel7;
