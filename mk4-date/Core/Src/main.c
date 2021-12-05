@@ -417,7 +417,7 @@ void TIM21_IRQHandler(void){
     if ((LL_GPIO_ReadInputPort(GPIOB) & LL_GPIO_PIN_3)==0) {
       if (++b1_held == 2) {
           if ( (USART2->ISR & USART_ISR_TXE) ) {
-            USART2->TDR = 0x91;
+            USART2->TDR = 0x91 + inverted;
           }
           b1_held=3;
       }
@@ -425,7 +425,7 @@ void TIM21_IRQHandler(void){
     if ((LL_GPIO_ReadInputPort(GPIOC) & LL_GPIO_PIN_13)==0) {
       if (++b2_held == 2) {
           if ( (USART2->ISR & USART_ISR_TXE) ) {
-            USART2->TDR = 0x92;
+            USART2->TDR = 0x92 - inverted;
           }
           b2_held=3;
       }
