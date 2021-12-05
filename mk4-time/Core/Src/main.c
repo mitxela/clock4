@@ -1289,7 +1289,8 @@ int main(void)
 
   doDateUpdate();
 
-
+  // Enable UART2 interrupt for button presses
+  USART2->CR1 |= USART_CR1_RXNEIE;
 
 
   // Configure UART1 for NMEA strings from GPS module
@@ -2067,8 +2068,6 @@ static void MX_USART2_UART_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN USART2_Init 2 */
-
-  USART2->CR1 |= USART_CR1_RXNEIE;
 
   /* USER CODE END USART2_Init 2 */
 
