@@ -250,6 +250,9 @@ void sendDate( _Bool now ){
     break;
   case MODE_STANDBY:
      return;
+  case MODE_DEBUG_BRIGHTNESS:
+    i = sprintf((char*)&uart2_tx_buffer[1], "%04d %04d", (int)ADC1->DR, (int)dac_target);
+    break;
   }
   uart2_tx_buffer[++i]= now ? CMD_RELOAD_TEXT : '\n';
   HAL_UART_AbortTransmit(&huart2);
@@ -392,7 +395,7 @@ void decodeRMC(void){
   rmcBcd.seconds    = *c++ -'0';
 
   if (*c++ =='.') { // subseconds not always present
-    if (*c!='0') printf("subseconds non-zero: %s\n", c);
+    //if (*c!='0') printf("subseconds non-zero: %s\n", c);
   }
   nextField() // Navigation receiver warning
   data_valid = (*c=='A'?1:0);
@@ -604,6 +607,8 @@ void parseConfigString(char *key, char *value) {
     config.modes_enabled[MODE_SHOW_TZ_NAME] = truthy(value);
   } else if (strcasecmp(key, "MODE_STANDBY") == 0) {
     config.modes_enabled[MODE_STANDBY]      = truthy(value);
+  } else if (strcasecmp(key, "MODE_DEBUG_BRIGHTNESS") == 0) {
+    config.modes_enabled[MODE_DEBUG_BRIGHTNESS] = truthy(value);
   } else if (strcasecmp(key, "Tolerance_time_1ms") == 0) {
     config.tolerance_1ms = atoi(value);
   } else if (strcasecmp(key, "Tolerance_time_10ms") == 0) {
@@ -1167,14 +1172,10 @@ void generateDACbuffer(uint16_t * buf) {
     float in;
     float out;
   } brightnessCurve[] = {
-
    {0.0, 4095},
-   //{0.0625, 3000},
-  // {0.125,2700},
-  // {0.25, 2200},
-  // {0.5, 1500},
-   {1.0, 2048},
-
+   {0.8 , 2048},
+   {0.95, 1},
+   {1.0, 0},
   };
 
   static float dac_last=4095;
@@ -1210,6 +1211,10 @@ void generateDACbuffer(uint16_t * buf) {
     buf[i]= (uint16_t)(dac_last += step);
   }
   dac_last=dac_target;
+
+  if (displayMode == MODE_DEBUG_BRIGHTNESS && decisec!=9) {
+    sendDate(1);
+  }
 }
 
 /* USER CODE END 0 */
