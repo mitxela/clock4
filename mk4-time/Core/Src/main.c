@@ -123,6 +123,7 @@ uint16_t buffer_colons_R[200] = {0};
 
 // NMEA 0183 messages have a max length of 82 characters
 uint8_t nmea[90];
+uint8_t GPS_sv = 0, GLONASS_sv = 0;
 
 time_t currentTime;
 bcdStamp_t nextBcd;
@@ -252,6 +253,9 @@ void sendDate( _Bool now ){
       uart2_tx_buffer[1]='-';
       i=1;
     }
+    break;
+  case MODE_SATVIEW:
+    i = sprintf((char*)&uart2_tx_buffer[1], "GPS %d. L%d", GPS_sv, GLONASS_sv);
     break;
   case MODE_STANDBY:
      return;
@@ -483,6 +487,15 @@ void decodeRMC(void){
 
 }
 
+void decodeGSV(void){
+  uint8_t sv = (nmea[11]-'0')*10 + (nmea[12]-'0');
+  if (nmea[2] == 'P') {
+      GPS_sv = sv;
+  } else if (nmea[2] == 'L') {
+      GLONASS_sv = sv;
+  }
+}
+
 void setDisplayPWM(uint32_t bright){
   HAL_DMA_Abort(&hdma_tim1_up);
   HAL_DMA_Abort(&hdma_tim7_up);
@@ -654,6 +667,8 @@ void parseConfigString(char *key, char *value) {
     config.modes_enabled[MODE_STANDBY]      = truthy(value);
   } else if (strcasecmp(key, "MODE_COUNTDOWN") == 0) {
     config.modes_enabled[MODE_COUNTDOWN]    = truthy(value);
+  } else if (strcasecmp(key, "MODE_SATVIEW") == 0) {
+    config.modes_enabled[MODE_SATVIEW]      = truthy(value);
   } else if (strcasecmp(key, "MODE_DEBUG_BRIGHTNESS") == 0) {
     config.modes_enabled[MODE_DEBUG_BRIGHTNESS] = truthy(value);
   } else if (strcasecmp(key, "Tolerance_time_1ms") == 0) {

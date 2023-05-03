@@ -68,6 +68,7 @@ extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 /* USER CODE BEGIN EV */
 extern uint8_t nmea[90];
+extern uint8_t GPS_sv, GLONASS_sv;
 extern uint16_t buffer_adc[ADC_BUFFER_SIZE];
 extern uint16_t buffer_dac[DAC_BUFFER_SIZE];
 extern DAC_HandleTypeDef hdac1;
@@ -211,6 +212,8 @@ void PendSV_Handler(void)
     if (x == qspi_write_time) qspi_write_time=0;
   }
 
+  GLONASS_sv = 0; GPS_sv = 0;
+
   /* USER CODE END PendSV_IRQn 0 */
   /* USER CODE BEGIN PendSV_IRQn 1 */
 
@@ -326,6 +329,12 @@ void USART1_IRQHandler(void)
    && nmea[4]=='M'
    && nmea[5]=='C')
     decodeRMC();
+  else if (nmea[0]=='$'
+   && nmea[1]=='G'
+   && nmea[3]=='G'
+   && nmea[4]=='S'
+   && nmea[5]=='V')
+    decodeGSV();
 
   HAL_UART_AbortReceive(&huart1);
   HAL_UART_Receive_DMA(&huart1, nmea, sizeof(nmea));

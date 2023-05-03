@@ -135,6 +135,7 @@ enum {
   MODE_SHOW_TZ_NAME,
   MODE_STANDBY,
   MODE_COUNTDOWN,
+  MODE_SATVIEW,
   MODE_DEBUG_BRIGHTNESS,
 
   NUM_DISPLAY_MODES
@@ -170,6 +171,7 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 void decodeRMC(void);
+void decodeGSV(void);
 void setDisplayPWM(uint32_t bright);
 void write_rtc(void);
 void displayOff(void);
