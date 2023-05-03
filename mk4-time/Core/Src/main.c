@@ -127,6 +127,7 @@ uint8_t nmea[90];
 time_t currentTime;
 bcdStamp_t nextBcd;
 int tm_yday;
+uint32_t countdown_days;
 int32_t currentOffset=0;
 
 struct {
@@ -158,6 +159,7 @@ struct {
   uint32_t tolerance_1ms;
   uint32_t tolerance_10ms;
   uint32_t tolerance_100ms;
+  time_t countdown_to;
   _Bool zone_override;
   _Bool modes_enabled[NUM_DISPLAY_MODES];
 
@@ -241,15 +243,21 @@ void sendDate( _Bool now ){
     uart2_tx_buffer[10]='t';
     break;
   case MODE_SHOW_TZ_NAME:
-    if (loadedRulesString[0])
+    if (loadedRulesString[0]) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
       snprintf((char*)&uart2_tx_buffer[1], 11,"%s", loadedRulesString);
-    else {
+#pragma GCC diagnostic pop
+    } else {
       uart2_tx_buffer[1]='-';
       i=1;
     }
     break;
   case MODE_STANDBY:
      return;
+  case MODE_COUNTDOWN:
+    i = sprintf((char*)&uart2_tx_buffer[1], "%ld", (int32_t)(config.countdown_to - currentTime));
+    break;
   case MODE_DEBUG_BRIGHTNESS:
     i = sprintf((char*)&uart2_tx_buffer[1], "%04d %04d", (int)ADC1->DR, (int)dac_target);
     break;
@@ -284,6 +292,25 @@ void setNextTimestamp(time_t nextTime){
   next7seg.b[3] = bCat3 | cLut[nextBcd.minutes]<<2;
   next7seg.b[4] = bCat4 | cLut[nextBcd.tenSeconds]<<2;
 
+}
+
+void setNextCountdown(time_t nextTime){
+
+  int32_t remaining =  (config.countdown_to < nextTime)? 0 : config.countdown_to - nextTime;
+
+  uint8_t seconds = remaining % 60;
+  uint8_t minutes = remaining / 60;
+  uint8_t hours =   minutes / 60;
+  minutes %= 60;
+  countdown_days = hours / 24;
+  hours %= 24;
+
+  next7seg.b[0] = bCat0 | cLut[hours / 10]<<2;
+  next7seg.b[1] = bCat1 | cLut[hours % 10]<<2;
+  next7seg.b[2] = bCat2 | cLut[minutes / 10]<<2;
+  next7seg.b[3] = bCat3 | cLut[minutes % 10]<<2;
+  next7seg.b[4] = bCat4 | cLut[seconds / 10]<<2;
+  next7seg.c = cLut[seconds % 10];
 }
 
 // Store UTC on RTC
@@ -589,6 +616,18 @@ void parseConfigString(char *key, char *value) {
     config.zone_override = 1;
     loadRulesSingle(value);
 
+  } else if (strcasecmp(key, "countdown_to") == 0) {
+
+    //  support fractional seconds??
+    struct tm t = {0};
+    if( sscanf(value, "%d-%d-%dT%d:%d:%dZ", &t.tm_year, &t.tm_mon, &t.tm_mday, &t.tm_hour, &t.tm_min, &t.tm_sec) == 6) {
+
+      t.tm_year -= 1900;
+      t.tm_mon -= 1;
+
+      config.countdown_to = mktime(&t) -1;
+
+    }
   } else if (strcasecmp(key, "MODE_ISO8601_STD") == 0) {
     config.modes_enabled[MODE_ISO8601_STD]  = truthy(value);
   } else if (strcasecmp(key, "MODE_ISO_ORDINAL") == 0) {
@@ -607,6 +646,8 @@ void parseConfigString(char *key, char *value) {
     config.modes_enabled[MODE_SHOW_TZ_NAME] = truthy(value);
   } else if (strcasecmp(key, "MODE_STANDBY") == 0) {
     config.modes_enabled[MODE_STANDBY]      = truthy(value);
+  } else if (strcasecmp(key, "MODE_COUNTDOWN") == 0) {
+    config.modes_enabled[MODE_COUNTDOWN]    = truthy(value);
   } else if (strcasecmp(key, "MODE_DEBUG_BRIGHTNESS") == 0) {
     config.modes_enabled[MODE_DEBUG_BRIGHTNESS] = truthy(value);
   } else if (strcasecmp(key, "Tolerance_time_1ms") == 0) {
@@ -789,6 +830,28 @@ void PPS_NoUpdate(void)
   last_pps_time = (uint32_t)currentTime;
 }
 
+void PPS_Countdown(void)
+{
+  SysTick->VAL = SysTick->LOAD;
+
+  buffer_c[3].low=cLut[9];
+  buffer_c[2].low=cLut[9];
+  buffer_c[1].low=cLut[9];
+  loadNextTimestamp();
+  millisec=0;
+  centisec=0;
+  decisec=0;
+
+  __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_7);
+
+  if (!data_valid) return;
+  if ((currentTime & 1) ==0) {colonAnimationSync()}
+  calibrateRTC();
+
+  had_pps = 1;
+  last_pps_time = (uint32_t)currentTime;
+}
+
 void PPS_Init(void){
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
@@ -805,24 +868,24 @@ void PPS_Init(void){
   SetPPS( &PPS );
 }
 
+#define timetick() \
+    millisec++; \
+    if (millisec>=10) { \
+      millisec=0; \
+      centisec++; \
+      if (centisec>=10) { \
+        centisec=0; \
+        decisec++; \
+        if (decisec>=10) { \
+          decisec=0; \
+          loadNextTimestamp(); \
+        } \
+      } \
+    }
+
 void SysTick_CountUp_P3(void)
 {
-
-  millisec++;
-  if (millisec>=10) {
-    millisec=0;
-    centisec++;
-    if (centisec>=10) {
-      centisec=0;
-      decisec++;
-      if (decisec>=10) {
-        decisec=0;
-
-        loadNextTimestamp();
-
-      }
-    }
-  }
+  timetick()
 
   buffer_c[3].low=cLut[millisec];
   buffer_c[2].low=cLut[centisec];
@@ -844,19 +907,8 @@ void SysTick_CountUp_P3(void)
 }
 
 void SysTick_CountUp_P2(void) {
-  millisec++;
-  if (millisec>=10) {
-    millisec=0;
-    centisec++;
-    if (centisec>=10) {
-      centisec=0;
-      decisec++;
-      if (decisec>=10) {
-        decisec=0;
-        loadNextTimestamp();
-      }
-    }
-  }
+  timetick()
+
   buffer_c[2].low=cLut[centisec];
   buffer_c[1].low=cLut[decisec];
 
@@ -869,19 +921,9 @@ void SysTick_CountUp_P2(void) {
   }
 }
 void SysTick_CountUp_P1(void) {
-  millisec++;
-  if (millisec>=10) {
-    millisec=0;
-    centisec++;
-    if (centisec>=10) {
-      centisec=0;
-      decisec++;
-      if (decisec>=10) {
-        decisec=0;
-        loadNextTimestamp();
-      }
-    }
-  }
+
+  timetick()
+
   buffer_c[1].low=cLut[decisec];
 
   HAL_IncTick();
@@ -894,19 +936,8 @@ void SysTick_CountUp_P1(void) {
 }
 
 void SysTick_CountUp_P0(void) {
-  millisec++;
-  if (millisec>=10) {
-    millisec=0;
-    centisec++;
-    if (centisec>=10) {
-      centisec=0;
-      decisec++;
-      if (decisec>=10) {
-        decisec=0;
-        loadNextTimestamp();
-      }
-    }
-  }
+
+  timetick()
 
   HAL_IncTick();
 
@@ -945,27 +976,20 @@ void SysTick_CountUp_NoUpdate(void) {
 
 void SysTick_CountDown(void)
 {
+  timetick()
 
-  static int8_t i=9, j=9, k=9;
-
-  i--;
-  if (i<0) {
-    i=9;
-    j--;
-    if (j<0) {
-      j=9;
-      k--;
-      if (k<0) k=9;
-    }
-  }
-
-  buffer_c[3].low=cLut[i];
-  buffer_c[2].low=cLut[j];
-  buffer_c[1].low=cLut[k];
+  buffer_c[3].low=cLut[9-millisec];
+  buffer_c[2].low=cLut[9-centisec];
+  buffer_c[1].low=cLut[9-decisec];
 
 
   HAL_IncTick();
 
+  if (decisec==9 && centisec==0 && millisec==0){
+    currentTime++;
+    setNextCountdown( currentTime );
+    sendDate(0);
+  }
 }
 
 void SysTick_Dummy(void){
@@ -1104,6 +1128,27 @@ void setPrecision(void){
       SetSysTick( &SysTick_CountUp_P0 );
     }
 
+  } else if (countMode == COUNT_DOWN) {
+
+    if (config.countdown_to >= currentTime) {
+      SetSysTick( &SysTick_CountDown );
+      SetPPS( &PPS_Countdown );
+    } else {
+      SetSysTick( &SysTick_CountUp_NoUpdate );
+      SetPPS( &PPS_NoUpdate );
+      buffer_c[0].low=cSegDecode0;
+      buffer_c[1].low=cSegDecode0;
+      buffer_c[2].low=cSegDecode0;
+      buffer_c[3].low=cSegDecode0;
+
+      next7seg.b[0] = bCat0 | cLut[0]<<2;
+      next7seg.b[1] = bCat1 | cLut[0]<<2;
+      next7seg.b[2] = bCat2 | cLut[0]<<2;
+      next7seg.b[3] = bCat3 | cLut[0]<<2;
+      next7seg.b[4] = bCat4 | cLut[0]<<2;
+      next7seg.c = cLut[0];
+    }
+
   }
 }
 
@@ -1132,6 +1177,14 @@ void nextMode(_Bool reverse){
       TIM2->CCR1 = 300; // specific to show_offset
       TIM2->CCR2 = 0;
     }
+  } else if (displayMode == MODE_COUNTDOWN) {
+    countMode = COUNT_DOWN;
+
+    setPrecision();
+
+    TIM2->CCR1 = 0;
+    TIM2->CCR2 = 0;
+    latchSegments();
   }
   else {
     if (countMode != COUNT_NORMAL) {
