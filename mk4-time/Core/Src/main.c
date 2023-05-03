@@ -256,7 +256,7 @@ void sendDate( _Bool now ){
   case MODE_STANDBY:
      return;
   case MODE_COUNTDOWN:
-    i = sprintf((char*)&uart2_tx_buffer[1], "%ld", (int32_t)(config.countdown_to - currentTime));
+    i = sprintf((char*)&uart2_tx_buffer[1], "t-%7ldd", countdown_days);
     break;
   case MODE_DEBUG_BRIGHTNESS:
     i = sprintf((char*)&uart2_tx_buffer[1], "%04d %04d", (int)ADC1->DR, (int)dac_target);
@@ -296,16 +296,16 @@ void setNextTimestamp(time_t nextTime){
 
 void setNextCountdown(time_t nextTime){
 
-  int32_t remaining;
+  int64_t remaining;
   if (config.countdown_to < nextTime) {
     remaining = 0;
     SetPPS( &PPS_NoUpdate ); // don't show 999 at the next pulse
 
   } else remaining = config.countdown_to - nextTime;
 
-  uint8_t seconds = remaining % 60;
-  uint8_t minutes = remaining / 60;
-  uint8_t hours =   minutes / 60;
+  uint64_t seconds = remaining % 60;
+  uint64_t minutes = remaining / 60;
+  uint64_t hours =   minutes / 60;
   minutes %= 60;
   countdown_days = hours / 24;
   hours %= 24;
@@ -625,8 +625,9 @@ void parseConfigString(char *key, char *value) {
 
     //  support fractional seconds??
     struct tm t = {0};
-    if( sscanf(value, "%d-%d-%dT%d:%d:%dZ", &t.tm_year, &t.tm_mon, &t.tm_mday, &t.tm_hour, &t.tm_min, &t.tm_sec) == 6) {
+    if( sscanf(value, "%d-%d-%dT%d:%d:%dZ", &t.tm_year, &t.tm_mon, &t.tm_mday, &t.tm_hour, &t.tm_min, &t.tm_sec) >=3) {
 
+      if (t.tm_year > 9999) return; // arbitrary cutoff, ~3e6 days
       t.tm_year -= 1900;
       t.tm_mon -= 1;
 
