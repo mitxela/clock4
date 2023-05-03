@@ -296,7 +296,12 @@ void setNextTimestamp(time_t nextTime){
 
 void setNextCountdown(time_t nextTime){
 
-  int32_t remaining =  (config.countdown_to < nextTime)? 0 : config.countdown_to - nextTime;
+  int32_t remaining;
+  if (config.countdown_to < nextTime) {
+    remaining = 0;
+    SetPPS( &PPS_NoUpdate ); // don't show 999 at the next pulse
+
+  } else remaining = config.countdown_to - nextTime;
 
   uint8_t seconds = remaining % 60;
   uint8_t minutes = remaining / 60;
@@ -1155,6 +1160,7 @@ void setPrecision(void){
 void nextMode(_Bool reverse){
 
   _Bool wasOff = (displayMode==MODE_STANDBY);
+  _Bool wasCountdown = (displayMode==MODE_COUNTDOWN);
 
   if (reverse) {
     do {
@@ -1167,6 +1173,11 @@ void nextMode(_Bool reverse){
   }
 
   if (wasOff && displayMode != MODE_STANDBY) displayOn();
+  if (wasCountdown && displayMode != MODE_COUNTDOWN) {
+    // It shouldn't be possible to exit countdown mode at .9 seconds
+    // but if we did, it would show the wrong time for .1 seconds
+    setNextTimestamp(currentTime);
+  }
 
   if (displayMode == MODE_SHOW_OFFSET) {
     if (countMode != COUNT_HIDDEN) {
@@ -1178,13 +1189,18 @@ void nextMode(_Bool reverse){
       TIM2->CCR2 = 0;
     }
   } else if (displayMode == MODE_COUNTDOWN) {
-    countMode = COUNT_DOWN;
+    if (countMode != COUNT_DOWN) {
+      countMode = COUNT_DOWN;
 
-    setPrecision();
+      if (config.countdown_to >= currentTime) {
+        setNextCountdown(currentTime);
+      }
 
-    TIM2->CCR1 = 0;
-    TIM2->CCR2 = 0;
-    latchSegments();
+      setPrecision();
+      TIM2->CCR1 = 0;
+      TIM2->CCR2 = 0;
+      latchSegments();
+    }
   }
   else {
     if (countMode != COUNT_NORMAL) {
