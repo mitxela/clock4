@@ -746,6 +746,18 @@ void readConfigFile(void){
    if (config.tolerance_1ms == 0)   config.tolerance_1ms   = 0xFFFFFFFF;
    if (config.tolerance_10ms == 0)  config.tolerance_10ms  = 0xFFFFFFFF;
    if (config.tolerance_100ms == 0) config.tolerance_100ms = 0xFFFFFFFF;
+
+
+   if (displayMode == MODE_COUNTDOWN) {
+
+     setNextCountdown(currentTime);
+     setPrecision();
+     latchSegments();
+
+     if (config.countdown_to < currentTime || decisec!=9 || centisec!=9 || millisec<7)
+       sendDate(1);
+
+   }
 }
 
 void calibrateRTC(void){
@@ -980,7 +992,7 @@ void SysTick_CountUp_NoUpdate(void) {
 }
 
 
-void SysTick_CountDown(void)
+void SysTick_CountDown_P3(void)
 {
   timetick()
 
@@ -988,6 +1000,61 @@ void SysTick_CountDown(void)
   buffer_c[2].low=cLut[9-centisec];
   buffer_c[1].low=cLut[9-decisec];
 
+
+  HAL_IncTick();
+
+  if (decisec==9 && centisec==0 && millisec==0){
+    currentTime++;
+    setNextCountdown( currentTime );
+    sendDate(0);
+  }
+}
+
+void SysTick_CountDown_P2(void)
+{
+  timetick()
+
+  //buffer_c[3].low=cLut[9-millisec];
+  buffer_c[2].low=cLut[9-centisec];
+  buffer_c[1].low=cLut[9-decisec];
+
+
+  HAL_IncTick();
+
+  if (decisec==9 && centisec==0 && millisec==0){
+    currentTime++;
+    setNextCountdown( currentTime );
+    sendDate(0);
+  }
+}
+
+void SysTick_CountDown_P1(void)
+{
+  timetick()
+
+  //buffer_c[3].low=cLut[9-millisec];
+  //buffer_c[2].low=cLut[9-centisec];
+  buffer_c[1].low=cLut[9-decisec];
+
+
+  HAL_IncTick();
+
+  if (decisec==9 && centisec==0 && millisec==0){
+    currentTime++;
+    setNextCountdown( currentTime );
+    sendDate(0);
+  }
+}
+
+// A no precision countdown is going to be really ambiguous, as it will hit zero a second before the target
+// Then again it will only be used in situations where the tolerance is worse than a second
+void SysTick_CountDown_P0(void)
+{
+  timetick()
+
+  //buffer_c[3].low=cLut[9-millisec];
+  //buffer_c[2].low=cLut[9-centisec];
+  //buffer_c[1].low=cLut[9-decisec];
 
   HAL_IncTick();
 
@@ -1137,8 +1204,28 @@ void setPrecision(void){
   } else if (countMode == COUNT_DOWN) {
 
     if (config.countdown_to >= currentTime) {
-      SetSysTick( &SysTick_CountDown );
       SetPPS( &PPS_Countdown );
+
+      if (currentTime - last_pps_time < config.tolerance_1ms){
+        buffer_c[0].high= 0b11001110 | cSegDP;
+        SetSysTick( &SysTick_CountDown_P3 );
+      } else if (currentTime - last_pps_time < config.tolerance_10ms){
+        buffer_c[3].low = 0b01000000;
+        buffer_c[0].high= 0b11001110 | cSegDP;
+        SetSysTick( &SysTick_CountDown_P2 );
+      } else if (currentTime - rtc_last_calibration < config.tolerance_100ms){
+        buffer_c[3].low = 0b01000000;
+        buffer_c[2].low = 0b01000000;
+        buffer_c[0].high= 0b11001110 | cSegDP;
+        SetSysTick( &SysTick_CountDown_P1 );
+      } else {
+        buffer_c[3].low = 0b01000000;
+        buffer_c[2].low = 0b01000000;
+        buffer_c[1].low = 0b01000000;
+        buffer_c[0].high= 0b11001110;
+        SetSysTick( &SysTick_CountDown_P0 );
+      }
+
     } else {
       SetSysTick( &SysTick_CountUp_NoUpdate );
       SetPPS( &PPS_NoUpdate );
@@ -1195,7 +1282,7 @@ void nextMode(_Bool reverse){
 
       if (config.countdown_to >= currentTime) {
         setNextCountdown(currentTime);
-      }
+      } else countdown_days = 0;
 
       setPrecision();
       TIM2->CCR1 = 0;
