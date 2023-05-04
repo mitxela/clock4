@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <math.h>
+#include "usbd_cdc_if.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -335,6 +336,8 @@ void USART1_IRQHandler(void)
    && nmea[4]=='S'
    && nmea[5]=='V')
     decodeGSV();
+
+  CDC_Transmit_FS(&nmea, sizeof(nmea) - huart1.hdmarx->Instance->CNDTR);
 
   HAL_UART_AbortReceive(&huart1);
   HAL_UART_Receive_DMA(&huart1, nmea, sizeof(nmea));

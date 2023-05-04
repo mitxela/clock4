@@ -8,28 +8,6 @@
 
 
 
-// Interface numbers
-#define MSC_INTERFACE_IDX 0x0           // Index of MSC interface
-#define CDC_INTERFACE_IDX 0x1           // Index of CDC interface
-
-// endpoints numbers
-#define MSC_EP_IDX                      0x01
-#define CDC_CMD_EP_IDX                  0x02
-#define CDC_EP_IDX                      0x03
-
-#define IN_EP_DIR                       0x80 // Adds a direction bit
-
-#define MSC_OUT_EP                      MSC_EP_IDX                     /* EP1 for BULK OUT */
-#define MSC_IN_EP                       (MSC_EP_IDX | IN_EP_DIR)       /* EP1 for BULK IN */
-
-#undef CDC_CMD_EP
-#undef CDC_OUT_EP
-#undef CDC_IN_EP
-
-#define CDC_CMD_EP                      (CDC_CMD_EP_IDX | IN_EP_DIR)   /* EP2 for CDC commands */
-#define CDC_OUT_EP                      CDC_EP_IDX                     /* EP3 for data OUT */
-#define CDC_IN_EP                       (CDC_EP_IDX | IN_EP_DIR)       /* EP3 for data IN */
-
 
 #define USB_MSC_CDC_CONFIG_DESC_SIZ       98
 /* USB MSC+CDC device Configuration Descriptor */
@@ -203,7 +181,7 @@ static uint8_t USBD_MSC_CDC_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
   /* MSC initialization */
   uint8_t ret = USBD_MSC_Init(pdev, cfgidx);
   if(ret != USBD_OK)
-          return ret;
+    return ret;
   /* CDC initialization */
   ret = USBD_CDC_Init(pdev, cfgidx);
   if(ret != USBD_OK)
