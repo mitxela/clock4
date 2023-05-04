@@ -109,6 +109,13 @@ extern USBD_ClassTypeDef  USBD_MSC;
 
 uint8_t  USBD_MSC_RegisterStorage(USBD_HandleTypeDef   *pdev,
                                   USBD_StorageTypeDef *fops);
+
+
+uint8_t  USBD_MSC_Init (USBD_HandleTypeDef *pdev, uint8_t cfgidx);
+uint8_t  USBD_MSC_DeInit (USBD_HandleTypeDef *pdev, uint8_t cfgidx);
+uint8_t  USBD_MSC_Setup (USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req);
+uint8_t  USBD_MSC_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum);
+uint8_t  USBD_MSC_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum);
 /**
   * @}
   */

@@ -24,7 +24,7 @@
 #include "stm32l4xx_hal.h"
 #include "usbd_def.h"
 #include "usbd_core.h"
-#include "usbd_msc.h"
+#include "usbd_cdc.h"
 
 /* USER CODE BEGIN Includes */
 
@@ -842,21 +842,20 @@ void USBD_LL_Delay(uint32_t Delay)
   * @param  size: Size of allocated memory
   * @retval None
   */
-void *USBD_static_malloc(uint32_t size)
-{
-  static uint32_t mem[(sizeof(USBD_MSC_BOT_HandleTypeDef)/4)+1];/* On 32-bit boundary */
-  return mem;
-}
+//void *USBD_static_malloc(uint32_t size)
+//{
+  //static uint32_t mem[(sizeof(USBD_CDC_HandleTypeDef)/4)+1];/* On 32-bit boundary */
+  //mem;
+//}
 
 /**
   * @brief  Dummy memory free
   * @param  p: Pointer to allocated  memory address
   * @retval None
   */
-void USBD_static_free(void *p)
-{
-
-}
+//void USBD_static_free(void *p)
+//{
+//}
 
 /* USER CODE BEGIN 5 */
 /**
