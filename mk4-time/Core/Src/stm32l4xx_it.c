@@ -278,7 +278,8 @@ void DMA1_Channel4_IRQHandler(void)
 void DMA1_Channel5_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA1_Channel5_IRQn 0 */
-  if (DMA1->ISR & DMA_FLAG_TC5)  printf("overrun!");
+  if (DMA1->ISR & DMA_FLAG_TC5)  //printf("overrun!");
+    CDC_Transmit_FS(&nmea, sizeof(nmea));
 
   /* USER CODE END DMA1_Channel5_IRQn 0 */
   HAL_DMA_IRQHandler(&hdma_usart1_rx);
@@ -322,6 +323,10 @@ void DMA1_Channel7_IRQHandler(void)
 void USART1_IRQHandler(void)
 {
   /* USER CODE BEGIN USART1_IRQn 0 */
+  static char txbuf[sizeof(nmea)];
+  uint8_t rec = sizeof(txbuf) - huart1.hdmarx->Instance->CNDTR;
+  memcpy( txbuf, nmea, rec );
+  CDC_Transmit_FS(&txbuf, rec);
 
   // look for $GxRMC
   if (nmea[0]=='$'
@@ -337,7 +342,6 @@ void USART1_IRQHandler(void)
    && nmea[5]=='V')
     decodeGSV();
 
-  CDC_Transmit_FS(&nmea, sizeof(nmea) - huart1.hdmarx->Instance->CNDTR);
 
   HAL_UART_AbortReceive(&huart1);
   HAL_UART_Receive_DMA(&huart1, nmea, sizeof(nmea));

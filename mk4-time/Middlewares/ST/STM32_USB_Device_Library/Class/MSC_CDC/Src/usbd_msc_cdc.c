@@ -8,7 +8,6 @@
 
 
 
-
 #define USB_MSC_CDC_CONFIG_DESC_SIZ       98
 /* USB MSC+CDC device Configuration Descriptor */
 static const uint8_t USBD_MSC_CDC_CfgDesc[USB_MSC_CDC_CONFIG_DESC_SIZ] =
@@ -186,6 +185,7 @@ static uint8_t USBD_MSC_CDC_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
   ret = USBD_CDC_Init(pdev, cfgidx);
   if(ret != USBD_OK)
     return ret;
+
   return USBD_OK;
 }
 /**
@@ -201,6 +201,7 @@ static uint8_t USBD_MSC_CDC_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
   USBD_MSC_DeInit(pdev, cfgidx);
   /* CDC De-initialization */
   USBD_CDC_DeInit(pdev, cfgidx);
+
   return USBD_OK;
 }
 

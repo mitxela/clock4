@@ -301,12 +301,7 @@ uint8_t USBD_MSC_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
     USBD_LL_OpenEP(pdev, MSC_EPIN_ADDR, USBD_EP_TYPE_BULK, MSC_MAX_FS_PACKET);
     pdev->ep_in[MSC_EPIN_ADDR & 0xFU].is_used = 1U;
   }
-  pdev->pClassDataMSC = &mscInstance;// USBD_malloc(sizeof(USBD_MSC_BOT_HandleTypeDef));
-
-  if (pdev->pClassDataMSC == NULL)
-  {
-    return USBD_FAIL;
-  }
+  pdev->pClassDataMSC = &mscInstance;
 
   /* Init the BOT  layer */
   MSC_BOT_Init(pdev);

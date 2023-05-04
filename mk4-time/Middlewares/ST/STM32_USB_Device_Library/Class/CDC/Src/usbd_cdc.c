@@ -493,34 +493,28 @@ uint8_t  USBD_CDC_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 
   pdev->pClassDataCDC = &cdcInstance;// USBD_malloc(sizeof(USBD_CDC_HandleTypeDef));
 
-  if (pdev->pClassDataCDC == NULL)
+  hcdc = (USBD_CDC_HandleTypeDef *) pdev->pClassDataCDC;
+
+  /* Init  physical Interface components */
+  ((USBD_CDC_ItfTypeDef *)pdev->pUserDataCDC)->Init();
+
+  /* Init Xfer states */
+  hcdc->TxState = 0U;
+  hcdc->RxState = 0U;
+
+  if (pdev->dev_speed == USBD_SPEED_HIGH)
   {
-    ret = 1U;
+    /* Prepare Out endpoint to receive next packet */
+    USBD_LL_PrepareReceive(pdev, CDC_OUT_EP, hcdc->RxBuffer,
+                           CDC_DATA_HS_OUT_PACKET_SIZE);
   }
   else
   {
-    hcdc = (USBD_CDC_HandleTypeDef *) pdev->pClassDataCDC;
-
-    /* Init  physical Interface components */
-    ((USBD_CDC_ItfTypeDef *)pdev->pUserDataCDC)->Init();
-
-    /* Init Xfer states */
-    hcdc->TxState = 0U;
-    hcdc->RxState = 0U;
-
-    if (pdev->dev_speed == USBD_SPEED_HIGH)
-    {
-      /* Prepare Out endpoint to receive next packet */
-      USBD_LL_PrepareReceive(pdev, CDC_OUT_EP, hcdc->RxBuffer,
-                             CDC_DATA_HS_OUT_PACKET_SIZE);
-    }
-    else
-    {
-      /* Prepare Out endpoint to receive next packet */
-      USBD_LL_PrepareReceive(pdev, CDC_OUT_EP, hcdc->RxBuffer,
-                             CDC_DATA_FS_OUT_PACKET_SIZE);
-    }
+    /* Prepare Out endpoint to receive next packet */
+    USBD_LL_PrepareReceive(pdev, CDC_OUT_EP, hcdc->RxBuffer,
+                           CDC_DATA_FS_OUT_PACKET_SIZE);
   }
+
   return ret;
 }
 
