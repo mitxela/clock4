@@ -19,8 +19,8 @@ static const uint8_t USBD_MSC_CDC_CfgDesc[USB_MSC_CDC_CONFIG_DESC_SIZ] =
   0x03,         /*bNumInterfaces: 3 interface*/
   0x01,         /*bConfigurationValue: Configuration value*/
   0x02,         /*iConfiguration: Index of string descriptor describing the configuration*/
-  0xC0,         /*bmAttributes: bus powered and Supports Remote Wakeup */
-  0x32,         /*MaxPower 100 mA: this current is used for detecting Vbus*/
+  0x80,         /*bmAttributes: bus powered, no remote wakeup */
+  0xFA,         /*MaxPower 500 mA */
   /* 09 bytes */
 
   /********************  Mass Storage interface ********************/
