@@ -114,9 +114,32 @@ static int8_t SCSI_ProcessWrite(USBD_HandleTypeDef *pdev, uint8_t lun);
 */
 int8_t SCSI_ProcessCmd(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *cmd)
 {
+  // Windows eject sequence consists of:
+  // - SCSI prevent/allow removal [allow]
+  // - SCSI start/stop unit [stop]
+  // - SCSI read
+
+  // if we fail the read, msc hangs/retries.
+  // if we fail next unit ready inquiry, triggering a request sense, and respond with NOT_READY, MEDIUM_NOT_PRESENT
+  // it should be possible to eject cleanly, keeping the CDC alive. But instead it hangs, leaving the msc in limbo.
+  // The only reliable action is to completely stop USB at the first read after start/stop command.
+
+  static _Bool ejected = 0;
+
+  if (ejected) {
+    USBD_Stop(pdev);
+    return -1;
+  }
+
   switch (cmd[0])
   {
     case SCSI_TEST_UNIT_READY:
+//      if (ejected) {
+//        SCSI_SenseCode(pdev, lun, NOT_READY, MEDIUM_NOT_PRESENT);
+//        USBD_MSC_BOT_HandleTypeDef  *hmsc = (USBD_MSC_BOT_HandleTypeDef *)pdev->pClassDataMSC;
+//        hmsc->bot_state = USBD_BOT_NO_DATA;
+//        return -1;
+//      }
       SCSI_TestUnitReady(pdev, lun, cmd);
       break;
 
@@ -129,6 +152,7 @@ int8_t SCSI_ProcessCmd(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *cmd)
 
     case SCSI_START_STOP_UNIT:
       SCSI_StartStopUnit(pdev, lun, cmd);
+      ejected = 1;
       break;
 
     case SCSI_ALLOW_MEDIUM_REMOVAL:
