@@ -636,6 +636,7 @@ _Bool falsey(char const* str){
   if (strcasecmp(str, "off")==0) return 1;
   if (strcasecmp(str, "disabled")==0) return 1;
   if (strcasecmp(str, "0")==0) return 1;
+  if (strcasecmp(str, "none")==0) return 1;
   return 0;
 }
 
@@ -723,9 +724,6 @@ void parseConfigString(char *key, char *value) {
   } else if (strcasecmp(key, "text") == 0) {
     strcpy(textDisplay, value);
   }
-
-
-
 
 }
 
