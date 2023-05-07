@@ -773,8 +773,10 @@ void readConfigFile(void){
 
   FIL file;
 
-   if (f_open(&file, CONFIG_FILENAME, FA_READ) != FR_OK)
+   if (f_open(&file, CONFIG_FILENAME, FA_READ) != FR_OK) {
+     postConfigCleanup();
      return;
+   }
 
    char key[32], value[32], s[1];
    unsigned int rc;
