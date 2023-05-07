@@ -213,7 +213,7 @@ void PendSV_Handler(void)
     if (x == qspi_write_time) qspi_write_time=0;
   }
 
-  GLONASS_sv = 0; GPS_sv = 0;
+  GLONASS_sv = 255; GPS_sv = 255;
 
   /* USER CODE END PendSV_IRQn 0 */
   /* USER CODE BEGIN PendSV_IRQn 1 */

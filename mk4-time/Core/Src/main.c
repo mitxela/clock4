@@ -122,7 +122,7 @@ uint16_t buffer_colons_L[200] = {0};
 uint16_t buffer_colons_R[200] = {0};
 
 uint8_t nmea[NMEA_BUF_SIZE];
-uint8_t GPS_sv = 0, GLONASS_sv = 0;
+uint8_t GPS_sv = 255, GLONASS_sv = 255;
 
 time_t currentTime;
 bcdStamp_t nextBcd;
@@ -253,7 +253,11 @@ void sendDate( _Bool now ){
     }
     break;
   case MODE_SATVIEW:
-    i = sprintf((char*)&uart2_tx_buffer[1], "GPS %d. L%d", GPS_sv, GLONASS_sv);
+    if (GPS_sv==255) {
+      i = sprintf((char*)&uart2_tx_buffer[1], "GPS - L-");
+    } else {
+      i = sprintf((char*)&uart2_tx_buffer[1], "GPS %d. L%d", GPS_sv, GLONASS_sv);
+    }
     break;
   case MODE_STANDBY:
      return;
