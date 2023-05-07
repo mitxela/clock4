@@ -127,6 +127,9 @@ uint8_t GPS_sv = 255, GLONASS_sv = 255;
 time_t currentTime;
 bcdStamp_t nextBcd;
 int tm_yday;
+int iso_year;
+int8_t wday;
+uint8_t iso_week;
 uint32_t countdown_days;
 int32_t currentOffset=0;
 
@@ -182,7 +185,7 @@ void sendDate( _Bool now ){
   switch (displayMode) {
   default:
   case MODE_ISO8601_STD:
-    uart2_tx_buffer[1] ='2' ;//-2+nextBcd.seconds;
+    uart2_tx_buffer[1] ='2';
     uart2_tx_buffer[2] ='0';
     uart2_tx_buffer[3] ='0'+nextBcd.tenYears;
     uart2_tx_buffer[4] ='0'+nextBcd.years;
@@ -200,6 +203,9 @@ void sendDate( _Bool now ){
     uart2_tx_buffer[4] ='0'+nextBcd.years;
     uart2_tx_buffer[5] ='-';
     i = 5 + sprintf((char*)&uart2_tx_buffer[6], "%d", tm_yday+1);
+    break;
+  case MODE_ISO_WEEK:
+    i = sprintf((char*)&uart2_tx_buffer[1], "%d-W%d-%d", iso_year, iso_week, wday+1);
     break;
   case MODE_UNIX:
     i = sprintf((char*)&uart2_tx_buffer[1], "%010ld", (uint32_t)currentTime);
@@ -297,6 +303,14 @@ void setNextTimestamp(time_t nextTime){
   struct tm * nextTm = gmtime( &nextTime );
   tmToBcd( nextTm, &nextBcd );
   tm_yday = nextTm->tm_yday;
+
+  if (displayMode == MODE_ISO_WEEK){
+    wday = (nextTm->tm_wday + 6) % 7;
+    nextTm->tm_mday -= wday -3;
+    mktime(nextTm);
+    iso_year = nextTm->tm_year + 1900;
+    iso_week = nextTm->tm_yday/7 + 1;
+  }
 
   next7seg.c = cLut[nextBcd.seconds];
 
@@ -1352,7 +1366,8 @@ void nextMode(_Bool reverse){
   }
 
   if (wasOff && displayMode != MODE_STANDBY) displayOn();
-  if (wasCountdown && displayMode != MODE_COUNTDOWN) {
+  if ( displayMode == MODE_ISO_WEEK ||
+       (wasCountdown && displayMode != MODE_COUNTDOWN)) {
     // It shouldn't be possible to exit countdown mode at .9 seconds
     // but if we did, it would show the wrong time for .1 seconds
     setNextTimestamp(currentTime);
