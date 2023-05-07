@@ -151,6 +151,7 @@ struct {
 #define MAX_RULES (sizeof rules / sizeof rules[0])
 
 char loadedRulesString[32];
+char textDisplay[32];
 
 uint32_t LPTIM1_high;
 
@@ -245,10 +246,7 @@ void sendDate( _Bool now ){
     break;
   case MODE_SHOW_TZ_NAME:
     if (loadedRulesString[0]) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-truncation"
-      snprintf((char*)&uart2_tx_buffer[1], 11,"%s", loadedRulesString);
-#pragma GCC diagnostic pop
+      i = snprintf((char*)&uart2_tx_buffer[1], 11,"%s", loadedRulesString);
     } else {
       uart2_tx_buffer[1]='-';
       i=1;
@@ -264,6 +262,14 @@ void sendDate( _Bool now ){
     break;
   case MODE_DEBUG_BRIGHTNESS:
     i = sprintf((char*)&uart2_tx_buffer[1], "%04d %04d", (int)ADC1->DR, (int)dac_target);
+    break;
+  case MODE_TEXT:
+    if (textDisplay[0]) {
+      i = snprintf((char*)&uart2_tx_buffer[1], 11,"%s", textDisplay);
+    } else {
+      uart2_tx_buffer[1]='-';
+      i=1;
+    }
     break;
   }
   uart2_tx_buffer[++i]= now ? CMD_RELOAD_TEXT : '\n';
@@ -673,6 +679,8 @@ void parseConfigString(char *key, char *value) {
     config.modes_enabled[MODE_SATVIEW]      = truthy(value);
   } else if (strcasecmp(key, "MODE_DEBUG_BRIGHTNESS") == 0) {
     config.modes_enabled[MODE_DEBUG_BRIGHTNESS] = truthy(value);
+  } else if (strcasecmp(key, "MODE_TEXT") == 0) {
+    config.modes_enabled[MODE_TEXT]         = truthy(value);
   } else if (strcasecmp(key, "Tolerance_time_1ms") == 0) {
     config.tolerance_1ms = atoi(value);
   } else if (strcasecmp(key, "Tolerance_time_10ms") == 0) {
@@ -693,6 +701,8 @@ void parseConfigString(char *key, char *value) {
       colonMode = COLON_MODE_TOGGLE;
     } else colonMode = COLON_MODE_SLOWFADE;
 
+  } else if (strcasecmp(key, "text") == 0) {
+    strcpy(textDisplay, value);
   }
 
 
@@ -720,6 +730,9 @@ void postConfigCleanup(void){
     latchSegments();
 
     if (config.countdown_to < currentTime || decisec!=9 || centisec!=9 || millisec<7)
+      sendDate(1);
+  } else if (displayMode == MODE_TEXT) {
+    if (decisec!=9 || centisec!=9 || millisec<7)
       sendDate(1);
   }
 }
