@@ -121,8 +121,7 @@ float dac_target=4095;
 uint16_t buffer_colons_L[200] = {0};
 uint16_t buffer_colons_R[200] = {0};
 
-// NMEA 0183 messages have a max length of 82 characters
-uint8_t nmea[90];
+uint8_t nmea[NMEA_BUF_SIZE];
 uint8_t GPS_sv = 0, GLONASS_sv = 0;
 
 time_t currentTime;
@@ -156,6 +155,7 @@ char textDisplay[32];
 uint32_t LPTIM1_high;
 
 uint8_t displayMode = 0, countMode = 0, colonMode = 0;
+uint8_t nmea_cdc_level=0;
 
 struct {
   uint32_t tolerance_1ms;
@@ -628,6 +628,13 @@ _Bool truthy(char const* str){
   return 0;
 }
 
+_Bool falsey(char const* str){
+  if (strcasecmp(str, "off")==0) return 1;
+  if (strcasecmp(str, "disabled")==0) return 1;
+  if (strcasecmp(str, "0")==0) return 1;
+  return 0;
+}
+
 void parseConfigString(char *key, char *value) {
 
   if (strcasecmp(key, "MATRIX_FREQUENCY") == 0) {
@@ -701,9 +708,19 @@ void parseConfigString(char *key, char *value) {
       colonMode = COLON_MODE_TOGGLE;
     } else colonMode = COLON_MODE_SLOWFADE;
 
+  } else if (strcasecmp(key, "nmea") == 0) {
+
+    if (falsey(value)) {
+      nmea_cdc_level = NMEA_NONE;
+    } else if (strcasecmp(value, "rmc") == 0) {
+      nmea_cdc_level = NMEA_RMC;
+    } else nmea_cdc_level = NMEA_ALL;
+
   } else if (strcasecmp(key, "text") == 0) {
     strcpy(textDisplay, value);
   }
+
+
 
 
 }

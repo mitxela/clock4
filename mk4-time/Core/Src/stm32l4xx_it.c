@@ -78,7 +78,7 @@ extern float dac_target;
 extern uint8_t uart2_tx_buffer[32];
 extern _Bool data_valid, had_pps;
 extern uint8_t decisec, centisec, millisec;
-extern uint8_t displayMode, countMode;
+extern uint8_t displayMode, countMode, nmea_cdc_level;
 
 extern uint32_t qspi_write_time;
 
@@ -278,8 +278,11 @@ void DMA1_Channel4_IRQHandler(void)
 void DMA1_Channel5_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA1_Channel5_IRQn 0 */
-  if (DMA1->ISR & DMA_FLAG_TC5)  //printf("overrun!");
-    CDC_Transmit_FS(&nmea, sizeof(nmea));
+  if (DMA1->ISR & DMA_FLAG_TC5) {
+    // data buffer full
+    if (nmea_cdc_level==NMEA_ALL)
+      CDC_Copy_Transmit(&nmea[0], sizeof(nmea));
+  }
 
   /* USER CODE END DMA1_Channel5_IRQn 0 */
   HAL_DMA_IRQHandler(&hdma_usart1_rx);
@@ -323,19 +326,20 @@ void DMA1_Channel7_IRQHandler(void)
 void USART1_IRQHandler(void)
 {
   /* USER CODE BEGIN USART1_IRQn 0 */
-  static char txbuf[sizeof(nmea)];
-  uint8_t rec = sizeof(txbuf) - huart1.hdmarx->Instance->CNDTR;
-  memcpy( txbuf, nmea, rec );
-  CDC_Transmit_FS(&txbuf, rec);
+
+  uint8_t rec = sizeof(nmea) - huart1.hdmarx->Instance->CNDTR;
+
+  if (nmea_cdc_level==NMEA_ALL) CDC_Copy_Transmit(&nmea[0], rec);
 
   // look for $GxRMC
   if (nmea[0]=='$'
    && nmea[1]=='G'
    && nmea[3]=='R'
    && nmea[4]=='M'
-   && nmea[5]=='C')
+   && nmea[5]=='C') {
+    if (nmea_cdc_level==NMEA_RMC) CDC_Copy_Transmit(&nmea[0], rec);
     decodeRMC();
-  else if (nmea[0]=='$'
+  } else if (nmea[0]=='$'
    && nmea[1]=='G'
    && nmea[3]=='G'
    && nmea[4]=='S'

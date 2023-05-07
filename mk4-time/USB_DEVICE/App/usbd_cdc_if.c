@@ -302,6 +302,20 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
 
+uint8_t CDC_Copy_Transmit(uint8_t* nmea, uint16_t Len)
+{
+  static uint8_t txbuf[NMEA_BUF_SIZE];
+
+  USBD_CDC_HandleTypeDef *hcdc = (USBD_CDC_HandleTypeDef*)hUsbDeviceFS.pClassDataCDC;
+  if (hcdc->TxState != 0){
+    return USBD_BUSY;
+  }
+
+  memcpy( txbuf, nmea, Len );
+  USBD_CDC_SetTxBuffer(&hUsbDeviceFS, txbuf, Len);
+  return USBD_CDC_TransmitPacket(&hUsbDeviceFS);
+}
+
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
 
 /**

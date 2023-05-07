@@ -119,6 +119,8 @@ extern uint16_t buffer_b[];
 #define DAC_BUFFER_SIZE 20
 #define ADC_BUFFER_SIZE 50
 
+// NMEA 0183 messages have a max length of 82 characters
+#define NMEA_BUF_SIZE 90
 
 #define CMD_LOAD_TEXT          0x90
 #define CMD_SET_FREQUENCY      0x91
@@ -157,6 +159,11 @@ enum {
   COLON_MODE_SOLID
 };
 
+enum {
+  NMEA_ALL=0,
+  NMEA_RMC,
+  NMEA_NONE
+};
 
 /* USER CODE END EC */
 
