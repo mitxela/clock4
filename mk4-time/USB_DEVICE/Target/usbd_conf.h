@@ -64,7 +64,7 @@
   */
 
 /*---------- -----------*/
-#define USBD_MAX_NUM_INTERFACES     1U
+#define USBD_MAX_NUM_INTERFACES     3U
 /*---------- -----------*/
 #define USBD_MAX_NUM_CONFIGURATION     1U
 /*---------- -----------*/
@@ -94,10 +94,10 @@
 /* Memory management macros */
 
 /** Alias for memory allocation. */
-#define USBD_malloc         (uint32_t *)USBD_static_malloc
+//#define USBD_malloc         (uint32_t *)USBD_static_malloc
 
 /** Alias for memory release. */
-#define USBD_free           USBD_static_free
+//#define USBD_free           USBD_static_free
 
 /** Alias for memory set. */
 #define USBD_memset         /* Not used */

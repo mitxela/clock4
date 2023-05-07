@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <math.h>
+#include "usbd_cdc_if.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -77,7 +78,7 @@ extern float dac_target;
 extern uint8_t uart2_tx_buffer[32];
 extern _Bool data_valid, had_pps;
 extern uint8_t decisec, centisec, millisec;
-extern uint8_t displayMode, countMode;
+extern uint8_t displayMode, countMode, nmea_cdc_level;
 
 extern uint32_t qspi_write_time;
 
@@ -212,7 +213,7 @@ void PendSV_Handler(void)
     if (x == qspi_write_time) qspi_write_time=0;
   }
 
-  GLONASS_sv = 0; GPS_sv = 0;
+  GLONASS_sv = 255; GPS_sv = 255;
 
   /* USER CODE END PendSV_IRQn 0 */
   /* USER CODE BEGIN PendSV_IRQn 1 */
@@ -277,7 +278,11 @@ void DMA1_Channel4_IRQHandler(void)
 void DMA1_Channel5_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA1_Channel5_IRQn 0 */
-  if (DMA1->ISR & DMA_FLAG_TC5)  printf("overrun!");
+  if (DMA1->ISR & DMA_FLAG_TC5) {
+    // data buffer full
+    if (nmea_cdc_level==NMEA_ALL)
+      CDC_Copy_Transmit(&nmea[0], sizeof(nmea));
+  }
 
   /* USER CODE END DMA1_Channel5_IRQn 0 */
   HAL_DMA_IRQHandler(&hdma_usart1_rx);
@@ -322,19 +327,25 @@ void USART1_IRQHandler(void)
 {
   /* USER CODE BEGIN USART1_IRQn 0 */
 
+  uint8_t rec = sizeof(nmea) - huart1.hdmarx->Instance->CNDTR;
+
+  if (nmea_cdc_level==NMEA_ALL) CDC_Copy_Transmit(&nmea[0], rec);
+
   // look for $GxRMC
   if (nmea[0]=='$'
    && nmea[1]=='G'
    && nmea[3]=='R'
    && nmea[4]=='M'
-   && nmea[5]=='C')
+   && nmea[5]=='C') {
+    if (nmea_cdc_level==NMEA_RMC) CDC_Copy_Transmit(&nmea[0], rec);
     decodeRMC();
-  else if (nmea[0]=='$'
+  } else if (nmea[0]=='$'
    && nmea[1]=='G'
    && nmea[3]=='G'
    && nmea[4]=='S'
    && nmea[5]=='V')
     decodeGSV();
+
 
   HAL_UART_AbortReceive(&huart1);
   HAL_UART_Receive_DMA(&huart1, nmea, sizeof(nmea));

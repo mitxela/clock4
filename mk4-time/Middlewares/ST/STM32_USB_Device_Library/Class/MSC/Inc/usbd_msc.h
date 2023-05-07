@@ -56,8 +56,12 @@ extern "C" {
 #define USB_MSC_CONFIG_DESC_SIZ      32
 
 
-#define MSC_EPIN_ADDR                0x81U
-#define MSC_EPOUT_ADDR               0x01U
+//#define MSC_EPIN_ADDR                0x81U
+//#define MSC_EPOUT_ADDR               0x01U
+
+#include "usbd_msc_cdc.h"
+#define MSC_EPIN_ADDR                MSC_IN_EP
+#define MSC_EPOUT_ADDR               MSC_OUT_EP
 
 /**
   * @}
@@ -109,6 +113,13 @@ extern USBD_ClassTypeDef  USBD_MSC;
 
 uint8_t  USBD_MSC_RegisterStorage(USBD_HandleTypeDef   *pdev,
                                   USBD_StorageTypeDef *fops);
+
+
+uint8_t  USBD_MSC_Init (USBD_HandleTypeDef *pdev, uint8_t cfgidx);
+uint8_t  USBD_MSC_DeInit (USBD_HandleTypeDef *pdev, uint8_t cfgidx);
+uint8_t  USBD_MSC_Setup (USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req);
+uint8_t  USBD_MSC_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum);
+uint8_t  USBD_MSC_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum);
 /**
   * @}
   */

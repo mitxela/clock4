@@ -121,9 +121,8 @@ float dac_target=4095;
 uint16_t buffer_colons_L[200] = {0};
 uint16_t buffer_colons_R[200] = {0};
 
-// NMEA 0183 messages have a max length of 82 characters
-uint8_t nmea[90];
-uint8_t GPS_sv = 0, GLONASS_sv = 0;
+uint8_t nmea[NMEA_BUF_SIZE];
+uint8_t GPS_sv = 255, GLONASS_sv = 255;
 
 time_t currentTime;
 bcdStamp_t nextBcd;
@@ -151,10 +150,12 @@ struct {
 #define MAX_RULES (sizeof rules / sizeof rules[0])
 
 char loadedRulesString[32];
+char textDisplay[32];
 
 uint32_t LPTIM1_high;
 
 uint8_t displayMode = 0, countMode = 0, colonMode = 0;
+uint8_t nmea_cdc_level=0;
 
 struct {
   uint32_t tolerance_1ms;
@@ -245,17 +246,18 @@ void sendDate( _Bool now ){
     break;
   case MODE_SHOW_TZ_NAME:
     if (loadedRulesString[0]) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-truncation"
-      snprintf((char*)&uart2_tx_buffer[1], 11,"%s", loadedRulesString);
-#pragma GCC diagnostic pop
+      i = snprintf((char*)&uart2_tx_buffer[1], 11,"%s", loadedRulesString);
     } else {
       uart2_tx_buffer[1]='-';
       i=1;
     }
     break;
   case MODE_SATVIEW:
-    i = sprintf((char*)&uart2_tx_buffer[1], "GPS %d. L%d", GPS_sv, GLONASS_sv);
+    if (GPS_sv==255) {
+      i = sprintf((char*)&uart2_tx_buffer[1], "GPS - L-");
+    } else {
+      i = sprintf((char*)&uart2_tx_buffer[1], "GPS %d. L%d", GPS_sv, GLONASS_sv);
+    }
     break;
   case MODE_STANDBY:
      return;
@@ -264,6 +266,14 @@ void sendDate( _Bool now ){
     break;
   case MODE_DEBUG_BRIGHTNESS:
     i = sprintf((char*)&uart2_tx_buffer[1], "%04d %04d", (int)ADC1->DR, (int)dac_target);
+    break;
+  case MODE_TEXT:
+    if (textDisplay[0]) {
+      i = snprintf((char*)&uart2_tx_buffer[1], 11,"%s", textDisplay);
+    } else {
+      uart2_tx_buffer[1]='-';
+      i=1;
+    }
     break;
   }
   uart2_tx_buffer[++i]= now ? CMD_RELOAD_TEXT : '\n';
@@ -622,6 +632,14 @@ _Bool truthy(char const* str){
   return 0;
 }
 
+_Bool falsey(char const* str){
+  if (strcasecmp(str, "off")==0) return 1;
+  if (strcasecmp(str, "disabled")==0) return 1;
+  if (strcasecmp(str, "0")==0) return 1;
+  if (strcasecmp(str, "none")==0) return 1;
+  return 0;
+}
+
 void parseConfigString(char *key, char *value) {
 
   if (strcasecmp(key, "MATRIX_FREQUENCY") == 0) {
@@ -632,7 +650,9 @@ void parseConfigString(char *key, char *value) {
 
     if (!value[0]) return;
     config.zone_override = 1;
-    loadRulesSingle(value);
+    if (loadRulesSingle(value) !=0) {
+      config.zone_override = 0;
+    }
 
   } else if (strcasecmp(key, "countdown_to") == 0) {
 
@@ -671,6 +691,8 @@ void parseConfigString(char *key, char *value) {
     config.modes_enabled[MODE_SATVIEW]      = truthy(value);
   } else if (strcasecmp(key, "MODE_DEBUG_BRIGHTNESS") == 0) {
     config.modes_enabled[MODE_DEBUG_BRIGHTNESS] = truthy(value);
+  } else if (strcasecmp(key, "MODE_TEXT") == 0) {
+    config.modes_enabled[MODE_TEXT]         = truthy(value);
   } else if (strcasecmp(key, "Tolerance_time_1ms") == 0) {
     config.tolerance_1ms = atoi(value);
   } else if (strcasecmp(key, "Tolerance_time_10ms") == 0) {
@@ -691,9 +713,86 @@ void parseConfigString(char *key, char *value) {
       colonMode = COLON_MODE_TOGGLE;
     } else colonMode = COLON_MODE_SLOWFADE;
 
+  } else if (strcasecmp(key, "nmea") == 0) {
+
+    if (falsey(value)) {
+      nmea_cdc_level = NMEA_NONE;
+    } else if (strcasecmp(value, "rmc") == 0) {
+      nmea_cdc_level = NMEA_RMC;
+    } else nmea_cdc_level = NMEA_ALL;
+
+  } else if (strcasecmp(key, "text") == 0) {
+    strcpy(textDisplay, value);
   }
 
+}
 
+void postConfigCleanup(void){
+  loadColonAnimation();
+
+  // check at least one mode is enabled
+  uint8_t j = 0;
+  for (uint8_t i=0; i<NUM_DISPLAY_MODES; i++)
+    j+= config.modes_enabled[i];
+
+  if (!j || (j==1 && config.modes_enabled[MODE_STANDBY])) config.modes_enabled[MODE_ISO8601_STD]=1;
+  if (!config.modes_enabled[displayMode]) nextMode(0);
+
+  // check tolerances
+  if (config.tolerance_1ms == 0)   config.tolerance_1ms   = 0xFFFFFFFF;
+  if (config.tolerance_10ms == 0)  config.tolerance_10ms  = 0xFFFFFFFF;
+  if (config.tolerance_100ms == 0) config.tolerance_100ms = 0xFFFFFFFF;
+
+  if (displayMode == MODE_COUNTDOWN) {
+    setNextCountdown(currentTime);
+    setPrecision();
+    latchSegments();
+
+    if (config.countdown_to < currentTime || decisec!=9 || centisec!=9 || millisec<7)
+      sendDate(1);
+  } else if (displayMode == MODE_TEXT) {
+    if (decisec!=9 || centisec!=9 || millisec<7)
+      sendDate(1);
+  }
+}
+
+void rxConfigString(char c){
+  static char key[32], value[32];
+  static uint8_t k=0, v=0, state=0;
+
+  if (c=='\n' || c=='\r') {
+    if (k && (v || state>=2)) {
+      value[v]=0;
+      key[k]=0;
+      parseConfigString(key, value);
+      postConfigCleanup();
+    }
+    k=0;
+    v=0;
+    state=0;
+    return;
+  }
+
+  switch (state) {
+  case 0: // read key
+    if (k) {
+     if (c=='=') {state =2; break;}
+     if (c==' ' || c=='\t') {state =1; break;}
+    }
+    key[k++] = c;
+    if (k==31) k--;
+    break;
+  case 1: // whitespace
+    if (c=='=') state=2;
+    else if (c!=' ' && c!='\t') {state=0; k=0; key[k++]=c;}
+    break;
+  case 2: //second whitespace
+    if (c!=' ' && c!='\t' && c!='=') {state=3; value[v++]=c;}
+    break;
+  case 3:
+    value[v++]=c;
+    if (v==31) v--;
+  }
 }
 
 void readConfigFile(void){
@@ -706,8 +805,10 @@ void readConfigFile(void){
 
   FIL file;
 
-   if (f_open(&file, CONFIG_FILENAME, FA_READ) != FR_OK)
+   if (f_open(&file, CONFIG_FILENAME, FA_READ) != FR_OK) {
+     postConfigCleanup();
      return;
+   }
 
    char key[32], value[32], s[1];
    unsigned int rc;
@@ -747,32 +848,7 @@ void readConfigFile(void){
 
    f_close(&file);
 
-   loadColonAnimation();
-
-   // check at least one mode is enabled
-   uint8_t j = 0;
-   for (uint8_t i=0; i<NUM_DISPLAY_MODES; i++)
-     j+= config.modes_enabled[i];
-
-   if (!j || (j==1 && config.modes_enabled[MODE_STANDBY])) config.modes_enabled[MODE_ISO8601_STD]=1;
-   if (!config.modes_enabled[displayMode]) nextMode(0);
-
-   // check tolerances
-   if (config.tolerance_1ms == 0)   config.tolerance_1ms   = 0xFFFFFFFF;
-   if (config.tolerance_10ms == 0)  config.tolerance_10ms  = 0xFFFFFFFF;
-   if (config.tolerance_100ms == 0) config.tolerance_100ms = 0xFFFFFFFF;
-
-
-   if (displayMode == MODE_COUNTDOWN) {
-
-     setNextCountdown(currentTime);
-     setPrecision();
-     latchSegments();
-
-     if (config.countdown_to < currentTime || decisec!=9 || centisec!=9 || millisec<7)
-       sendDate(1);
-
-   }
+   postConfigCleanup();
 }
 
 void calibrateRTC(void){
@@ -1608,9 +1684,9 @@ int main(void)
       //printf("IANA Timezone is [%s]\n", zone);
       //printf("Took %lu ms\n", (HAL_GetTick()-start));
 
-      loadRulesSingle(zone);
+      if (!config.zone_override) loadRulesSingle(zone);
       free(zone);
-      HAL_Delay(2000);
+      HAL_Delay(100);
     }
 
     /* USER CODE END WHILE */

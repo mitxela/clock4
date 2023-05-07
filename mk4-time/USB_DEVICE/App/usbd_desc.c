@@ -66,10 +66,10 @@
 #define USBD_VID     1155
 #define USBD_LANGID_STRING     1033
 #define USBD_MANUFACTURER_STRING     "mitxela"
-#define USBD_PID_FS     22314
-#define USBD_PRODUCT_STRING_FS     "Precision Clock MkIV"
-#define USBD_CONFIGURATION_STRING_FS     "MSC Config"
-#define USBD_INTERFACE_STRING_FS     "MSC Interface"
+#define USBD_PID_FS     22337
+#define USBD_PRODUCT_STRING_FS       "Precision Clock MkIV"
+#define USBD_CONFIGURATION_STRING_FS "CDC MSC Config"
+#define USBD_INTERFACE_STRING_FS     "Precision Clock MkIV"
 
 #define USB_SIZ_BOS_DESC            0x0C
 
@@ -165,9 +165,9 @@ __ALIGN_BEGIN uint8_t USBD_FS_DeviceDesc[USB_LEN_DEV_DESC] __ALIGN_END =
   0x00,                       /*bcdUSB */
 #endif /* (USBD_LPM_ENABLED == 1) */
   0x02,
-  0x00,                       /*bDeviceClass*/
-  0x00,                       /*bDeviceSubClass*/
-  0x00,                       /*bDeviceProtocol*/
+  0xEF,                       /*bDeviceClass*/
+  0x02,                       /*bDeviceSubClass*/
+  0x01,                       /*bDeviceProtocol*/
   USB_MAX_EP0_SIZE,           /*bMaxPacketSize*/
   LOBYTE(USBD_VID),           /*idVendor*/
   HIBYTE(USBD_VID),           /*idVendor*/
