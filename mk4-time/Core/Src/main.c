@@ -729,7 +729,7 @@ void rxConfigString(char c){
   static uint8_t k=0, v=0, state=0;
 
   if (c=='\n' || c=='\r') {
-    if (k && v) {
+    if (k && (v || state>=2)) {
       value[v]=0;
       key[k]=0;
       parseConfigString(key, value);
