@@ -413,21 +413,24 @@ void TIM21_IRQHandler(void){
    //if (!latched) return; //don't intervene while waiting for latch
     //if (inverted)...
 
+#define btn_debounce 2
+#define btn_delay 42
+#define btn_repeat 10
 
     if ((LL_GPIO_ReadInputPort(GPIOB) & LL_GPIO_PIN_3)==0) {
-      if (++b1_held == 2) {
+      if (++b1_held == btn_debounce || b1_held == btn_delay) {
           if ( (USART2->ISR & USART_ISR_TXE) ) {
             USART2->TDR = 0x91 + inverted;
           }
-          b1_held=3;
+          if (b1_held==btn_delay) b1_held -= btn_repeat;
       }
     } else b1_held=0;
     if ((LL_GPIO_ReadInputPort(GPIOC) & LL_GPIO_PIN_13)==0) {
-      if (++b2_held == 2) {
+      if (++b2_held == btn_debounce || b2_held == btn_delay) {
           if ( (USART2->ISR & USART_ISR_TXE) ) {
             USART2->TDR = 0x92 - inverted;
           }
-          b2_held=3;
+          if (b2_held==btn_delay) b2_held -= btn_repeat;
       }
     } else b2_held=0;
   }
