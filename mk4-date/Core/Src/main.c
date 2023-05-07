@@ -483,13 +483,32 @@ void transmitBlocking(uint8_t * c, size_t n){
   }
 }
 
+int32_t temp = 0;
+char tempstr[20];
+#include <stdio.h>
+
+
 static inline void waitForLatch(void){
   LL_USART_DisableDirectionRx(USART2);
   LL_GPIO_SetPinMode( GPIOA, LL_GPIO_PIN_3, LL_GPIO_MODE_INPUT );
 
   while (GPIOA->IDR & LL_GPIO_PIN_3) {}
 
-  latchDisplay();
+  //latchDisplay();
+
+  temp = SysTick->VAL;
+  SysTick->VAL = 0;
+  sprintf(tempstr, "%ld          ", (0xFFFFFF-temp) - ( 32000000 - 0x1000000 ) );
+  setDigitDirect(0, tempstr[0]);
+  setDigitDirect(1, tempstr[1]);
+  setDigitDirect(2, tempstr[2]);
+  setDigitDirect(3, tempstr[3]);
+  setDigitDirect(4, tempstr[4]);
+  setDigitDirect(5, tempstr[5]);
+  setDigitDirect(6, tempstr[6]);
+  setDigitDirect(7, tempstr[7]);
+  setDigitDirect(8, tempstr[8]);
+  setDigitDirect(9, tempstr[9]);
 
   // The latch byte is 0xFE with even parity, so as soon as the line returns high we can re-enable uart
   while (!(GPIOA->IDR & LL_GPIO_PIN_3)) {}
@@ -709,7 +728,11 @@ void SystemClock_Config(void)
 
   }
 
-  LL_Init1msTick(32000000);
+  //LL_Init1msTick(32000000);
+  SysTick->LOAD  = 0x00FFFFFF;
+  SysTick->VAL   = 0UL;                                       /* Load the SysTick Counter Value */
+  SysTick->CTRL  = SysTick_CTRL_CLKSOURCE_Msk |
+                   SysTick_CTRL_ENABLE_Msk;                   /* Enable the Systick Timer */
 
   LL_SetSystemCoreClock(32000000);
   LL_RCC_SetUSARTClockSource(LL_RCC_USART2_CLKSOURCE_PCLK1);
@@ -1175,7 +1198,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
   LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-#define DISABLE_SWCLK
+//#define DISABLE_SWCLK
 
 #ifdef DISABLE_SWCLK
   GPIO_InitStruct.Pin = LL_GPIO_PIN_14;
