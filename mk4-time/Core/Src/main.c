@@ -698,12 +698,43 @@ void parseConfigString(char *key, char *value) {
 
 }
 
+void postConfigCleanup(void){
+  loadColonAnimation();
+
+  // check at least one mode is enabled
+  uint8_t j = 0;
+  for (uint8_t i=0; i<NUM_DISPLAY_MODES; i++)
+    j+= config.modes_enabled[i];
+
+  if (!j || (j==1 && config.modes_enabled[MODE_STANDBY])) config.modes_enabled[MODE_ISO8601_STD]=1;
+  if (!config.modes_enabled[displayMode]) nextMode(0);
+
+  // check tolerances
+  if (config.tolerance_1ms == 0)   config.tolerance_1ms   = 0xFFFFFFFF;
+  if (config.tolerance_10ms == 0)  config.tolerance_10ms  = 0xFFFFFFFF;
+  if (config.tolerance_100ms == 0) config.tolerance_100ms = 0xFFFFFFFF;
+
+  if (displayMode == MODE_COUNTDOWN) {
+    setNextCountdown(currentTime);
+    setPrecision();
+    latchSegments();
+
+    if (config.countdown_to < currentTime || decisec!=9 || centisec!=9 || millisec<7)
+      sendDate(1);
+  }
+}
+
 void rxConfigString(char c){
   static char key[32], value[32];
   static uint8_t k=0, v=0, state=0;
 
   if (c=='\n' || c=='\r') {
-    if (k && v) { value[v]=0; key[k]=0; parseConfigString(key, value); }
+    if (k && v) {
+      value[v]=0;
+      key[k]=0;
+      parseConfigString(key, value);
+      postConfigCleanup();
+    }
     k=0;
     v=0;
     state=0;
@@ -783,32 +814,7 @@ void readConfigFile(void){
 
    f_close(&file);
 
-   loadColonAnimation();
-
-   // check at least one mode is enabled
-   uint8_t j = 0;
-   for (uint8_t i=0; i<NUM_DISPLAY_MODES; i++)
-     j+= config.modes_enabled[i];
-
-   if (!j || (j==1 && config.modes_enabled[MODE_STANDBY])) config.modes_enabled[MODE_ISO8601_STD]=1;
-   if (!config.modes_enabled[displayMode]) nextMode(0);
-
-   // check tolerances
-   if (config.tolerance_1ms == 0)   config.tolerance_1ms   = 0xFFFFFFFF;
-   if (config.tolerance_10ms == 0)  config.tolerance_10ms  = 0xFFFFFFFF;
-   if (config.tolerance_100ms == 0) config.tolerance_100ms = 0xFFFFFFFF;
-
-
-   if (displayMode == MODE_COUNTDOWN) {
-
-     setNextCountdown(currentTime);
-     setPrecision();
-     latchSegments();
-
-     if (config.countdown_to < currentTime || decisec!=9 || centisec!=9 || millisec<7)
-       sendDate(1);
-
-   }
+   postConfigCleanup();
 }
 
 void calibrateRTC(void){
