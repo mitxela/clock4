@@ -632,7 +632,9 @@ void parseConfigString(char *key, char *value) {
 
     if (!value[0]) return;
     config.zone_override = 1;
-    loadRulesSingle(value);
+    if (loadRulesSingle(value) !=0) {
+      config.zone_override = 0;
+    }
 
   } else if (strcasecmp(key, "countdown_to") == 0) {
 
@@ -694,6 +696,40 @@ void parseConfigString(char *key, char *value) {
   }
 
 
+}
+
+void rxConfigString(char c){
+  static char key[32], value[32];
+  static uint8_t k=0, v=0, state=0;
+
+  if (c=='\n' || c=='\r') {
+    if (k && v) { value[v]=0; key[k]=0; parseConfigString(key, value); }
+    k=0;
+    v=0;
+    state=0;
+    return;
+  }
+
+  switch (state) {
+  case 0: // read key
+    if (k) {
+     if (c=='=') {state =2; break;}
+     if (c==' ' || c=='\t') {state =1; break;}
+    }
+    key[k++] = c;
+    if (k==31) k--;
+    break;
+  case 1: // whitespace
+    if (c=='=') state=2;
+    else if (c!=' ' && c!='\t') {state=0; k=0; key[k++]=c;}
+    break;
+  case 2: //second whitespace
+    if (c!=' ' && c!='\t' && c!='=') {state=3; value[v++]=c;}
+    break;
+  case 3:
+    value[v++]=c;
+    if (v==31) v--;
+  }
 }
 
 void readConfigFile(void){
@@ -1608,9 +1644,9 @@ int main(void)
       //printf("IANA Timezone is [%s]\n", zone);
       //printf("Took %lu ms\n", (HAL_GetTick()-start));
 
-      loadRulesSingle(zone);
+      if (!config.zone_override) loadRulesSingle(zone);
       free(zone);
-      HAL_Delay(2000);
+      HAL_Delay(100);
     }
 
     /* USER CODE END WHILE */

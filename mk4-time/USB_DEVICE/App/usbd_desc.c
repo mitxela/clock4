@@ -67,9 +67,9 @@
 #define USBD_LANGID_STRING     1033
 #define USBD_MANUFACTURER_STRING     "mitxela"
 #define USBD_PID_FS     22337
-#define USBD_PRODUCT_STRING_FS     "Precision Clock MkIV"
-#define USBD_CONFIGURATION_STRING_FS     "CDC MSC Config"
-#define USBD_INTERFACE_STRING_FS     "CDC MSC Interface"
+#define USBD_PRODUCT_STRING_FS       "Precision Clock MkIV"
+#define USBD_CONFIGURATION_STRING_FS "CDC MSC Config"
+#define USBD_INTERFACE_STRING_FS     "Precision Clock MkIV"
 
 #define USB_SIZ_BOS_DESC            0x0C
 

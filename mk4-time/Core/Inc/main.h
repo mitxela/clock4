@@ -184,6 +184,7 @@ void generateDACbuffer(uint16_t * buf);
 void PPS(void);
 void PPS_NoUpdate(void);
 void PPS_Countdown(void);
+void rxConfigString(char c);
 
 #define latchSegments() \
   buffer_c[0].low = next7seg.c; \
