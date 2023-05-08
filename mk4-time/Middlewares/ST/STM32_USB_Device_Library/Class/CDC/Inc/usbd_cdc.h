@@ -117,6 +117,7 @@ typedef struct
 
   __IO uint32_t TxState;
   __IO uint32_t RxState;
+  __IO uint32_t CMDState;
 }
 USBD_CDC_HandleTypeDef;
 

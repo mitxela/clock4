@@ -501,6 +501,7 @@ uint8_t  USBD_CDC_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
   /* Init Xfer states */
   hcdc->TxState = 0U;
   hcdc->RxState = 0U;
+  hcdc->CMDState= 0U;
 
   if (pdev->dev_speed == USBD_SPEED_HIGH)
   {
@@ -670,7 +671,10 @@ uint8_t  USBD_CDC_DataIn(USBD_HandleTypeDef *pdev, uint8_t epnum)
     }
     else
     {
-      hcdc->TxState = 0U;
+      if (epnum == (CDC_IN_EP & 0x7F))
+        hcdc->TxState = 0U;
+      else if (epnum == (CDC_CMD_EP & 0x7F))
+        hcdc->CMDState = 0U;
     }
     return USBD_OK;
   }

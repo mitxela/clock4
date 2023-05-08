@@ -50,6 +50,14 @@
   */
 /* USER CODE BEGIN EXPORTED_DEFINES */
 
+#define CDC_SERIAL_STATE_DCD     0b0000001
+#define CDC_SERIAL_STATE_DSR     0b0000010
+#define CDC_SERIAL_STATE_BREAK   0b0000100
+#define CDC_SERIAL_STATE_RING    0b0001000
+#define CDC_SERIAL_STATE_FRAME   0b0010000
+#define CDC_SERIAL_STATE_PARITY  0b0100000
+#define CDC_SERIAL_STATE_OVERRUN 0b1000000
+
 /* USER CODE END EXPORTED_DEFINES */
 
 /**
@@ -108,6 +116,7 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
 /* USER CODE BEGIN EXPORTED_FUNCTIONS */
 
 uint8_t CDC_Copy_Transmit(uint8_t* nmea, uint16_t Len);
+uint8_t CDC_Transmit_serial_state(uint16_t newstate);
 
 /* USER CODE END EXPORTED_FUNCTIONS */
 

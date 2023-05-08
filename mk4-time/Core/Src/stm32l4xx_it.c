@@ -45,6 +45,7 @@
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
 uint8_t delayButtonPress=0;
+_Bool CDC_Set = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -76,7 +77,7 @@ extern DAC_HandleTypeDef hdac1;
 extern ADC_HandleTypeDef hadc1;
 extern float dac_target;
 extern uint8_t uart2_tx_buffer[32];
-extern _Bool data_valid, had_pps;
+extern _Bool data_valid, had_pps, last_pps_time, currentTime;
 extern uint8_t decisec, centisec, millisec;
 extern uint8_t displayMode, countMode, nmea_cdc_level;
 
@@ -192,6 +193,12 @@ void DebugMon_Handler(void)
 void PendSV_Handler(void)
 {
   /* USER CODE BEGIN PendSV_IRQn 0 */
+
+  if (had_pps && last_pps_time == (uint32_t)currentTime) {
+    CDC_Transmit_serial_state(CDC_SERIAL_STATE_DCD);
+    CDC_Set=1;
+  }
+
 
   // Writing to the RTC is normally very fast, but if something goes wrong
   // the HAL functions will fail to time out if it's running with the same
@@ -346,6 +353,10 @@ void USART1_IRQHandler(void)
    && nmea[5]=='V')
     decodeGSV();
 
+  if (CDC_Set && (GPIOC->IDR & GPIO_PIN_7)==0){
+    CDC_Transmit_serial_state(0);
+    CDC_Set=0;
+  }
 
   HAL_UART_AbortReceive(&huart1);
   HAL_UART_Receive_DMA(&huart1, nmea, sizeof(nmea));
