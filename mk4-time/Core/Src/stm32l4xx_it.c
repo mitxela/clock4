@@ -365,7 +365,8 @@ void USART2_IRQHandler(void)
 {
   /* USER CODE BEGIN USART2_IRQn 0 */
 
-  if ( USART2->ISR & UART_IT_RXNE) {
+  if ((USART2->ISR & (USART_ISR_PE|USART_ISR_FE|USART_ISR_ORE|USART_ISR_NE|USART_ISR_RTOF|USART_ISR_RXNE)) == USART_ISR_RXNE ) {
+  //if (USART2->ISR & USART_ISR_RXNE ) {
 
     //if (buffer_c[2].high & cSegDP) buffer_c[2].high&=~cSegDP; else buffer_c[2].high|=cSegDP;
 
