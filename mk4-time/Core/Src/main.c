@@ -165,6 +165,7 @@ struct {
   uint32_t tolerance_10ms;
   uint32_t tolerance_100ms;
   time_t countdown_to;
+  float brightness_override;
   _Bool zone_override;
   _Bool modes_enabled[NUM_DISPLAY_MODES];
 
@@ -668,6 +669,15 @@ void parseConfigString(char *key, char *value) {
       config.zone_override = 0;
     }
 
+  } else if (strcasecmp(key, "brightness") == 0) {
+
+    if (!value[0]) {config.brightness_override = -1.0; return;}
+
+    float b = strtof(value, NULL);
+    if (isfinite(b) && b>= 0.0 && b<=1.0)
+      config.brightness_override = (1.0-b) * 4095;
+    else config.brightness_override = -1.0;
+
   } else if (strcasecmp(key, "countdown_to") == 0) {
 
     //  support fractional seconds??
@@ -815,6 +825,7 @@ void readConfigFile(void){
   config.tolerance_10ms  = 10000;
   config.tolerance_100ms = 100000;
   config.zone_override = 0;
+  config.brightness_override = -1.0;
   colonMode = 0;
 
   FIL file;
@@ -1445,11 +1456,13 @@ void generateDACbuffer(uint16_t * buf) {
 
 
   if (displayMode == MODE_STANDBY) {
-    dac_target = dac_target*0.9 + 1.2*4095.0*0.1;
-    if (dac_target>4090.0) {
+    dac_target = dac_target*0.7 + 1.2*4095.0*0.3;
+    if (dac_target>4094.0) {
       dac_target=4095.0;
       displayOff();
     }
+  } else if (config.brightness_override >=0.0) {
+    dac_target = config.brightness_override;
   } else {
     float avg = ((float) ADC1->DR ) * (1.0 /4095.0);
 
