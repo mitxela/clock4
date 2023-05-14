@@ -1450,10 +1450,10 @@ void generateDACbuffer(uint16_t * buf) {
     float in;
     float out;
   } brightnessCurve[] = {
-   {0.0, 4095},
-   {0.8 , 2048},
-   {0.95, 1},
-   {1.0, 0},
+   {0, 4095},
+   {3276, 2048},
+   {3890, 1},
+   {4095, 0},
   };
 
   static float dac_last=4095;
@@ -1468,13 +1468,13 @@ void generateDACbuffer(uint16_t * buf) {
   } else if (config.brightness_override >=0.0) {
     dac_target = config.brightness_override;
   } else {
-    float avg = ((float) ADC1->DR ) * (1.0 /4095.0);
+    float inp = (float)ADC1->DR;
 
     uint8_t i;
     for (i=1; i< sizeof(brightnessCurve)/sizeof(brightnessCurve[0]) -1; i++){
-      if (brightnessCurve[i].in > avg) break;
+      if (brightnessCurve[i].in > inp) break;
     }
-    float factor = (avg - brightnessCurve[i-1].in) / (brightnessCurve[i].in - brightnessCurve[i-1].in);
+    float factor = (inp - brightnessCurve[i-1].in) / (brightnessCurve[i].in - brightnessCurve[i-1].in);
 
     float out = brightnessCurve[i-1].out*(1.0-factor) + brightnessCurve[i].out*factor;
 
