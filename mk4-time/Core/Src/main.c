@@ -171,6 +171,17 @@ struct {
 
 } config = {0};
 
+struct {
+  float in;
+  float out;
+} brightnessCurve[] = {
+    {0,    4095-0},
+    {1638, 4095-410},
+    {2867, 4095-1229},
+    {3686, 4095-2457},
+    {4095, 4095-4095},
+};
+
 // memcpy() appears to move data by bytes, which doesn't work with the word-accessed backup registers
 // here we explicitly move data a word at a time
 void memcpyword(volatile uint32_t *dest, volatile uint32_t *src, size_t n){
@@ -655,9 +666,25 @@ _Bool falsey(char const* str){
   return 0;
 }
 
+// Accept a float between 0.0 and 1.0, or an int from 0 to 4096
+float parseBrightness(char *v, _Bool invert){
+  if (!v[0]) return -1;
+  float b = strtof(v, NULL);
+  if (!isfinite(b) || b<0.0) return -1;
+  if (b<=1.0 && v[1]=='.')
+    return invert? (1.0-b) * 4095 : b*4095;
+  if (b<=4095)
+    return invert? 4095-b : b;
+  return -1;
+}
+
 void parseConfigString(char *key, char *value) {
 
-  if (strcasecmp(key, "MATRIX_FREQUENCY") == 0) {
+  if (strcasecmp(key, "text") == 0) {
+
+     strcpy(textDisplay, value);
+
+  } else if (strcasecmp(key, "MATRIX_FREQUENCY") == 0) {
 
     setDisplayFreq(atoi(value));
 
@@ -671,16 +698,7 @@ void parseConfigString(char *key, char *value) {
 
   } else if (strcasecmp(key, "brightness") == 0) {
 
-    config.brightness_override = -1.0;
-    if (!value[0]) return;
-
-    float b = strtof(value, NULL);
-    if (!isfinite(b) || b<0.0) return;
-
-    if (b<=1.0 && (value[1]=='.'||value[2]=='.'))
-      config.brightness_override = (1.0-b) * 4095;
-    else if (b<=4095)
-      config.brightness_override = 4095-b;
+    config.brightness_override = parseBrightness(value, 1);
 
   } else if (strcasecmp(key, "countdown_to") == 0) {
 
@@ -749,8 +767,21 @@ void parseConfigString(char *key, char *value) {
       nmea_cdc_level = NMEA_RMC;
     } else nmea_cdc_level = NMEA_ALL;
 
-  } else if (strcasecmp(key, "text") == 0) {
-    strcpy(textDisplay, value);
+  } else if (key[0]=='B' && key[1]=='S' && key[3]==0) { //BS1, BS2, etc
+    if (!key[2] || key[2]<'1' || key[2]>'0'+sizeof(brightnessCurve)/sizeof(brightnessCurve[0])) return;
+
+    char *c = &value[0];
+    while (*c++) if(*c==',') break;
+    if (*c==0) return;
+    *c=0; c++;
+
+    float in  = parseBrightness(value,0);
+    float out = parseBrightness(c,1);
+    if (in<0 || out<0) return;
+
+    brightnessCurve[key[2]-'1'].in = in;
+    brightnessCurve[key[2]-'1'].out = out;
+
   }
 
 }
@@ -1446,16 +1477,6 @@ void button2pressed(void){
 
 void generateDACbuffer(uint16_t * buf) {
 
-  const struct {
-    float in;
-    float out;
-  } brightnessCurve[] = {
-   {0, 4095},
-   {3276, 2048},
-   {3890, 1},
-   {4095, 0},
-  };
-
   static float dac_last=4095;
 
 
@@ -1468,15 +1489,18 @@ void generateDACbuffer(uint16_t * buf) {
   } else if (config.brightness_override >=0.0) {
     dac_target = config.brightness_override;
   } else {
-    float inp = (float)ADC1->DR;
+    float adc = (float)ADC1->DR;
 
     uint8_t i;
     for (i=1; i< sizeof(brightnessCurve)/sizeof(brightnessCurve[0]) -1; i++){
-      if (brightnessCurve[i].in > inp) break;
+      if (brightnessCurve[i].in > adc) break;
     }
-    float factor = (inp - brightnessCurve[i-1].in) / (brightnessCurve[i].in - brightnessCurve[i-1].in);
+    float factor = (adc - brightnessCurve[i-1].in) / (brightnessCurve[i].in - brightnessCurve[i-1].in);
 
     float out = brightnessCurve[i-1].out*(1.0-factor) + brightnessCurve[i].out*factor;
+
+    if (out>4095.0 || !isfinite(out)) out=4095.0;
+    else if (out<0.0) out=0.0;
 
     dac_target = dac_target*0.5 + out*0.5;
   }

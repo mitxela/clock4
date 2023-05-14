@@ -1,0 +1,113 @@
+<!doctype html>
+
+<canvas width=800 height=600 style='position:relative;'></canvas>
+<pre></pre>
+
+<script>
+pre = document.querySelector('pre')
+canvas = document.querySelector('canvas')
+ctx = canvas.getContext('2d')
+
+w = canvas.width; h = canvas.height;
+gw = w-50; gh = h-50
+gx=25; gy=25
+
+curve = [
+ [0, 0],
+ [0.4, 0.1],
+ [0.7, 0.3],
+ [0.9, 0.6],
+ [1.0, 1.0]
+]
+
+function line(x1,y1,x2,y2){
+  ctx.beginPath()
+  ctx.moveTo(gx + x1*gw, gy+ gh-y1*gh)
+  ctx.lineTo(gx + x2*gw, gy+ gh-y2*gh)
+  ctx.stroke()
+}
+
+function circle(x,y) {
+  ctx.beginPath();
+  ctx.arc(gx + x*gw, gy+ gh-y*gh, 5, 0, 2 * Math.PI);
+  ctx.stroke(); 
+}
+  ctx.font = '18px Courier, monospace';
+function draw(){
+  ctx.clearRect(0,0,w,h)
+  ctx.fillStyle='rgba(1,1,1,0.05)'
+  ctx.fillRect(gx,gy,gw,gh)
+
+  line(0,0,0,1)
+  line(0,0,1,0)
+
+
+  ctx.fillStyle='black'
+  ctx.textAlign='center';
+  ctx.fillText('Input',gx+gw/2,gy+gh+18)
+  ctx.save()
+  ctx.translate(18,gy+gh/2)
+  ctx.rotate(-Math.PI/2)
+  ctx.fillText('Output',0,0)
+  ctx.restore()
+
+  for (let i=0;i<curve.length;i++) {
+    circle( curve[i][0], curve[i][1] )
+    if (i) line( curve[i-1][0], curve[i-1][1], curve[i][0], curve[i][1] )
+  }
+
+  s=""
+  for (let i=0;i<curve.length;i++)
+  //  s+='{'+Math.round(curve[i][0]*4095)+', 4095-'+Math.round(curve[i][1]*4095)+'},\n'
+    s+= "BS"+(i+1)+" = "+ Math.round(curve[i][0]*4095)+ ',' + Math.round(curve[i][1]*4095)+"\n"
+  pre.textContent = s
+}
+
+function distance(x1,y1,x2,y2){
+  return Math.sqrt( (x1-x2)*(x1-x2) + (y1-y2)*(y1-y2) )
+}
+
+function nearestPoint(x,y){
+  let nearest = 0
+  let neardist = 999
+  for (let i=0;i<curve.length;i++) {
+    let d = distance( curve[i][0], curve[i][1], x, y )
+    if (d < neardist) {
+      nearest=i
+      neardist=d
+    }
+  }
+  return nearest
+}
+
+function clamp(x,y,i){
+  let step = 1/4095;
+  let minx = i>0? curve[i-1][0]+step:0;
+  let maxx = i<curve.length-1? curve[i+1][0]-step:1;
+  return [Math.min(maxx,Math.max(minx,x)),Math.min(1,Math.max(0,y))]
+}
+
+canvas.onmousedown=function(e){
+  e.preventDefault()
+  let x = (e.layerX-gx)/gw;
+  let y = 1-(e.layerY-gy)/gh;
+
+  let i = nearestPoint(x,y)
+
+  curve[i] = clamp(x,y,i)
+  document.onmousemove=function(e){
+    let x = (e.layerX-gx)/gw;
+    let y = 1-(e.layerY-gy)/gh;
+    curve[i] = clamp(x,y,i)
+    draw()
+  }
+  document.onmouseup=function(e){
+    document.onmousemove=null
+    document.onmouseup=null
+  }
+  draw()
+}
+
+
+draw()
+</script>
