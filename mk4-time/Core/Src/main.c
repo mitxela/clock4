@@ -276,7 +276,7 @@ void sendDate( _Bool now ){
     break;
   case MODE_TEXT:
     if (textDisplay[0]) {
-      i = snprintf((char*)&uart2_tx_buffer[1], 11,"%s", textDisplay);
+      i = snprintf((char*)&uart2_tx_buffer[1], 30,"%s", textDisplay);
     } else {
       uart2_tx_buffer[1]='-';
       i=1;
