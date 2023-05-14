@@ -677,7 +677,7 @@ void parseConfigString(char *key, char *value) {
     float b = strtof(value, NULL);
     if (!isfinite(b) || b<0.0) return;
 
-    if (b<=1.0)
+    if (b<=1.0 && (value[1]=='.'||value[2]=='.'))
       config.brightness_override = (1.0-b) * 4095;
     else if (b<=4095)
       config.brightness_override = 4095-b;
