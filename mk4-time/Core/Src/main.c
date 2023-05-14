@@ -272,7 +272,7 @@ void sendDate( _Bool now ){
     i = sprintf((char*)&uart2_tx_buffer[1], "t-%7ldd", countdown_days);
     break;
   case MODE_DEBUG_BRIGHTNESS:
-    i = sprintf((char*)&uart2_tx_buffer[1], "%04d %04d", (int)ADC1->DR, (int)dac_target);
+    i = sprintf((char*)&uart2_tx_buffer[1], "%04d %04d", (int)ADC1->DR, 4095-(int)dac_target);
     break;
   case MODE_TEXT:
     if (textDisplay[0]) {
@@ -671,12 +671,16 @@ void parseConfigString(char *key, char *value) {
 
   } else if (strcasecmp(key, "brightness") == 0) {
 
-    if (!value[0]) {config.brightness_override = -1.0; return;}
+    config.brightness_override = -1.0;
+    if (!value[0]) return;
 
     float b = strtof(value, NULL);
-    if (isfinite(b) && b>= 0.0 && b<=1.0)
+    if (!isfinite(b) || b<0.0) return;
+
+    if (b<=1.0)
       config.brightness_override = (1.0-b) * 4095;
-    else config.brightness_override = -1.0;
+    else if (b<=4095)
+      config.brightness_override = 4095-b;
 
   } else if (strcasecmp(key, "countdown_to") == 0) {
 
