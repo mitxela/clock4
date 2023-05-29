@@ -264,7 +264,16 @@ void sendDate( _Bool now ){
     break;
   case MODE_SHOW_TZ_NAME:
     if (loadedRulesString[0]) {
-      i = snprintf((char*)&uart2_tx_buffer[1], 11,"%s", loadedRulesString);
+      char * zo = loadedRulesString;
+      while (*zo && *zo != '/') zo++;
+      if (currentTime%4 <2) {
+        zo++;
+        i = snprintf((char*)&uart2_tx_buffer[1], 11,"%s", zo);
+      } else {
+        i = zo-loadedRulesString;
+        if (i>10) i=10;
+        snprintf((char*)&uart2_tx_buffer[1], i+1,"%s", loadedRulesString);
+      }
     } else {
       uart2_tx_buffer[1]='-';
       i=1;
