@@ -1425,8 +1425,8 @@ void nextMode(_Bool reverse){
       SetSysTick( &SysTick_CountUp_NoUpdate );
       SetPPS( &PPS_NoUpdate );
       colonAnimationStop()
-      TIM2->CCR1 = 300; // specific to show_offset
-      TIM2->CCR2 = 0;
+      TIM2->CCR1 = 0; // specific to show_offset
+      TIM2->CCR2 = 300;
     }
   } else if (displayMode == MODE_COUNTDOWN) {
     if (countMode != COUNT_DOWN) {
