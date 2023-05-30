@@ -272,7 +272,10 @@ void sendDate( _Bool now ){
       } else {
         i = zo-loadedRulesString;
         if (i>10) i=10;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
         snprintf((char*)&uart2_tx_buffer[1], i+1,"%s", loadedRulesString);
+#pragma GCC diagnostic pop
       }
     } else {
       uart2_tx_buffer[1]='-';
