@@ -125,6 +125,8 @@ void setDisplayPWM(uint32_t bright){
 }
 
 void hang_error(uint16_t errno){
+  MX_USB_DEVICE_Init();
+
   stopAnimation();
   setDisplayPWM(5);
 
@@ -356,7 +358,7 @@ int main(void)
   MX_TIM1_Init();
   MX_TIM4_Init();
   MX_FATFS_Init();
-  MX_USB_DEVICE_Init();
+  //MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
 
   buffer_c[0].high=0b11001110;
