@@ -285,6 +285,8 @@ void sendDate( _Bool now ){
   case MODE_SATVIEW:
     if (GPS_sv==255) {
       i = sprintf((char*)&uart2_tx_buffer[1], "GPS - L-");
+    } else if (GLONASS_sv==255) {
+      i = sprintf((char*)&uart2_tx_buffer[1], "GPS %d. L-", GPS_sv);
     } else {
       i = sprintf((char*)&uart2_tx_buffer[1], "GPS %d. L%d", GPS_sv, GLONASS_sv);
     }
