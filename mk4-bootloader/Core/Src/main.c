@@ -446,7 +446,8 @@ int main(void)
   flash_write(&file);
   HAL_FLASH_Lock();
 
-  launch_app();
+  //launch_app();
+  NVIC_SystemReset();
 
   /* USER CODE END 2 */
 
