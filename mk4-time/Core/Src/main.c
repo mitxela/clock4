@@ -159,6 +159,7 @@ uint32_t LPTIM1_high;
 
 uint8_t displayMode = 0, countMode = 0, colonMode = 0;
 uint8_t nmea_cdc_level=0;
+int debug_rtc_val = 0;
 
 struct {
   uint32_t tolerance_1ms;
@@ -298,6 +299,9 @@ void sendDate( _Bool now ){
     break;
   case MODE_DEBUG_BRIGHTNESS:
     i = sprintf((char*)&uart2_tx_buffer[1], "%04d %04d", (int)ADC1->DR, 4095-(int)dac_target);
+    break;
+  case MODE_DEBUG_RTC:
+    i = sprintf((char*)&uart2_tx_buffer[1], "rtc %d", debug_rtc_val);
     break;
   case MODE_TEXT:
     if (textDisplay[0]) {
@@ -700,6 +704,7 @@ void parseConfigString(char *key, char *value) {
 
   } else if (strcasecmp(key, "MATRIX_FREQUENCY") == 0) {
 
+    //todo: check not waiting for latch
     setDisplayFreq(atoi(value));
 
   } else if (strcasecmp(key, "zone_override") == 0) {
@@ -751,6 +756,8 @@ void parseConfigString(char *key, char *value) {
     config.modes_enabled[MODE_SATVIEW]      = truthy(value);
   } else if (strcasecmp(key, "MODE_DEBUG_BRIGHTNESS") == 0) {
     config.modes_enabled[MODE_DEBUG_BRIGHTNESS] = truthy(value);
+  } else if (strcasecmp(key, "MODE_DEBUG_RTC") == 0) {
+    config.modes_enabled[MODE_DEBUG_RTC] = truthy(value);
   } else if (strcasecmp(key, "MODE_TEXT") == 0) {
     config.modes_enabled[MODE_TEXT]         = truthy(value);
   } else if (strcasecmp(key, "Tolerance_time_1ms") == 0) {
@@ -943,16 +950,24 @@ void calibrateRTC(void){
     LL_LPTIM_StartCounter(LPTIM1, LL_LPTIM_OPERATING_MODE_CONTINUOUS);
     calibStart = currentTime;
 
-  } else if (currentTime - calibStart == CAL_PERIOD) {
+  } else if ((uint32_t)currentTime - calibStart == CAL_PERIOD) {
+    volatile uint16_t x = LPTIM1->CNT;
+    volatile uint16_t y = LPTIM1->CNT;
+    if (x!=y) goto skipRtcCal;
 
-    int32_t error = ((LPTIM1_high<<16) + LPTIM1->CNT) - 32768*CAL_PERIOD + LPTIM_START_DELAY;
+    int32_t error = ((LPTIM1_high<<16) + x) - 32768*CAL_PERIOD + LPTIM_START_DELAY;
     float e = (float)error * 32.0 / CAL_PERIOD;
 
+    debug_rtc_val = error;//0x100 + round(e);
+
+    if (e>255.0 || e< -255.0) goto skipRtcCal;
+
     __HAL_RTC_WRITEPROTECTION_DISABLE(&hrtc);
-    RTC->CALR = 0x100 + round(e);
+    RTC->CALR = 0x100 + (int)round(e);
     __HAL_RTC_WRITEPROTECTION_ENABLE(&hrtc);
     rtc_last_calibration = (uint32_t)currentTime;
 
+skipRtcCal:
     // Prepare the counter for the next calibration
     // LPTIM1->CNT is read only, the only way to zero it is to disable and re-enable the timer.
     // There is a further delay associated with this, better to put it here than right at the moment we want to start the timer.
@@ -986,9 +1001,9 @@ void PPS(void)
   // In this case, it is safest to pretend PPS hasn't happened
   if (!data_valid) return;
 
-  if ((currentTime & 1) ==0) {colonAnimationSync()}
-
   calibrateRTC();
+
+  if ((currentTime & 1) ==0) {colonAnimationSync()}
 
   had_pps = 1;
   last_pps_time = (uint32_t)currentTime;
@@ -1028,8 +1043,8 @@ void PPS_Countdown(void)
   __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_7);
 
   if (!data_valid) return;
-  if ((currentTime & 1) ==0) {colonAnimationSync()}
   calibrateRTC();
+  if ((currentTime & 1) ==0) {colonAnimationSync()}
 
   had_pps = 1;
   last_pps_time = (uint32_t)currentTime;

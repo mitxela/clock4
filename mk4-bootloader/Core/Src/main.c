@@ -208,6 +208,14 @@ void launch_app(){
   HAL_RCC_DeInit();
   HAL_DeInit();
 
+//  SysTick->CTRL = 0;
+//  SysTick->LOAD = 0;
+//  SysTick->VAL  = 0;
+//  SCB->VTOR = _app_start[0];
+//
+//  __DSB();
+//  __ISB();
+
   // 1st entry in the vector table is stack pointer
   // 2nd entry in the vector table is the application entry point
 
