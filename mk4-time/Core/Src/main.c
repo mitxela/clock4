@@ -29,7 +29,6 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
-#include "retarget.h"
 #include "qspi_drv.h"
 #include "zonedetect.h"
 #include "chainloader.h"
@@ -1608,7 +1607,6 @@ int main(void)
   MX_LPTIM1_Init();
   MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
-  RetargetInit(&huart2);
 
 
   // Configure display matrix
