@@ -114,6 +114,8 @@ static int8_t SCSI_ProcessWrite(USBD_HandleTypeDef *pdev, uint8_t lun);
 */
 int8_t SCSI_ProcessCmd(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *cmd)
 {
+  extern uint8_t ejected_state;
+  if (ejected_state==1) ejected_state=2;
   switch (cmd[0])
   {
     case SCSI_TEST_UNIT_READY:
@@ -129,6 +131,7 @@ int8_t SCSI_ProcessCmd(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *cmd)
 
     case SCSI_START_STOP_UNIT:
       SCSI_StartStopUnit(pdev, lun, cmd);
+      ejected_state = 1;
       break;
 
     case SCSI_ALLOW_MEDIUM_REMOVAL:

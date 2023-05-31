@@ -124,6 +124,8 @@ void setDisplayPWM(uint32_t bright){
   HAL_DMA_Start(&hdma_tim4_up, (uint32_t)buffer_c, (uint32_t)&GPIOC->ODR, bright);
 }
 
+uint8_t ejected_state = 0;
+
 void hang_error(uint16_t errno){
   MX_USB_DEVICE_Init();
 
@@ -140,7 +142,9 @@ void hang_error(uint16_t errno){
   buffer_c[3].low=0b01010000; //r
 
   HAL_FLASH_Lock();
-  while(1){}
+  while(1){
+    if (ejected_state>1) NVIC_SystemReset();
+  }
 }
 
 
@@ -208,13 +212,13 @@ void launch_app(){
   HAL_RCC_DeInit();
   HAL_DeInit();
 
-//  SysTick->CTRL = 0;
-//  SysTick->LOAD = 0;
-//  SysTick->VAL  = 0;
-//  SCB->VTOR = _app_start[0];
-//
-//  __DSB();
-//  __ISB();
+  SysTick->CTRL = 0;
+  SysTick->LOAD = 0;
+  SysTick->VAL  = 0;
+  SCB->VTOR = _app_start[0];
+
+  __DSB();
+  __ISB();
 
   // 1st entry in the vector table is stack pointer
   // 2nd entry in the vector table is the application entry point
