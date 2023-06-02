@@ -157,6 +157,7 @@ char textDisplay[32];
 uint32_t LPTIM1_high;
 
 uint8_t displayMode = 0, countMode = 0, colonMode = 0;
+uint8_t requestMode = 255;
 uint8_t nmea_cdc_level=0;
 int debug_rtc_val = 0;
 
@@ -695,6 +696,9 @@ float parseBrightness(char *v, _Bool invert){
   return -1;
 }
 
+#define set_mode_enabled(mode, value) \
+  if ((config.modes_enabled[mode] = truthy(value))) requestMode=mode;
+
 void parseConfigString(char *key, char *value) {
 
   if (strcasecmp(key, "text") == 0) {
@@ -732,33 +736,33 @@ void parseConfigString(char *key, char *value) {
 
     }
   } else if (strcasecmp(key, "MODE_ISO8601_STD") == 0) {
-    config.modes_enabled[MODE_ISO8601_STD]  = truthy(value);
+    set_mode_enabled(MODE_ISO8601_STD, value);
   } else if (strcasecmp(key, "MODE_ISO_ORDINAL") == 0) {
-    config.modes_enabled[MODE_ISO_ORDINAL]  = truthy(value);
+    set_mode_enabled(MODE_ISO_ORDINAL, value);
   } else if (strcasecmp(key, "MODE_ISO_WEEK") == 0) {
-    config.modes_enabled[MODE_ISO_WEEK]     = truthy(value);
+    set_mode_enabled(MODE_ISO_WEEK, value);
   } else if (strcasecmp(key, "MODE_UNIX") == 0) {
-    config.modes_enabled[MODE_UNIX]         = truthy(value);
+    set_mode_enabled(MODE_UNIX, value);
   } else if (strcasecmp(key, "MODE_JULIAN_DATE") == 0) {
-    config.modes_enabled[MODE_JULIAN_DATE]  = truthy(value);
+    set_mode_enabled(MODE_JULIAN_DATE, value);
   } else if (strcasecmp(key, "MODE_MODIFIED_JD") == 0) {
-    config.modes_enabled[MODE_MODIFIED_JD]  = truthy(value);
+    set_mode_enabled(MODE_MODIFIED_JD, value);
   } else if (strcasecmp(key, "MODE_SHOW_OFFSET") == 0) {
-    config.modes_enabled[MODE_SHOW_OFFSET]  = truthy(value);
+    set_mode_enabled(MODE_SHOW_OFFSET, value);
   } else if (strcasecmp(key, "MODE_SHOW_TZ_NAME") == 0) {
-    config.modes_enabled[MODE_SHOW_TZ_NAME] = truthy(value);
+    set_mode_enabled(MODE_SHOW_TZ_NAME, value);
   } else if (strcasecmp(key, "MODE_STANDBY") == 0) {
-    config.modes_enabled[MODE_STANDBY]      = truthy(value);
+    set_mode_enabled(MODE_STANDBY, value);
   } else if (strcasecmp(key, "MODE_COUNTDOWN") == 0) {
-    config.modes_enabled[MODE_COUNTDOWN]    = truthy(value);
+    set_mode_enabled(MODE_COUNTDOWN, value);
   } else if (strcasecmp(key, "MODE_SATVIEW") == 0) {
-    config.modes_enabled[MODE_SATVIEW]      = truthy(value);
+    set_mode_enabled(MODE_SATVIEW, value);
   } else if (strcasecmp(key, "MODE_DEBUG_BRIGHTNESS") == 0) {
-    config.modes_enabled[MODE_DEBUG_BRIGHTNESS] = truthy(value);
+    set_mode_enabled(MODE_DEBUG_BRIGHTNESS, value);
   } else if (strcasecmp(key, "MODE_DEBUG_RTC") == 0) {
-    config.modes_enabled[MODE_DEBUG_RTC] = truthy(value);
+    set_mode_enabled(MODE_DEBUG_RTC, value);
   } else if (strcasecmp(key, "MODE_TEXT") == 0) {
-    config.modes_enabled[MODE_TEXT]         = truthy(value);
+    set_mode_enabled(MODE_TEXT, value);
   } else if (strcasecmp(key, "Tolerance_time_1ms") == 0) {
     config.tolerance_1ms = atoi(value);
   } else if (strcasecmp(key, "Tolerance_time_10ms") == 0) {
@@ -815,7 +819,7 @@ void postConfigCleanup(void){
     j+= config.modes_enabled[i];
 
   if (!j || (j==1 && config.modes_enabled[MODE_STANDBY])) config.modes_enabled[MODE_ISO8601_STD]=1;
-  if (!config.modes_enabled[displayMode]) nextMode(0);
+  if (!config.modes_enabled[displayMode] || requestMode!=255) nextMode(0);
 
   // check tolerances
   if (config.tolerance_1ms == 0)   config.tolerance_1ms   = 0xFFFFFFFF;
@@ -928,6 +932,7 @@ void readConfigFile(void){
 
    f_close(&file);
 
+   requestMode=255;
    postConfigCleanup();
 }
 
@@ -1429,7 +1434,14 @@ void nextMode(_Bool reverse){
   _Bool wasOff = (displayMode==MODE_STANDBY);
   _Bool wasCountdown = (displayMode==MODE_COUNTDOWN);
 
-  if (reverse) {
+  if (requestMode!=255){
+    if (!config.modes_enabled[requestMode]) {
+      requestMode=255;
+      return;
+    }
+    displayMode=requestMode;
+    requestMode=255;
+  } else if (reverse) {
     do {
       if (--displayMode > NUM_DISPLAY_MODES) displayMode=NUM_DISPLAY_MODES;
     } while (!config.modes_enabled[displayMode]);
