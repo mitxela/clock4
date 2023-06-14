@@ -462,9 +462,9 @@ static inline void latchDisplay(void){
 
   if (inverted){
     if (dp_pos>=5) {
-      buffer_b[9-dp_pos] |=1;
+      buffer_b[9-dp_pos] |=1 | cathodes_b[9-dp_pos];
     } else {
-      buffer_a[9-dp_pos-5]  |=1<<14;
+      buffer_a[9-dp_pos-5]  |=(1<<14) | cathodes_a[9-dp_pos-5];
     }
   } else {
     if (dp_pos>5) {
