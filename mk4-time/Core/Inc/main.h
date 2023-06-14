@@ -194,6 +194,7 @@ void PPS(void);
 void PPS_NoUpdate(void);
 void PPS_Countdown(void);
 void rxConfigString(char c);
+void monitor_vbus(void);
 
 #define latchSegments() \
   buffer_c[0].low = next7seg.c; \

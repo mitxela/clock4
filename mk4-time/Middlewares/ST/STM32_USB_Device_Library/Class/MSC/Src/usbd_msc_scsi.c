@@ -124,9 +124,7 @@ int8_t SCSI_ProcessCmd(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *cmd)
   // it should be possible to eject cleanly, keeping the CDC alive. But instead it hangs, leaving the msc in limbo.
   // The only reliable action is to completely stop USB at the first read after start/stop command.
 
-  static _Bool ejected = 0;
-
-  if (ejected) {
+  if (pdev->ejected) {
     USBD_Stop(pdev);
     return -1;
   }
@@ -152,7 +150,7 @@ int8_t SCSI_ProcessCmd(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *cmd)
 
     case SCSI_START_STOP_UNIT:
       SCSI_StartStopUnit(pdev, lun, cmd);
-      ejected = 1;
+      pdev->ejected = 1;
       break;
 
     case SCSI_ALLOW_MEDIUM_REMOVAL:

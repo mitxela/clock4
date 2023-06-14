@@ -60,6 +60,13 @@ extern USBD_DescriptorsTypeDef FS_Desc;
  */
 /* USER CODE BEGIN 1 */
 
+void MX_USB_Stop(void){
+  USBD_Stop( &hUsbDeviceFS );
+  //USBD_LL_DeInit( &hUsbDeviceFS );
+
+  //USBD_LL_Stop( &hUsbDeviceFS );
+}
+
 /* USER CODE END 1 */
 
 /**

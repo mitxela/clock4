@@ -243,6 +243,10 @@ void DMA1_Channel3_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA1_Channel3_IRQn 0 */
 
+  // low priority, 10Hz interrupt
+  // (DAC DMA still runs with display off)
+  monitor_vbus();
+
   if (DMA1->ISR & DMA_FLAG_HT3) {
 
     generateDACbuffer(&buffer_dac[DAC_BUFFER_SIZE/2]);

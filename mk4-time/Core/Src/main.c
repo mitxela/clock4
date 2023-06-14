@@ -1253,7 +1253,24 @@ void SysTick_Dummy(void){
   HAL_IncTick();
 }
 
+// We cannot use hardware vbus monitoring since the pin is occupied by USART1 TX
+// We can't use EXTI on PA8 as it's in the same group as PPS
+void monitor_vbus(void){
+  static _Bool vbus_state = 1; // power-on state is initialised, even if not connected
 
+  _Bool vbus = (GPIOA->IDR & GPIO_PIN_8);
+
+  if (vbus_state && !vbus) { // disconnected
+
+    MX_USB_Stop();
+
+  } else if (vbus && !vbus_state) { // connected
+
+    MX_USB_DEVICE_Init();
+
+  }
+  vbus_state = vbus;
+}
 
 
 
@@ -1770,7 +1787,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-
 
     if (!config.zone_override && cd && data_valid && latitude>=-90.0 && latitude<=90.0 && longitude>=-180.0 && longitude<=180.0) {
 

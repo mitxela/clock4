@@ -113,6 +113,7 @@ USBD_StatusTypeDef USBD_Init(USBD_HandleTypeDef *pdev,
   /* Set Device initial State */
   pdev->dev_state = USBD_STATE_DEFAULT;
   pdev->id = id;
+  pdev->ejected = 0;
   /* Initialize low level driver */
   USBD_LL_Init(pdev);
 

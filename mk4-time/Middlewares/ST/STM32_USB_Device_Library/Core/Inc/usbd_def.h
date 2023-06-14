@@ -260,6 +260,8 @@ typedef struct _USBD_HandleTypeDef
   void                        *pClassDataCDC;
   void                        *pUserDataCDC;
   void                        *pData;
+
+  uint8_t ejected;
 } USBD_HandleTypeDef;
 
 /**
