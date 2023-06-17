@@ -844,9 +844,14 @@ void rxConfigString(char c){
   static uint8_t k=0, v=0, state=0;
 
   if (c=='\n' || c=='\r') {
+    key[k]=0;
+    value[v]=0;
+
+    if (strcasecmp(key, "reboot") == 0) {
+      MX_USB_Stop();
+      NVIC_SystemReset();
+    }
     if (k && (v || state>=2)) {
-      value[v]=0;
-      key[k]=0;
       parseConfigString(key, value);
       postConfigCleanup();
     }
