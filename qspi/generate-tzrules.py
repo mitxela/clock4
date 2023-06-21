@@ -1,61 +1,34 @@
 #!/usr/bin/env python3
 
-import csv, time, collections
+import json, time, collections, subprocess, email.utils, calendar
 
-start = int(time.mktime(time.strptime("1 Jan 2020", "%d %b %Y")))
-end = int(time.mktime(time.strptime("1 Jan 2100", "%d %b %Y")))
+# Use system tzdb
+ZDUMP="/usr/bin/zdump"
+# There's no obvious way to read which version of tzdata is installed
+# except for pacman -Q tzdata or whatever
+
+zoneNames = json.load(open('timezone-names.json'))
+# e.g. https://github.com/evansiroky/timezone-boundary-builder/releases/download/2023b/timezone-names.json
+# this includes the Etc/ zones
+
+start = int(calendar.timegm(time.strptime("1 Jan 2020", "%d %b %Y")))
+end = int(calendar.timegm(time.strptime("1 Jan 2100", "%d %b %Y")))
 
 zones = collections.OrderedDict()
-zoneIDs = {}
 lookupAddr = {}
 lookupCount = {}
 
 output = open("tzrules.bin", "wb")
-output.write(b'MTZ') # header
+output.write(b'MTZ')       # header
 output.write(b'\x01')      # version number
 output.write(b'\x08')      # row length for fixed data
 
+for zone in zoneNames:
+  category, name = zone.split('/',1)
 
-with open('zone.csv') as csvfile:
-  reader = csv.reader(csvfile, delimiter=',', quotechar='"')
-  for row in reader:
-    category = row[2].split('/')[0]
-    name = '/'.join(row[2].split('/')[1:])
-
-    if category not in zones:
-      zones[category]=[]
-    zones[category].append({'name':name, 'key':int(row[0])})
-    zoneIDs[int(row[0])] = {'category':category, 'name':name}
-
-# Etc zones correspond to oceans and are not included in the timezonedb
-zones['Etc']=[
-  {'name':'UTC'   ,'key':1001,'offset':0},
-  {'name':'GMT-12','key':1002,'offset':3600*12},
-  {'name':'GMT-11','key':1003,'offset':3600*11},
-  {'name':'GMT-10','key':1004,'offset':3600*10},
-  {'name':'GMT-9' ,'key':1005,'offset':3600*9},
-  {'name':'GMT-8' ,'key':1006,'offset':3600*8},
-  {'name':'GMT-7' ,'key':1007,'offset':3600*7},
-  {'name':'GMT-6' ,'key':1008,'offset':3600*6},
-  {'name':'GMT-5' ,'key':1009,'offset':3600*5},
-  {'name':'GMT-4' ,'key':1010,'offset':3600*4},
-  {'name':'GMT-3' ,'key':1011,'offset':3600*3},
-  {'name':'GMT-2' ,'key':1012,'offset':3600*2},
-  {'name':'GMT-1' ,'key':1013,'offset':3600*1},
-  {'name':'GMT'   ,'key':1014,'offset':0},
-  {'name':'GMT+1' ,'key':1015,'offset':3600*-1},
-  {'name':'GMT+2' ,'key':1016,'offset':3600*-2},
-  {'name':'GMT+3' ,'key':1017,'offset':3600*-3},
-  {'name':'GMT+4' ,'key':1018,'offset':3600*-4},
-  {'name':'GMT+5' ,'key':1019,'offset':3600*-5},
-  {'name':'GMT+6' ,'key':1020,'offset':3600*-6},
-  {'name':'GMT+7' ,'key':1021,'offset':3600*-7},
-  {'name':'GMT+8' ,'key':1022,'offset':3600*-8},
-  {'name':'GMT+9' ,'key':1023,'offset':3600*-9},
-  {'name':'GMT+10','key':1024,'offset':3600*-10},
-  {'name':'GMT+11','key':1025,'offset':3600*-11},
-  {'name':'GMT+12','key':1026,'offset':3600*-12},
-]
+  if category not in zones:
+    zones[category]=[]
+  zones[category].append(name)
 
 output.write(bytearray([len(zones)]))
 endOfHeader = output.tell()
@@ -71,7 +44,7 @@ nameLut = {}
 for category in zones:
   nameLut[category] = output.tell()
   for z in zones[category]:
-    output.write(z['name'].encode())
+    output.write(z.encode())
     output.write(b'\x00xxxy') # null, 24bit address, 8bit count
 
 startOfData= output.tell()
@@ -89,18 +62,27 @@ for category in zones:
 output.seek(startOfData)
 
 
+# zdump -v output includes the second immediately before transition:
+# Europe/London  Sun Mar 29 00:59:59 2020 UT = Sun Mar 29 00:59:59 2020 GMT isdst=0 gmtoff=0
+# Europe/London  Sun Mar 29 01:00:00 2020 UT = Sun Mar 29 02:00:00 2020 BST isdst=1 gmtoff=3600
+# Europe/London  Sun Oct 25 00:59:59 2020 UT = Sun Oct 25 01:59:59 2020 BST isdst=1 gmtoff=3600
+# Europe/London  Sun Oct 25 01:00:00 2020 UT = Sun Oct 25 01:00:00 2020 GMT isdst=0 gmtoff=0
 
-# We assume the data timezone.csv file is sorted, ascending
+def parse_zdump_row(r):
+  zone, r = r.split('  ',1)
+  if " UT " in r:
+    ut, r   = r.split(' = ', 1)
+    # parsedate ignores timezone, treats as UTC regardless
+    ut = int(calendar.timegm( email.utils.parsedate(ut) ))
+  if "isdst" in r and "gmtoff" in r:
+    dst =    int( r.split('isdst=')[1][0] )
+    gmtoff = int( r.split('gmtoff=')[1] )
 
-key=0
-lasttime = int(-1e12) # just for confirming data is in order
-dataset = []
+  return zone, ut, dst, gmtoff
 
 
-
-def row_to_binary(row):
+def encode_transition(t, gmtoff, dst):
   b = bytearray()
-  t = row[2]
   if t<0:
     t=0
   # 32bit unsigned timestamp (valid to year 2106)
@@ -110,81 +92,62 @@ def row_to_binary(row):
   b.append( (t & 0xFF000000) >> 24 )
 
   # 32 bit signed offset
-  b.append( (row[3] & 0x000000FF) >> 0 )
-  b.append( (row[3] & 0x0000FF00) >> 8 )
-  b.append( (row[3] & 0x00FF0000) >> 16 )
-  b.append( (row[3] & 0xFF000000) >> 24 )
+  b.append( (gmtoff & 0x000000FF) >> 0 )
+  b.append( (gmtoff & 0x0000FF00) >> 8 )
+  b.append( (gmtoff & 0x00FF0000) >> 16 )
+  b.append( (gmtoff & 0xFF000000) >> 24 )
 
-  # store name and dst flag maybe...
+  # store dst flag maybe...
   return b
 
-def write_data():
-  lookupAddr[key] = output.tell()
-  lookupCount[key] = 0
-  for row in dataset:
-    lookupCount[key] +=1
-    output.write(row_to_binary(row))
 
+for zone in zoneNames:
+  #category, name = zone.split('/',1)
+  print(f"[{zoneNames.index(zone)}/{len(zoneNames)}] {zone}")
 
+  lookupAddr[zone] = output.tell()
+  lookupCount[zone] = 0
 
-with open('timezone.csv') as csvfile:
-  reader = csv.reader(csvfile, delimiter=',', quotechar='"')
-  for row in reader:
-    row[0] = int(row[0])
-    row[2] = int(row[2])
-    row[3] = int(row[3])
+  rows = subprocess.run(
+    [ZDUMP, '-V', zone, '-c','2106'], capture_output=True
+    ).stdout.decode('utf-8').split('\n')[:-1]
 
-    if row[0] != key: # end of data for key
-      if key!=0: write_data()
-      if row[0]!=key+1:
-        raise Exception("Missing key or data out-of-order")
-      key=row[0]
-      lasttime = int(-1e12)
-      dataset=[row]
+  for i,j in zip(rows[0::2], rows[1::2]):
+    _, utm1, _, _      = parse_zdump_row( i )
+    _, ut, dst, gmtoff = parse_zdump_row( j )
+    if ut-utm1 != 1:
+      raise Exception("Transitions out of sync")
+    #print(ut, dst, gmtoff)
+ 
+    # ignore data from the past, but keep the most recent record so we know
+    # what rule is relevant throught the start
+    # Also, for zones without DST, all of the data will be from before start
+    if ut < start:
+      lookupCount[zone]=0
+      output.seek(lookupAddr[zone])
+
+    if ut > end:
       continue
 
-    time = row[2]
-    offset = row[3]
-    if (time < lasttime):
-      raise Exception("Data out of order!")
-    lasttime = time
+    lookupCount[zone] +=1
+    output.write(encode_transition(ut, gmtoff, dst))
 
-    if (time > dataset[0][2] and time < start):
-       # Ignore data from the past, but keep the most recent record so we know
-       # what rule is relevant through the start
-       # Also, for zones without DST, all of the data will be from before start
-       dataset[0] = row
-       continue
-
-    if (time > end):
-      continue
-
-    dataset.append(row)
-
-
-write_data() # trigger again for very last dataset
-
-
-# run an extra loop to add in the Etc zones
-for e in zones['Etc']:
-  key = e['key']
-  dataset = [[ e['key'],'',0, e['offset'] ]]
-  write_data()
-  
+  if lookupCount[zone]>255:
+    raise Exception("More than 255 entries")
 
 
 #now go back and fill out the addresses
 output.seek(startOfNames)
 
-for category in zones:
-  for z in zones[category]:
-    output.write(z['name'].encode())
-    # null, 24bit address, 8bit count
-    output.write(bytearray([
-      0,
-      (lookupAddr[z['key']] & 0x0000FF) >> 0,
-      (lookupAddr[z['key']] & 0x00FF00) >> 8,
-      (lookupAddr[z['key']] & 0xFF0000) >> 16,
-      lookupCount[z['key']]
-      ]))
+for zone in zoneNames:
+  category, name = zone.split('/',1)
+  output.write(name.encode())
+  # null, 24bit address, 8bit count
+  output.write(bytearray([
+    0,
+    (lookupAddr[zone] & 0x0000FF) >> 0,
+    (lookupAddr[zone] & 0x00FF00) >> 8,
+    (lookupAddr[zone] & 0xFF0000) >> 16,
+    lookupCount[zone]
+    ]))
 
