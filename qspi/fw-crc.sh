@@ -24,6 +24,7 @@ crc32 temp.bin | xxd -r -p >> temp.bin
 rm -f "$out"
 mv temp.bin "$out"
 
+echo "Created $out"
 
 
 # for alternate endianness can use
