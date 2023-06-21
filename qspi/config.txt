@@ -1,0 +1,90 @@
+
+# Matrix refresh rate, in Hz. Min 1000, max 100000
+# This number is only a target, exact frequency will be a division of processor clock speed.
+# Note the display is split into four matrices of 5 digits each. The number given here is the 
+# refresh rate of the display - the clock frequency of the matrix will be five times this number.
+MATRIX_FREQUENCY = 20000
+
+
+# Use this timezone, leave blank to calculate automatically
+# Must be an IANA timezone string, use e.g. Etc/GMT+5 for fixed offsets
+#ZONE_OVERRIDE = America/New_York
+
+
+
+
+## modes 
+
+# ISO8601 standard, YYYY-MM-DD
+MODE_ISO8601_STD=Enabled
+
+# ISO8601 ordinal (day of year)
+MODE_ISO_Ordinal=Enabled
+
+# ISO8601 week (year can be different around new year)
+MODE_ISO_WEEK = disabled
+
+# Unix timestamp mode. The unix timestamp is always UTC.
+MODE_UNIX = Enabled
+
+# Julian Date
+MODE_JULIAN_DATE = disabled
+
+# Modified Julian Date (JD − 2400000.5)
+# Note: the fractional part is approximate, and only updated once per second.
+MODE_MODIFIED_JD = disabled
+
+# Display the UTC offset of the current local time
+MODE_SHOW_OFFSET = enabled
+
+# Attempt to display tz name on the 7-segment display, this is usually fairly illegible
+MODE_SHOW_TZ_NAME = enabled
+
+# Turn off all LEDs. This mode can be useful if you want to reduce power consumption
+# but keep the GPS module fully powered.
+MODE_STANDBY=Enabled
+
+
+MODE_COUNTDOWN = on
+COUNTDOWN_TO = 2023-05-06T23:00:00Z
+
+
+# generic text display, can be used for testing
+MODE_TEXT=off
+TEXT=hello
+
+
+# One of: slowfade, heartbeat, sawtooth, alt_sawtooth, toggle, solid
+colon_mode=heartbeat
+
+
+# Tolerance times, in seconds.
+# When the clock loses its GPS fix, it progressively hides the last digits to represent the widening
+# accuracy tolerance. These settings represent when to hide the last digits.
+# If the TCXO is accurate to 1ppm, it would take 1000 seconds to drift by one millisecond.
+Tolerance_time_1ms   = 1000
+Tolerance_time_10ms  = 10000
+
+# The deciseconds digit is only disabled if the clock has been powered off, and the last RTC calibration
+# was more than this many seconds ago
+Tolerance_time_100ms = 100000
+
+# For paranoia, set the 1ms tolerance to 1, which will disable the last digit as soon as GPS fix is lost.
+# To turn off the tolerance feature, set all tolerances to 0.
+
+
+# nonlinear brightness curve, five stops of input->output, use brightness-curve.htm for a GUI
+#BS1 = 0,0
+#BS2 = 1425,737
+#BS3 = 2566,1601
+#BS4 = 3396,2725
+#BS5 = 4095,4095
+
+# shows input and output values of DAC/ADC
+MODE_DEBUG_BRIGHTNESS = 0
+
+# show remainder of RTC calibration after 63 second period
+MODE_DEBUG_RTC = 0
+
+# list number of GPS/GLONASS satellites (number, not signal strength)
+mode_satview = 1
