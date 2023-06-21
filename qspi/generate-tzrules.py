@@ -18,7 +18,7 @@ zones = collections.OrderedDict()
 lookupAddr = {}
 lookupCount = {}
 
-output = open("tzrules.bin", "wb")
+output = open("output/tzrules.bin", "wb")
 output.write(b'MTZ')       # header
 output.write(b'\x01')      # version number
 output.write(b'\x08')      # row length for fixed data
