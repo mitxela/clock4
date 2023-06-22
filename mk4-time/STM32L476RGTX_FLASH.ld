@@ -46,6 +46,8 @@ MEMORY
 /* 64k = 0x10000 */
 /* 196604 = 192*1024 -4 */
 
+_app_crc = ORIGIN(PAD) + LENGTH(PAD);
+
 /* Sections */
 SECTIONS
 {

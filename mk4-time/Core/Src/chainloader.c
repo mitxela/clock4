@@ -15,10 +15,6 @@ enum {ACK =0, NACK=1};
 #define BYTE_ACK   0x79
 #define BYTE_NACK  0x1F
 
-#define byteswap32(x) \
-   ( ((x & 0xff000000) >> 24) | ((x & 0x00ff0000) >> 8) \
-   | ((x & 0x0000ff00) <<  8) | ((x & 0x000000ff) << 24))
-
 #define ERR_FS_IMG_CRC_INVALID    bSegDecode1
 #define ERR_DATE_DEAD             bSegDecode2
 #define ERR_GET                   bSegDecode3

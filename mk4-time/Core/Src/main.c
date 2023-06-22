@@ -311,6 +311,16 @@ void sendDate( _Bool now ){
       i=1;
     }
     break;
+  case MODE_FIRMWARE_CRC_T:
+  {
+    extern uint32_t _app_crc[];
+    uint32_t fwt = byteswap32(_app_crc[0]);
+    i = sprintf((char*)&uart2_tx_buffer[1], "t %08lx", fwt);
+  }
+    break;
+  case MODE_FIRMWARE_CRC_D:
+    i = sprintf((char*)&uart2_tx_buffer[1], "fwd");
+    break;
   }
   uart2_tx_buffer[++i]= now ? CMD_RELOAD_TEXT : '\n';
   HAL_UART_AbortTransmit(&huart2);
@@ -763,6 +773,9 @@ void parseConfigString(char *key, char *value) {
     set_mode_enabled(MODE_DEBUG_RTC, value);
   } else if (strcasecmp(key, "MODE_TEXT") == 0) {
     set_mode_enabled(MODE_TEXT, value);
+  } else if (strcasecmp(key, "MODE_FIRMWARE_CRC") == 0) {
+    set_mode_enabled(MODE_FIRMWARE_CRC_D, value);
+    set_mode_enabled(MODE_FIRMWARE_CRC_T, value);
   } else if (strcasecmp(key, "Tolerance_time_1ms") == 0) {
     config.tolerance_1ms = atoi(value);
   } else if (strcasecmp(key, "Tolerance_time_10ms") == 0) {

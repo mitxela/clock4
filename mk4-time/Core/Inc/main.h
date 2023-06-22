@@ -141,6 +141,8 @@ enum {
   MODE_DEBUG_BRIGHTNESS,
   MODE_DEBUG_RTC,
   MODE_TEXT,
+  MODE_FIRMWARE_CRC_T,
+  MODE_FIRMWARE_CRC_D,
 
   NUM_DISPLAY_MODES
 };
@@ -170,6 +172,10 @@ enum {
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
+
+#define byteswap32(x) \
+   ( ((x & 0xff000000) >> 24) | ((x & 0x00ff0000) >> 8) \
+   | ((x & 0x0000ff00) <<  8) | ((x & 0x000000ff) << 24))
 
 /* USER CODE END EM */
 
