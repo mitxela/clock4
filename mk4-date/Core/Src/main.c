@@ -25,6 +25,7 @@
 /* USER CODE BEGIN Includes */
 #include <string.h>
 #include <math.h>
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -38,6 +39,10 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
+
+#define byteswap32(x) \
+   ( ((x & 0xff000000) >> 24) | ((x & 0x00ff0000) >> 8) \
+   | ((x & 0x0000ff00) <<  8) | ((x & 0x000000ff) << 24))
 
 /* USER CODE END PM */
 
@@ -247,6 +252,7 @@ const uint8_t lut_7seg_inv[] = {
 #define CMD_RELOAD_TEXT        0x92
 #define CMD_SET_SCROLL_SPEED   0x93
 
+#define CMD_SHOW_CRC           0x9D
 #define CMD_REPORT_CRC         0x9E
 #define CMD_START_BOOTLOADER   0x9F
 
@@ -506,6 +512,7 @@ static inline void parseByte(uint8_t x){
   if (x & 0x80) { // command byte
     status = x;
     switch (x) {
+      case CMD_SHOW_CRC:
       case CMD_LOAD_TEXT:
         text_idx=0;
         dp_pos=0;
@@ -546,12 +553,21 @@ static inline void parseByte(uint8_t x){
       default:
         status=0;
     }
+
+    if (x==CMD_SHOW_CRC) {
+      uint32_t* crc = (uint32_t*)0x8007ffc;
+      sprintf(text, "d %08lx", byteswap32(crc[0]));
+      for (text_idx=0; text_idx<10; text_idx++)
+        setDigitPre(text_idx, text[text_idx]);
+    }
+
     return;
   }
 
   // Process data
   switch(status){
 
+  case CMD_SHOW_CRC:
   case CMD_LOAD_TEXT:
     if (x=='\n' || x==0) {
       waitForLatch();

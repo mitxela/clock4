@@ -125,6 +125,7 @@ extern uint16_t buffer_b[];
 #define CMD_LOAD_TEXT          0x90
 #define CMD_SET_FREQUENCY      0x91
 #define CMD_RELOAD_TEXT        0x92
+#define CMD_SHOW_CRC           0x9D
 
 enum {
   MODE_ISO8601_STD =0,

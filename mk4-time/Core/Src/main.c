@@ -319,7 +319,7 @@ void sendDate( _Bool now ){
   }
     break;
   case MODE_FIRMWARE_CRC_D:
-    i = sprintf((char*)&uart2_tx_buffer[1], "fwd");
+    uart2_tx_buffer[0]=CMD_SHOW_CRC;
     break;
   }
   uart2_tx_buffer[++i]= now ? CMD_RELOAD_TEXT : '\n';
