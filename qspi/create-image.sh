@@ -18,11 +18,11 @@ mkfs.fat -I -S 4096 temp.img
 sudo mount -o loop temp.img img-mnt/
 
 # each file individually is optional, warn but continue
-sudo cp output/config.txt img-mnt/ || true
+sudo cp config.txt img-mnt/ || true
 sudo cp output/tzrules.bin img-mnt/ || true
 sudo cp output/tzmap.bin img-mnt/ || true
 sudo cp output/fwt.bin img-mnt/ || true
 sudo cp output/fwd.bin img-mnt/ || true
 
-mv temp.img clock-qspi.img
-echo "Created clock-qspi.img"
+mv temp.img output/clock-qspi.img
+echo "Created output/clock-qspi.img"
