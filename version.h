@@ -31,5 +31,9 @@ __attribute__((used,section(".pad"))) static const struct {
      __DATE__[5]
   },
   "T" __TIME__ " ",
+#ifdef VERSION_STRING
+  VERSION_STRING
+#else
   "Version 0.0.0 "
+#endif
 };

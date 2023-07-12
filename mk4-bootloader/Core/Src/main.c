@@ -25,6 +25,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#define VERSION_STRING "Version 0.0.1 "
 #include "../../../version.h"
 #include "qspi_drv.h"
 /* USER CODE END Includes */
