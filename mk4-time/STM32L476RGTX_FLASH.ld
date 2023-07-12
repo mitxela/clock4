@@ -43,7 +43,7 @@ MEMORY
   RAM     (xrw)    : ORIGIN = 0x20000188,   LENGTH = 96K - 392
   RAM2    (xrw)    : ORIGIN = 0x10000000,   LENGTH = 32K
   FLASH    (rx)    : ORIGIN = 0x8010000,    LENGTH = 192K - _pad_length
-  PAD      (rx)    : ORIGIN = 0x803ffff-_pad_length, LENGTH = _pad_length
+  PAD      (rx)    : ORIGIN = 0x8040000-_pad_length, LENGTH = _pad_length
 }
 /* bootloader = 64k = 0x10000 */
 
