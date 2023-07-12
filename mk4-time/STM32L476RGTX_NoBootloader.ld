@@ -34,19 +34,18 @@ _estack = ORIGIN(RAM) + LENGTH(RAM);	/* end of "RAM" Ram type memory */
 _Min_Heap_Size = 0x200 ;	/* required amount of heap  */
 _Min_Stack_Size = 0x400 ;	/* required amount of stack */
 
+_pad_length = 64;
+
 /* Memories definition */
 MEMORY
 {
-  VECT   (xrw)    : ORIGIN = 0x20000000,   LENGTH = 392
-  RAM    (xrw)    : ORIGIN = 0x20000188,   LENGTH = 97912
+  VECT    (xrw)    : ORIGIN = 0x20000000,   LENGTH = 392
+  RAM     (xrw)    : ORIGIN = 0x20000188,   LENGTH = 96K - 392
   RAM2    (xrw)    : ORIGIN = 0x10000000,   LENGTH = 32K
-  FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 196604
-  PAD      (rx)    : ORIGIN = 0x803fffb,   LENGTH = 1
+  FLASH    (rx)    : ORIGIN = 0x8000000,    LENGTH = 192K - _pad_length
+  PAD      (rx)    : ORIGIN = 0x803ffff-_pad_length, LENGTH = _pad_length
 }
-/* 64k = 0x10000 */
-/* 196604 = 192*1024 -4 */
-
-_app_crc = ORIGIN(PAD) + LENGTH(PAD);
+/* bootloader = 64k = 0x10000 */
 
 /* Sections */
 SECTIONS
@@ -152,7 +151,9 @@ SECTIONS
 
   .pad :
   {
-    BYTE(0x55);
+    KEEP(*(.pad))
+    . = LENGTH(PAD)-4;
+    _app_crc = .;
   } > PAD
 
   /* Uninitialized data section into "RAM" Ram type memory */
