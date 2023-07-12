@@ -104,6 +104,8 @@ void nextMode(_Bool);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+__attribute__((used,section(".pad"))) static const char buildtime[] = "Build " __DATE__ " " __TIME__;
+
 const uint8_t cLut[]= { cSegDecode0, cSegDecode1, cSegDecode2, cSegDecode3, cSegDecode4, cSegDecode5, cSegDecode6, cSegDecode7, cSegDecode8, cSegDecode9 };
 const uint16_t bLut[]={ bSegDecode0, bSegDecode1, bSegDecode2, bSegDecode3, bSegDecode4, bSegDecode5, bSegDecode6, bSegDecode7, bSegDecode8, bSegDecode9 };
 
