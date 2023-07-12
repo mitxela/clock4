@@ -33,12 +33,14 @@ _estack = ORIGIN(RAM) + LENGTH(RAM);	/* end of "RAM" Ram type memory */
 _Min_Heap_Size = 0x200 ;	/* required amount of heap  */
 _Min_Stack_Size = 0x400 ;	/* required amount of stack */
 
+_pad_length = 64;
+
 /* Memories definition */
 MEMORY
 {
-  RAM    (xrw)    : ORIGIN = 0x20000000,   LENGTH = 8K
-  FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 32768
-  PAD      (rx)    : ORIGIN = 0x8007ffb,   LENGTH = 1
+  RAM    (xrw)   : ORIGIN = 0x20000000,            LENGTH = 8K
+  FLASH   (rx)   : ORIGIN = 0x8000000,             LENGTH = 32K-_pad_length
+  PAD     (rx)   : ORIGIN = 0x8007fff-_pad_length, LENGTH = _pad_length
 }
 
 /* Sections */
@@ -139,7 +141,9 @@ SECTIONS
 
   .pad :
   {
-    BYTE(0x55);
+    KEEP(*(.pad))
+    . = LENGTH(PAD)-4;
+    _app_crc = .;
   } > PAD
 
   /* Uninitialized data section into "RAM" Ram type memory */
