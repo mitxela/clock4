@@ -3,7 +3,7 @@
 mkdir -p img-mnt
 
 function cleanup {
-  sudo umount img-mnt/
+  sudo umount img-mnt/ || true
   rm -rf img-mnt/
 }
 trap cleanup EXIT
