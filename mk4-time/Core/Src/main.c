@@ -542,7 +542,9 @@ void decodeRMC(void){
 
     if (decisec >= 9) {
       currentTime++;
-      // todo: check we're not <2ms away from rollover
+      // check we're not <2ms away from rollover
+      if (centisec==9 && millisec>7) return;
+
       // Under normal conditions, we should only be parsing nmea at around .300 to .400
       // USART1 preemption priority is currently 1, so we could be interrupted by systick here
       setNextTimestamp( currentTime );
