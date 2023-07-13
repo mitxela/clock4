@@ -47,8 +47,8 @@
 
 typedef enum
 {
-  QSPI_STATUS_ERROR = 0,
-  QSPI_STATUS_OK = 1
+  QSPI_STATUS_OK = 0,
+  QSPI_STATUS_ERROR =1
 } QSPI_STATUS;
 
 
