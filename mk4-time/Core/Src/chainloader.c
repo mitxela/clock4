@@ -8,6 +8,7 @@
 #include "chainloader.h"
 #include "fatfs.h"
 #include "usb_device.h"
+#include "qspi_drv.h"
 
 extern UART_HandleTypeDef huart2;
 extern CRC_HandleTypeDef hcrc;
@@ -30,6 +31,7 @@ enum {ACK =0, NACK=1};
 #define TIME_APP_SIZE 192*1024
 
 uint32_t cur_fwd_crc = 0;
+_Bool delayedCheckOnEject = 0;
 
 void hang_error(uint16_t errno){
   //stopAnimation();
@@ -359,6 +361,10 @@ void firmwareCheckOnEject(){
   unsigned int rc;
   FIL file1, file2;
 
+  // if QSPI is locked in this context, we have interrupted another fatfs read
+  // we can't wait for it to finish as it's running at lower priority
+  if (QSPI_Locked()) {delayedCheckOnEject=1; return;}
+
   if (f_open(&file2, "/FWT.BIN", FA_READ) == FR_OK) {
     f_lseek(&file2, TIME_APP_SIZE - 4);
     f_read(&file2, &new_fwt_crc, 4, &rc);
@@ -372,4 +378,5 @@ void firmwareCheckOnEject(){
     if (rc==4 && new_fwd_crc != cur_fwd_crc)
       NVIC_SystemReset();
   }
+  delayedCheckOnEject = 0;
 }

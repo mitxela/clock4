@@ -1818,6 +1818,11 @@ int main(void)
 
       if (!config.zone_override) loadRulesSingle(zone);
       free(zone);
+
+      extern _Bool delayedCheckOnEject;
+      if (delayedCheckOnEject) firmwareCheckOnEject();
+
+
       HAL_Delay(100);
     }
 

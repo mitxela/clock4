@@ -11,6 +11,6 @@
 
 
 uint8_t doDateUpdate(void);
-
+void firmwareCheckOnEject(void);
 
 #endif /* __BOOT_H */
