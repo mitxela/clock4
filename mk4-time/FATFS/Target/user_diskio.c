@@ -136,16 +136,18 @@ DRESULT USER_read (
   uint32_t address =  sector * W25Q128_SECTOR_SIZE;
 
   // USB transactions run at a higher priority, we could be interrupted by a write at any point
-  QSPI_STATUS s;
+  // We could also get interrupted by another fatfs read in the case of the ejection check
+  QSPI_STATUS s = QSPI_STATUS_LOCKED;
+  uint32_t start = uwTick;
 
   do {
-    while (QSPI_Locked()) {}
+    if (QSPI_Locked()) continue;
     s = QSPI_Read(buff, address, size);
 
     if (s == QSPI_STATUS_OK)
       return RES_OK;
 
-  } while (s==QSPI_STATUS_LOCKED);
+  } while (s==QSPI_STATUS_LOCKED && uwTick-start <1000);
 
   return RES_ERROR;
   /* USER CODE END READ */
