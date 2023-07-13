@@ -170,7 +170,7 @@ uint32_t f_crc(FIL* fp)
   hcrc.State = HAL_CRC_STATE_BUSY;
   __HAL_CRC_DR_RESET(&hcrc);
 
-  while ((fp)->fptr < APP_SIZE -READ_BLOCK_SIZE) {
+  while ((fp)->fptr < APP_SIZE -READ_BLOCK_SIZE && !fp->err) {
     f_read(fp, &buf, READ_BLOCK_SIZE, &rc);
     for (int j=0; j<READ_BLOCK_SIZE; j+=4)
       hcrc.Instance->DR = buf[j+3] | (buf[j+2]<<8) | (buf[j+1]<<16) | (buf[j]<<24);
