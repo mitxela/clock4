@@ -1645,7 +1645,7 @@ int main(void)
   MX_TIM1_Init();
   MX_USART2_UART_Init();
   MX_FATFS_Init();
-  MX_USB_DEVICE_Init();
+  //MX_USB_DEVICE_Init();
   MX_USART1_UART_Init();
   MX_TIM2_Init();
   MX_ADC1_Init();
@@ -1673,6 +1673,7 @@ int main(void)
 
 
   doDateUpdate();
+  MX_USB_DEVICE_Init();
 
   // Enable UART2 interrupt for button presses
   USART2->CR1 |= USART_CR1_RXNEIE;

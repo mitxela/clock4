@@ -7,6 +7,7 @@
 #include "main.h"
 #include "chainloader.h"
 #include "fatfs.h"
+#include "usb_device.h"
 
 extern UART_HandleTypeDef huart2;
 extern CRC_HandleTypeDef hcrc;
@@ -46,6 +47,8 @@ void hang_error(uint16_t errno){
   buffer_c[1].low=0b01010000; //r
   buffer_c[2].low=0b01011100; //o
   buffer_c[3].low=0b01010000; //r
+
+  MX_USB_DEVICE_Init();
 
   while(1){}
 }
