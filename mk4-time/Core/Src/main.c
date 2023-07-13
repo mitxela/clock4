@@ -25,7 +25,6 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "../../../version.h"
 #include <stdio.h>
 #include <string.h>
 #include <time.h>

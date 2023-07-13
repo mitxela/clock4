@@ -353,7 +353,7 @@ void firmwareCheckOnEject(){
   uint32_t cur_fwt_crc = _app_crc[0];
 
   uint32_t new_fwd_crc=0, new_fwt_crc=0;
-  uint32_t rc;
+  unsigned int rc;
   FIL file1, file2;
 
   if (f_open(&file2, "/FWT.BIN", FA_READ) == FR_OK) {

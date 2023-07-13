@@ -23,7 +23,6 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "../../../version.h"
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
