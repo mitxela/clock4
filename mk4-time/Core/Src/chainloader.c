@@ -42,7 +42,7 @@ void hang_error(uint16_t errno){
 
   buffer_b[4] = bCat4 | 0b0111100100; //E
 
-  buffer_c[0].high=0b11011110 ;//| cSegDP;
+  buffer_c[0].high=0b11001110; //| cSegDP;
   buffer_c[0].low=0b01010000; //r
   buffer_c[1].low=0b01010000; //r
   buffer_c[2].low=0b01011100; //o
