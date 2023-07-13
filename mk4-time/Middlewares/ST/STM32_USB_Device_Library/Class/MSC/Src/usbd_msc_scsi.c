@@ -29,7 +29,7 @@ EndBSPDependencies */
 #include "usbd_msc.h"
 #include "usbd_msc_data.h"
 
-
+#include "chainloader.h"
 
 /** @addtogroup STM32_USB_DEVICE_LIBRARY
   * @{
@@ -126,6 +126,7 @@ int8_t SCSI_ProcessCmd(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *cmd)
 
   if (pdev->ejected) {
     USBD_Stop(pdev);
+    firmwareCheckOnEject();
     return -1;
   }
 

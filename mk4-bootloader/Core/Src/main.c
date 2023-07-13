@@ -25,7 +25,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#define VERSION_STRING "Version 0.0.1 "
+#define VERSION_STRING "BootVer 0.0.1 "
 #include "../../../version.h"
 #include "qspi_drv.h"
 /* USER CODE END Includes */
@@ -183,7 +183,7 @@ uint32_t f_crc(FIL* fp)
   hcrc.State = HAL_CRC_STATE_READY;
 
   f_read(fp, &buf, 4, &rc);
-  if (result != (buf[3] | (buf[2]<<8) | (buf[1]<<16) | (buf[0]<<24)) )
+  if (fp->err || result != (buf[3] | (buf[2]<<8) | (buf[1]<<16) | (buf[0]<<24)) )
     hang_error(ERR_FS_IMG_CRC_INVALID);
 
   return result;

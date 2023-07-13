@@ -26,6 +26,9 @@ enum {ACK =0, NACK=1};
 #define ERR_GO_FAILED             bSegDecode9
 
 #define DATE_APP_SIZE 32768
+#define TIME_APP_SIZE 192*1024
+
+uint32_t cur_fwd_crc = 0;
 
 void hang_error(uint16_t errno){
   //stopAnimation();
@@ -78,7 +81,7 @@ uint32_t f_crc(FIL* fp)
   hcrc.State = HAL_CRC_STATE_READY;
 
   f_read(fp, &buf, 4, &rc);
-  if (result != (buf[3] | (buf[2]<<8) | (buf[1]<<16) | (buf[0]<<24)) )
+  if (fp->err || result != (buf[3] | (buf[2]<<8) | (buf[1]<<16) | (buf[0]<<24)) )
     hang_error(ERR_FS_IMG_CRC_INVALID);
 
   return result;
@@ -193,8 +196,7 @@ uint8_t doDateUpdate(void) {
     return 1;
   }
 
-  uint32_t cur_fw_crc = 0;
-  uint32_t new_fw_crc = f_crc(&file);
+  uint32_t new_fwd_crc = f_crc(&file);
 
 
   // In the situation where we want to force a recovery, the date chip will have jumped to system memory
@@ -206,7 +208,7 @@ uint8_t doDateUpdate(void) {
 
     uart2_transmit_byte(DATE_CMD_REPORT_CRC);
 
-    if (HAL_UART_Receive(&huart2, (uint8_t*)&cur_fw_crc, 4, 10) == HAL_TIMEOUT) {
+    if (HAL_UART_Receive(&huart2, (uint8_t*)&cur_fwd_crc, 4, 10) == HAL_TIMEOUT) {
       // Date side not responding - attempt to recover if already in bootloader mode
 
       if (huart2.RxXferCount == huart2.RxXferSize) {
@@ -215,17 +217,17 @@ uint8_t doDateUpdate(void) {
         // Send another byte to force a NACK
         uart2_transmit_byte(DATE_CMD_REPORT_CRC);
 
-        if ((HAL_UART_Receive(&huart2, (uint8_t*)&cur_fw_crc, 1, 10) == HAL_TIMEOUT) || (cur_fw_crc!= BYTE_NACK)) {
+        if ((HAL_UART_Receive(&huart2, (uint8_t*)&cur_fwd_crc, 1, 10) == HAL_TIMEOUT) || (cur_fwd_crc!= BYTE_NACK)) {
           hang_error(ERR_DATE_DEAD);
         }
       } else {
         // Anything other than one byte of nack, give up
-        if ((huart2.RxXferCount != huart2.RxXferSize -1) || (cur_fw_crc!= BYTE_NACK))
+        if ((huart2.RxXferCount != huart2.RxXferSize -1) || (cur_fwd_crc!= BYTE_NACK))
           hang_error(ERR_DATE_DEAD);
       }
     } else {
 
-      if (byteswap32(cur_fw_crc) == new_fw_crc) return 0;
+      if (byteswap32(cur_fwd_crc) == new_fwd_crc) return 0;
 
 
       uart2_transmit_byte(DATE_CMD_START_BOOTLOADER);
@@ -342,4 +344,29 @@ uint8_t doDateUpdate(void) {
 
 
   return 0;
+}
+
+void firmwareCheckOnEject(){
+  // device ejected, reboot if new firmware files present
+
+  extern uint32_t _app_crc[];
+  uint32_t cur_fwt_crc = _app_crc[0];
+
+  uint32_t new_fwd_crc=0, new_fwt_crc=0;
+  uint32_t rc;
+  FIL file1, file2;
+
+  if (f_open(&file2, "/FWT.BIN", FA_READ) == FR_OK) {
+    f_lseek(&file2, TIME_APP_SIZE - 4);
+    f_read(&file2, &new_fwt_crc, 4, &rc);
+    if (rc==4 && new_fwt_crc != cur_fwt_crc)
+      NVIC_SystemReset();
+  }
+
+  if (f_open(&file1, "/FWD.BIN", FA_READ) == FR_OK) {
+    f_lseek(&file1, DATE_APP_SIZE - 4);
+    f_read(&file1, &new_fwd_crc, 4, &rc);
+    if (rc==4 && new_fwd_crc != cur_fwd_crc)
+      NVIC_SystemReset();
+  }
 }
