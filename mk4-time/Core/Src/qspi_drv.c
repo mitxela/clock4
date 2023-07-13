@@ -307,6 +307,10 @@ QSPI_STATUS QSPI_Read(uint8_t* pData, uint32_t ReadAddr, uint32_t size)
   if (size==0) return QSPI_STATUS_OK;
 
   locked++;
+  if (locked>1) {
+    locked--;
+    return QSPI_STATUS_LOCKED;
+  }
 
   /* Reading Sequence ------------------------------------------------ */
   sCommand.InstructionMode   = QSPI_INSTRUCTION_1_LINE;

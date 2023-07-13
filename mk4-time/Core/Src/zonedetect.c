@@ -80,11 +80,15 @@ struct ZoneDetectOpaque {
 uint8_t mapCache[MAP_CACHE_SIZE];
 uint32_t mapCacheStart = 0xffffffff, mapCacheEnd = 0;
 
+extern uint32_t qspi_write_time;
+
 uint8_t readMapFile(uint32_t addr){
   unsigned int r;
 
   if (addr>=mapCacheStart && addr<mapCacheEnd)
     return mapCache[ addr-mapCacheStart ];
+
+  while (qspi_write_time) {}
 
   f_lseek( file, addr);
   f_read( file, &mapCache, MAP_CACHE_SIZE, &r);
@@ -99,6 +103,8 @@ uint8_t readMapFileReverse(uint32_t addr){
 
   if (addr>=mapCacheStart && addr<mapCacheEnd)
     return mapCache[ addr-mapCacheStart ];
+
+  while (qspi_write_time) {}
 
   mapCacheStart = addr -MAP_CACHE_SIZE +1;
   mapCacheEnd = addr +1;

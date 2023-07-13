@@ -135,8 +135,17 @@ DRESULT USER_read (
   uint32_t size = count * W25Q128_SECTOR_SIZE;
   uint32_t address =  sector * W25Q128_SECTOR_SIZE;
 
-  if (QSPI_Read(buff, address, size) == QSPI_STATUS_OK)
-    return RES_OK;
+  // USB transactions run at a higher priority, we could be interrupted by a write at any point
+  QSPI_STATUS s;
+
+  do {
+    while (QSPI_Locked()) {}
+    s = QSPI_Read(buff, address, size);
+
+    if (s == QSPI_STATUS_OK)
+      return RES_OK;
+
+  } while (s==QSPI_STATUS_LOCKED);
 
   return RES_ERROR;
   /* USER CODE END READ */
