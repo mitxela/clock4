@@ -169,6 +169,15 @@ enum {
   NMEA_NONE
 };
 
+enum {
+  RULES_OK=0,
+  RULES_STR_ERR,
+  RULES_NO_FILE,
+  RULES_HEADER_ERR,
+  RULES_VERSION_UNKOWN,
+  RULES_CATEGORY_UNKOWN,
+  RULES_ZONE_UNKOWN
+};
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/

@@ -1319,8 +1319,7 @@ uint8_t loadRules( char* cat, char* zo ) {
   FIL file;
 
   if (f_open(&file, RULES_FILENAME, FA_READ) != FR_OK) {
-    //printf("Could not open rules file\n");
-    return 1;
+    return RULES_NO_FILE;
   }
 
   unsigned int rc;
@@ -1329,12 +1328,10 @@ uint8_t loadRules( char* cat, char* zo ) {
   f_read(&file, &buf, 4, &rc);
 
   if(memcmp(&buf, "MTZ", 3)) {
-    //printf("Error reading rules file\n");
-    return 2;
+    return RULES_HEADER_ERR;
   }
   if (buf[3]!=1) {
-    //printf("version unknown\n");
-    return 3;
+    return RULES_VERSION_UNKOWN;
   }
 
   uint8_t rowLength;
@@ -1344,8 +1341,7 @@ uint8_t loadRules( char* cat, char* zo ) {
   f_read(&file, &numCats, 1, &rc);
 
   if (findField( &file, cat, numCats, 3 ) ==0) {
-    //printf("Could not find category\n");
-    return 4;
+    return RULES_CATEGORY_UNKOWN;
   }
   uint16_t catAddr;
   f_read(&file, &catAddr, 2, &rc);
@@ -1353,16 +1349,11 @@ uint8_t loadRules( char* cat, char* zo ) {
   uint8_t numZones;
   f_read(&file, &numZones, 1, &rc);
 
-  //printf("Cat addr %04X, %d\n", catAddr, numZones);
-
   f_lseek(&file, catAddr);
 
   if (findField( &file, zo, numZones, 4 ) ==0) {
-    //printf("Could not find zone\n");
-    return 5;
+    return RULES_ZONE_UNKOWN;
   }
-
-  //printf("found zone %04X\n", f_tell(&file));
 
   uint32_t zoAddr = 0;
   f_read(&file, &zoAddr, 3, &rc);
@@ -1370,7 +1361,6 @@ uint8_t loadRules( char* cat, char* zo ) {
   uint8_t numEntries;
   f_read(&file, &numEntries, 1, &rc);
 
-  //printf("zoAddr 0x%X\n",zoAddr);
   f_lseek(&file, zoAddr);
 
   int i;
@@ -1383,14 +1373,14 @@ uint8_t loadRules( char* cat, char* zo ) {
 
   f_close(&file);
 
-  return 0;
+  return RULES_OK;
 }
 
 // loadRulesSingle modifies the input string, can't be used with const str
 uint8_t loadRulesSingle(char * str){
   char * zo = str;
   while (*zo && *zo != '/') zo++;
-  if (*zo!='/') return -1;
+  if (*zo!='/') return RULES_STR_ERR;
   *zo=0; zo++;
   uint8_t err = loadRules( str, zo );
   if (!err) {
