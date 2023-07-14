@@ -1800,10 +1800,8 @@ int main(void)
 
 
 
-  // todo: reload mapfile each time, and abort zonedetect if USB write happens
-  FIL mapfile;
-  f_open(&mapfile, MAP_FILENAME, FA_READ);
-  ZoneDetect *const cd = ZDOpenDatabase(&mapfile);
+  // todo: abort zonedetect if USB write happens
+
 
 
   /* USER CODE END 2 */
@@ -1813,22 +1811,27 @@ int main(void)
   while (1)
   {
 
-    if (!config.zone_override && cd && data_valid && latitude>=-90.0 && latitude<=90.0 && longitude>=-180.0 && longitude<=180.0) {
+    if (!qspi_write_time && !config.zone_override && data_valid && latitude>=-90.0 && latitude<=90.0 && longitude>=-180.0 && longitude<=180.0) {
 
-      char* zone = ZDHelperSimpleLookupString(cd, latitude, longitude);
+      FIL mapfile;
+      if (f_open(&mapfile, MAP_FILENAME, FA_READ) == FR_OK) {
+        ZoneDetect *const zdb = ZDOpenDatabase(&mapfile);
 
-      //printf("IANA Timezone is [%s]\n", zone);
-      //printf("Took %lu ms\n", (HAL_GetTick()-start));
+        char* zone = ZDHelperSimpleLookupString(zdb, latitude, longitude);
 
-      if (!config.zone_override) loadRulesSingle(zone);
-      free(zone);
+        if (!config.zone_override) loadRulesSingle(zone);
+        free(zone);
+        ZDCloseDatabase(zdb);
+        //f_close(&mapfile);
+      }
+      // else no_map = 1
 
-      extern _Bool delayedCheckOnEject;
-      if (delayedCheckOnEject) firmwareCheckOnEject();
 
+    } else HAL_Delay(50);
 
-      HAL_Delay(100);
-    }
+    extern _Bool delayedCheckOnEject;
+    if (delayedCheckOnEject) firmwareCheckOnEject();
+
 
     /* USER CODE END WHILE */
 
