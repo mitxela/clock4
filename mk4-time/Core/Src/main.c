@@ -1739,6 +1739,8 @@ int main(void)
       zone[31]=0;
 
       if (loadRulesSingle(zone) != 0){ // takes 34ms -O0, 26ms -O2
+        memcpyword( (uint32_t*)loadedRulesString,  (uint32_t*)&(RTC->BKP0R), 8 );
+        loadedRulesString[31]=0;//paranoia
         memcpyword( (uint32_t*)rules, (uint32_t*)&(RTC->BKP8R), 22 );
       }
     }
