@@ -131,7 +131,8 @@ int8_t SCSI_ProcessCmd(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *cmd)
 
     case SCSI_START_STOP_UNIT:
       SCSI_StartStopUnit(pdev, lun, cmd);
-      ejected_state = 1;
+      if (cmd[4] == 2) // [POWER CONDITION=0], LOEJ=1, START=0
+        ejected_state = 1;
       break;
 
     case SCSI_ALLOW_MEDIUM_REMOVAL:
