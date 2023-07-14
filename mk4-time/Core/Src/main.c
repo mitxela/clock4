@@ -1388,12 +1388,16 @@ uint8_t loadRules( char* cat, char* zo ) {
 
 // loadRulesSingle modifies the input string, can't be used with const str
 uint8_t loadRulesSingle(char * str){
-  strcpy( loadedRulesString, str );
-
   char * zo = str;
   while (*zo && *zo != '/') zo++;
+  if (*zo!='/') return -1;
   *zo=0; zo++;
-  return loadRules( str, zo );
+  uint8_t err = loadRules( str, zo );
+  if (!err) {
+    zo--;*zo='/';
+    strcpy( loadedRulesString, str );
+  }
+  return err;
 }
 
 void setPrecision(void){
