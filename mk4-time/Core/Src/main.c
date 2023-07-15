@@ -168,6 +168,8 @@ struct {
   uint32_t tolerance_1ms;
   uint32_t tolerance_10ms;
   uint32_t tolerance_100ms;
+  float fake_long;
+  float fake_lat;
   time_t countdown_to;
   float brightness_override;
   _Bool zone_override;
@@ -507,24 +509,31 @@ void decodeRMC(void){
   nextField() // Navigation receiver warning
   data_valid = (*c=='A'?1:0);
 
+  float tempLatitude=-9999, tempLongitude=-9999;
+
   nextField() // Latitude deg
   if (*c){
-    latitude =  (float)(*c++ -'0')*10.0;
-    latitude += (float)(*c++ -'0');
-    latitude += (float)atof((char*)c) / 60.0;
+    tempLatitude =  (float)(*c++ -'0')*10.0;
+    tempLatitude += (float)(*c++ -'0');
+    tempLatitude += (float)atof((char*)c) / 60.0;
   }
   nextField() // Latitude N/S
-  if (*c =='S') latitude =-latitude;
+  if (*c =='S') tempLatitude =-tempLatitude;
 
   nextField() // Longitude  deg
   if (*c){
-    longitude =  (float)(*c++ -'0')*100.0;
-    longitude += (float)(*c++ -'0')*10.0;
-    longitude += (float)(*c++ -'0');
-    longitude += (float)atof((char*)c) / 60.0;
+    tempLongitude =  (float)(*c++ -'0')*100.0;
+    tempLongitude += (float)(*c++ -'0')*10.0;
+    tempLongitude += (float)(*c++ -'0');
+    tempLongitude += (float)atof((char*)c) / 60.0;
   }
   nextField() // Longitude  E/W
-  if (*c == 'W') longitude =-longitude;
+  if (*c == 'W') tempLongitude =-tempLongitude;
+
+  if (!config.fake_long && !config.fake_lat) {
+    longitude = tempLongitude;
+    latitude = tempLatitude;
+  }
 
   nextField() // Speed over ground, Knots
   nextField() // Course Made Good, True
@@ -793,6 +802,10 @@ void parseConfigString(char *key, char *value) {
     config.tolerance_10ms = atoi(value);
   } else if (strcasecmp(key, "Tolerance_time_100ms") == 0) {
     config.tolerance_100ms = atoi(value);
+  } else if (strcasecmp(key, "fake_longitude") == 0) {
+    config.fake_long = atof(value);
+  } else if (strcasecmp(key, "fake_latitude") == 0) {
+    config.fake_lat = atof(value);
   } else if (strcasecmp(key, "colon_mode") == 0) {
 
     if (strcasecmp(value, "solid") == 0) {
@@ -860,6 +873,11 @@ void postConfigCleanup(void){
   } else if (displayMode == MODE_TEXT) {
     if (decisec!=9 || centisec!=9 || millisec<7)
       sendDate(1);
+  }
+
+  if (config.fake_long && config.fake_lat) {
+    longitude = config.fake_long;
+    latitude = config.fake_lat;
   }
 }
 
