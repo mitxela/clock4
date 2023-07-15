@@ -32,6 +32,11 @@ trap cleanup EXIT
 sudo mkfs.fat -I -S 4096 "$dev"
 sudo mount "$dev" mnt/
 
+# Windows creates a folder with restore point info, just wastes space and causes
+# spurious writes. Suppress it by making a hidden file with the same name
+sudo touch '/mnt/System Volume Information'
+sudo fatattr +h '/mnt/System Volume Information' || echo "fatattr not installed"
+
 # each file individually is optional, warn but continue
 sudo cp config.txt mnt/ || true
 sudo cp output/tzrules.bin mnt/ || true
