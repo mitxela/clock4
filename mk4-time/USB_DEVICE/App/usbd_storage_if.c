@@ -262,10 +262,10 @@ int8_t STORAGE_Write_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t b
   /* USER CODE BEGIN 7 */
   uint32_t address =  blk_addr * W25Q128_SECTOR_SIZE;
 
-  if (QSPI_Locked()) return (USBD_FAIL);
-
   qspi_write_time = uwTick;
   if (!qspi_write_time) qspi_write_time=1;
+
+  if (QSPI_Locked()) return (USBD_FAIL);
 
   for (int i=0; i<blk_len; i++) {
     if (QSPI_Erase_Sector(address) !=QSPI_STATUS_OK)
