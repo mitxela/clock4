@@ -40,6 +40,8 @@ MODE_SHOW_OFFSET = enabled
 # Attempt to display tz name on the 7-segment display, this is usually fairly illegible
 MODE_SHOW_TZ_NAME = enabled
 
+MODE_WEEKDAY = enabled
+
 # Turn off all LEDs. This mode can be useful if you want to reduce power consumption
 # but keep the GPS module fully powered.
 MODE_STANDBY=Enabled

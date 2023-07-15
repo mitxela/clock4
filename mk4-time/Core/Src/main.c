@@ -107,6 +107,8 @@ void nextMode(_Bool);
 const uint8_t cLut[]= { cSegDecode0, cSegDecode1, cSegDecode2, cSegDecode3, cSegDecode4, cSegDecode5, cSegDecode6, cSegDecode7, cSegDecode8, cSegDecode9 };
 const uint16_t bLut[]={ bSegDecode0, bSegDecode1, bSegDecode2, bSegDecode3, bSegDecode4, bSegDecode5, bSegDecode6, bSegDecode7, bSegDecode8, bSegDecode9 };
 
+const char* wday_str[]={"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
+
 buffer_c_t buffer_c[80] = {0};
 
 uint16_t buffer_b[80] = {0};
@@ -126,8 +128,9 @@ uint8_t GPS_sv = 255, GLONASS_sv = 255;
 time_t currentTime;
 bcdStamp_t nextBcd;
 int tm_yday;
+int8_t tm_wday;
 int iso_year;
-int8_t wday;
+int8_t iso_wday;
 uint8_t iso_week;
 uint32_t countdown_days;
 int32_t currentOffset=0;
@@ -218,7 +221,7 @@ void sendDate( _Bool now ){
     i = 5 + sprintf((char*)&uart2_tx_buffer[6], "%d", tm_yday+1);
     break;
   case MODE_ISO_WEEK:
-    i = sprintf((char*)&uart2_tx_buffer[1], "%d-W%d-%d", iso_year, iso_week, wday+1);
+    i = sprintf((char*)&uart2_tx_buffer[1], "%d-W%d-%d", iso_year, iso_week, iso_wday+1);
     break;
   case MODE_UNIX:
     i = sprintf((char*)&uart2_tx_buffer[1], "%010ld", (uint32_t)currentTime);
@@ -283,6 +286,9 @@ void sendDate( _Bool now ){
       i=1;
     }
     break;
+  case MODE_WEEKDAY:
+    i = sprintf((char*)&uart2_tx_buffer[1], "%s", wday_str[tm_wday]);
+    break;
   case MODE_SATVIEW:
     if (GPS_sv==255) {
       i = sprintf((char*)&uart2_tx_buffer[1], "GPS - L-");
@@ -343,10 +349,11 @@ void setNextTimestamp(time_t nextTime){
   struct tm * nextTm = gmtime( &nextTime );
   tmToBcd( nextTm, &nextBcd );
   tm_yday = nextTm->tm_yday;
+  tm_wday = nextTm->tm_wday;
 
   if (displayMode == MODE_ISO_WEEK){
-    wday = (nextTm->tm_wday + 6) % 7;
-    nextTm->tm_mday -= wday -3;
+    iso_wday = (nextTm->tm_wday + 6) % 7;
+    nextTm->tm_mday -= iso_wday -3;
     mktime(nextTm);
     iso_year = nextTm->tm_year + 1900;
     iso_week = nextTm->tm_yday/7 + 1;
@@ -763,6 +770,8 @@ void parseConfigString(char *key, char *value) {
     set_mode_enabled(MODE_SHOW_OFFSET, value);
   } else if (strcasecmp(key, "MODE_SHOW_TZ_NAME") == 0) {
     set_mode_enabled(MODE_SHOW_TZ_NAME, value);
+  } else if (strcasecmp(key, "MODE_WEEKDAY") == 0) {
+    set_mode_enabled(MODE_WEEKDAY, value);
   } else if (strcasecmp(key, "MODE_STANDBY") == 0) {
     set_mode_enabled(MODE_STANDBY, value);
   } else if (strcasecmp(key, "MODE_COUNTDOWN") == 0) {
