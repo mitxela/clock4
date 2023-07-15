@@ -15,7 +15,7 @@ rm -f temp.img
 tr '\0' '\377' < /dev/zero | dd bs=4K of=temp.img count=4096
 
 mkfs.fat -I -S 4096 temp.img
-sudo mount -o loop temp.img img-mnt/
+sudo mount temp.img img-mnt/
 
 # each file individually is optional, warn but continue
 sudo cp config.txt img-mnt/ || true
