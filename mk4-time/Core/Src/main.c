@@ -165,6 +165,8 @@ uint8_t nmea_cdc_level=0;
 int debug_rtc_val = 0;
 
 struct {
+  unsigned short fdate;
+  unsigned short ftime;
   uint32_t tolerance_1ms;
   uint32_t tolerance_10ms;
   uint32_t tolerance_100ms;
@@ -926,6 +928,15 @@ void rxConfigString(char c){
 }
 
 void readConfigFile(void){
+
+  FILINFO fno;
+  if (f_stat(CONFIG_FILENAME, &fno) == FR_OK) {
+    // if unchanged, exit early before touching any config
+    // if the file doesn't exist, fall through and fail on the f_open
+    if (fno.fdate==config.fdate && fno.ftime==config.ftime) return;
+    config.fdate=fno.fdate;
+    config.ftime=fno.ftime;
+  }
 
   config.tolerance_1ms   = 1000;
   config.tolerance_10ms  = 10000;
