@@ -85,6 +85,9 @@ Tolerance_time_100ms = 100000
 # shows input and output values of DAC/ADC
 MODE_DEBUG_BRIGHTNESS = 0
 
+# override auto brightness
+#brightness=0.5
+
 # show remainder of RTC calibration after 63 second period
 MODE_DEBUG_RTC = 0
 
