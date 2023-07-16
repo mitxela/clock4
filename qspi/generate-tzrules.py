@@ -11,6 +11,8 @@ zoneNames = json.load(open('timezone-names.json'))
 # e.g. https://github.com/evansiroky/timezone-boundary-builder/releases/download/2023b/timezone-names.json
 # this includes the Etc/ zones
 
+zoneNames.sort() # input may not be grouped by prefix (e.g. Etc/UTC is on its own)
+
 start = int(calendar.timegm(time.strptime("1 Jan 2020", "%d %b %Y")))
 end = int(calendar.timegm(time.strptime("1 Jan 2100", "%d %b %Y")))
 
