@@ -1369,7 +1369,7 @@ uint8_t loadRules( char* cat, char* zo ) {
     return RULES_HEADER_ERR;
   }
   if (buf[3]!=1) {
-    return RULES_VERSION_UNKOWN;
+    return RULES_VERSION_UNKNOWN;
   }
 
   uint8_t rowLength;
@@ -1379,7 +1379,7 @@ uint8_t loadRules( char* cat, char* zo ) {
   f_read(&file, &numCats, 1, &rc);
 
   if (findField( &file, cat, numCats, 3 ) ==0) {
-    return RULES_CATEGORY_UNKOWN;
+    return RULES_CATEGORY_UNKNOWN;
   }
   uint16_t catAddr;
   f_read(&file, &catAddr, 2, &rc);
@@ -1390,7 +1390,7 @@ uint8_t loadRules( char* cat, char* zo ) {
   f_lseek(&file, catAddr);
 
   if (findField( &file, zo, numZones, 4 ) ==0) {
-    return RULES_ZONE_UNKOWN;
+    return RULES_ZONE_UNKNOWN;
   }
 
   uint32_t zoAddr = 0;

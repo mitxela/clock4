@@ -24,7 +24,7 @@ Natural earth data is used only for the "country" database which isn't used here
 ## tzrules
 The `tzrules.bin` file has a custom binary format parsed by the clock. For each timezone it lists the offsets and transition times up to the year 2100.
 
-We need to match the zones in the shapefile, so the it now uses the `timezone-names.json` file from the timezone-boundary-builder release. However the shapefile updates less frequently than the tzdb, so the versions may not match.
+We need to match the zones in the shapefile, so it now uses the `timezone-names.json` file from the timezone-boundary-builder release. However the shapefile updates less frequently than the tzdb, so the versions may not match.
 
 E.g.
 ```
@@ -43,7 +43,7 @@ There are two separate firmware image files. They are copied to the internal fla
 
 `fwd.bin` is for the "date" side of the clock (STM32L010C6, 32K). This update is performed by the STM32L476, over the serial connection using the system bootloader on the STM32L010.
 
-Both firmware images are unencrypted/unobfuscated, but the last 32bit word of each file is the CRC32 of the contents. For the specific polynomial and endianness see the release script.
+Both firmware images are unencrypted/unobfuscated, but the last 32bit word of each file is the CRC32 of the contents. For the specific polynomial and endianness see the `fw-crc.sh` script.
 
 The update is performed if the CRC of the image in external flash is valid and different to the CRC of the loaded image, so downgrades are easy.
 
