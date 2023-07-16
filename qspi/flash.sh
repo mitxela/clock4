@@ -42,10 +42,10 @@ sudo mount "$dev" mnt/ # auto detects if loop device
 
 # Windows creates a folder with restore point info, just wastes space and causes
 # spurious writes. Suppress it by making a hidden file with the same name
-sudo touch '/mnt/System Volume Information'
+sudo touch 'mnt/System Volume Information'
 
-# mark it hidden (fails on loop device)
-sudo fatattr +h '/mnt/System Volume Information' || echo "fatattr failed"
+# mark it hidden
+sudo fatattr +h 'mnt/System Volume Information' || echo "fatattr failed"
 
 # each file individually is optional, warn but continue
 sudo cp config.txt mnt/ || true
