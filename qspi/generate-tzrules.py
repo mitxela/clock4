@@ -120,7 +120,7 @@ for zone in zoneNames:
     if ut-utm1 != 1:
       raise Exception("Transitions out of sync")
     #print(ut, dst, gmtoff)
- 
+
     # ignore data from the past, but keep the most recent record so we know
     # what rule is relevant throught the start
     # Also, for zones without DST, all of the data will be from before start
