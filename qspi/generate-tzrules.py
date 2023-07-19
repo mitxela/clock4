@@ -102,6 +102,34 @@ def encode_transition(t, gmtoff, dst):
   # store dst flag maybe...
   return b
 
+zdumpOverride={
+  'Etc/UTC'   :0,
+  'Etc/GMT-12':3600*12,
+  'Etc/GMT-11':3600*11,
+  'Etc/GMT-10':3600*10,
+  'Etc/GMT-9' :3600*9,
+  'Etc/GMT-8' :3600*8,
+  'Etc/GMT-7' :3600*7,
+  'Etc/GMT-6' :3600*6,
+  'Etc/GMT-5' :3600*5,
+  'Etc/GMT-4' :3600*4,
+  'Etc/GMT-3' :3600*3,
+  'Etc/GMT-2' :3600*2,
+  'Etc/GMT-1' :3600*1,
+  'Etc/GMT'   :0,
+  'Etc/GMT+1' :3600*-1,
+  'Etc/GMT+2' :3600*-2,
+  'Etc/GMT+3' :3600*-3,
+  'Etc/GMT+4' :3600*-4,
+  'Etc/GMT+5' :3600*-5,
+  'Etc/GMT+6' :3600*-6,
+  'Etc/GMT+7' :3600*-7,
+  'Etc/GMT+8' :3600*-8,
+  'Etc/GMT+9' :3600*-9,
+  'Etc/GMT+10':3600*-10,
+  'Etc/GMT+11':3600*-11,
+  'Etc/GMT+12':3600*-12
+}
 
 for zone in zoneNames:
   #category, name = zone.split('/',1)
@@ -110,9 +138,17 @@ for zone in zoneNames:
   lookupAddr[zone] = output.tell()
   lookupCount[zone] = 0
 
+  if zone in zdumpOverride:
+    lookupCount[zone] +=1
+    output.write(encode_transition(0, zdumpOverride[zone], 0))
+    continue
+
   rows = subprocess.run(
     [ZDUMP, '-V', zone, '-c','2106'], capture_output=True
     ).stdout.decode('utf-8').split('\n')[:-1]
+
+  if len(rows)==0:
+    raise Exception("zdump returned no output")
 
   for i,j in zip(rows[0::2], rows[1::2]):
     _, utm1, _, _      = parse_zdump_row( i )
