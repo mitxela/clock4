@@ -85,6 +85,8 @@ ZD_EXPORT float* ZDPolygonToList(const ZoneDetect *library, uint32_t polygonId, 
 
 ZD_EXPORT char* ZDHelperSimpleLookupString(const ZoneDetect* library, float lat, float lon);
 
+void ZDAbort(void);
+
 #ifdef __cplusplus
 }
 #endif

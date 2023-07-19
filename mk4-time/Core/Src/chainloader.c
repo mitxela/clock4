@@ -31,7 +31,6 @@ enum {ACK =0, NACK=1};
 #define TIME_APP_SIZE 192*1024
 
 uint32_t cur_fwd_crc = 0;
-_Bool delayedCheckOnEject = 0;
 
 void hang_error(uint16_t errno){
   //stopAnimation();

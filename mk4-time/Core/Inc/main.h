@@ -74,6 +74,9 @@ extern buffer_c_t buffer_c[];
 
 extern uint16_t buffer_b[];
 
+extern _Bool delayedReadConfigFile;
+extern _Bool delayedCheckOnEject;
+
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/

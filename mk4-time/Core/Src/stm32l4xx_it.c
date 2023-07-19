@@ -215,12 +215,6 @@ void PendSV_Handler(void)
 
   if (displayMode==MODE_SHOW_OFFSET) {sendDate(1);}
 
-  uint32_t x = qspi_write_time;
-  if (x && uwTick - x > 100) {
-    readConfigFile();
-    if (x == qspi_write_time) qspi_write_time=0;
-  }
-
   GLONASS_sv = 255; GPS_sv = 255;
 
   /* USER CODE END PendSV_IRQn 0 */
@@ -243,9 +237,12 @@ void DMA1_Channel3_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA1_Channel3_IRQn 0 */
 
-  // low priority, 10Hz interrupt
+  // 10Hz interrupt, preemption priority 1, same as USB
   // (DAC DMA still runs with display off)
-  monitor_vbus();
+  if (qspi_write_time && uwTick - qspi_write_time > 100) {
+    delayedReadConfigFile=1;
+    qspi_write_time=0;
+  }
 
   if (DMA1->ISR & DMA_FLAG_HT3) {
 

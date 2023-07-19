@@ -155,7 +155,11 @@ struct {
 #define MAX_RULES (sizeof rules / sizeof rules[0])
 
 char loadedRulesString[32];
+char preloadRulesString[32];
 char textDisplay[32];
+_Bool delayedLoadRules = 0;
+_Bool delayedReadConfigFile = 0;
+_Bool delayedCheckOnEject = 0;
 
 uint32_t LPTIM1_high;
 
@@ -742,11 +746,10 @@ void parseConfigString(char *key, char *value) {
 
   } else if (strcasecmp(key, "zone_override") == 0) {
 
-    if (!value[0]) return;
-    config.zone_override = 1;
-    if (loadRulesSingle(value) !=0) {
-      config.zone_override = 0;
-    }
+    if (!value[0] || delayedLoadRules) return;
+
+    strcpy(preloadRulesString, value);
+    delayedLoadRules=1;
 
   } else if (strcasecmp(key, "brightness") == 0) {
 
@@ -1428,6 +1431,16 @@ uint8_t loadRulesSingle(char * str){
   return err;
 }
 
+void checkDelayedLoadRules(){
+  if (delayedLoadRules) {
+    config.zone_override = 1;
+    if (loadRulesSingle(preloadRulesString) !=RULES_OK) {
+      config.zone_override = 0;
+    }
+  }
+  delayedLoadRules=0;
+}
+
 void setPrecision(void){
   if (countMode == COUNT_NORMAL) {
 
@@ -1762,9 +1775,7 @@ int main(void)
   displayOn();
 
   readConfigFile();
-
-
-
+  checkDelayedLoadRules();
 
   if (RTC->ISR & RTC_ISR_INITS) //RTC contains non-zero data
   {
@@ -1776,7 +1787,7 @@ int main(void)
       memcpyword( (uint32_t*)zone,  (uint32_t*)&(RTC->BKP0R), 8 );
       zone[31]=0;
 
-      if (loadRulesSingle(zone) != 0){ // takes 34ms -O0, 26ms -O2
+      if (loadRulesSingle(zone) != RULES_OK){ // takes 34ms -O0, 26ms -O2
         memcpyword( (uint32_t*)loadedRulesString,  (uint32_t*)&(RTC->BKP0R), 8 );
         loadedRulesString[31]=0;//paranoia
         memcpyword( (uint32_t*)rules, (uint32_t*)&(RTC->BKP8R), 22 );
@@ -1829,11 +1840,6 @@ int main(void)
 
 
 
-
-  // todo: abort zonedetect if USB write happens
-
-
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -1847,21 +1853,34 @@ int main(void)
       if (f_open(&mapfile, MAP_FILENAME, FA_READ) == FR_OK) {
         ZoneDetect *const zdb = ZDOpenDatabase(&mapfile);
 
-        char* zone = ZDHelperSimpleLookupString(zdb, latitude, longitude);
-
-        if (!config.zone_override) loadRulesSingle(zone);
-        free(zone);
-        ZDCloseDatabase(zdb);
-        //f_close(&mapfile);
+        if (!zdb) {
+          // mapfile error
+        } else {
+          char* zone = ZDHelperSimpleLookupString(zdb, latitude, longitude);
+          if (zone && !delayedLoadRules) {
+            loadRulesSingle(zone);
+          }
+          free(zone);
+          ZDCloseDatabase(zdb);
+          //f_close(&mapfile);
+        }
       }
       // else no_map = 1
 
-
     } else HAL_Delay(50);
 
-    extern _Bool delayedCheckOnEject;
     if (delayedCheckOnEject) firmwareCheckOnEject();
 
+    if (delayedReadConfigFile) {
+      readConfigFile();
+      delayedReadConfigFile=0;
+    }
+
+    checkDelayedLoadRules();
+
+    monitor_vbus();
+
+    // qspi_usb_read_time too?
 
     /* USER CODE END WHILE */
 

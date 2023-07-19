@@ -136,6 +136,7 @@ DRESULT USER_read (
   uint32_t address =  sector * W25Q128_SECTOR_SIZE;
 
   // USB transactions run at a higher priority, we could be interrupted by a write at any point
+  // But - USB will always unlock before leaving the interrupt
   QSPI_STATUS s;
 
   do {

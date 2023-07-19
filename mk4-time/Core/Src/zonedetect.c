@@ -82,16 +82,23 @@ uint32_t mapCacheStart = 0xffffffff, mapCacheEnd = 0;
 
 extern uint32_t qspi_write_time;
 
+_Bool zd_abort =0;
+void ZDAbort(){
+  zd_abort=1;
+}
+
 uint8_t readMapFile(uint32_t addr){
   unsigned int r;
 
   if (addr>=mapCacheStart && addr<mapCacheEnd)
     return mapCache[ addr-mapCacheStart ];
 
-  while (qspi_write_time) {}
+  if (qspi_write_time) {zd_abort=1;return 0;}
 
   f_lseek( file, addr);
+  if (file->err) {zd_abort=1;return 0;}
   f_read( file, &mapCache, MAP_CACHE_SIZE, &r);
+  if (file->err) {zd_abort=1;return 0;}
   mapCacheStart = addr;
   mapCacheEnd = addr + MAP_CACHE_SIZE;
 
@@ -104,13 +111,15 @@ uint8_t readMapFileReverse(uint32_t addr){
   if (addr>=mapCacheStart && addr<mapCacheEnd)
     return mapCache[ addr-mapCacheStart ];
 
-  while (qspi_write_time) {}
+  if (qspi_write_time) {zd_abort=1;return 0;}
 
   mapCacheStart = addr -MAP_CACHE_SIZE +1;
   mapCacheEnd = addr +1;
 
   f_lseek( file, mapCacheStart);
+  if (file->err) {zd_abort=1;return 0;}
   f_read( file, &mapCache, MAP_CACHE_SIZE, &r);
+  if (file->err) {zd_abort=1;return 0;}
 
   return mapCache[ addr-mapCacheStart ];
 
@@ -892,6 +901,7 @@ ZoneDetectResult *ZDLookup(const ZoneDetect *library, float lat, float lon, floa
     while(bboxIndex < library->metadataOffset) {
         int32_t minLat, minLon, maxLat, maxLon, metadataIndexDelta;
         uint64_t polygonIndexDelta;
+        if (zd_abort) return NULL;
         if(!ZDDecodeVariableLengthSigned(library, &bboxIndex, &minLat)) break;
         if(!ZDDecodeVariableLengthSigned(library, &bboxIndex, &minLon)) break;
         if(!ZDDecodeVariableLengthSigned(library, &bboxIndex, &maxLat)) break;
@@ -1091,6 +1101,7 @@ int ZDSetErrorHandler(void (*handler)(int, int))
 
 char* ZDHelperSimpleLookupString(const ZoneDetect* library, float lat, float lon)
 {
+    zd_abort = 0;
     ZoneDetectResult *result = ZDLookup(library, lat, lon, NULL);
     if(!result) {
         return NULL;
