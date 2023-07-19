@@ -62,5 +62,5 @@ uint8_t QSPI_Initialized();
 uint8_t QSPI_Locked();
 
 extern uint32_t qspi_write_time;
-
+extern uint32_t qspi_usb_read_time;
 #endif

@@ -81,6 +81,7 @@ uint8_t mapCache[MAP_CACHE_SIZE];
 uint32_t mapCacheStart = 0xffffffff, mapCacheEnd = 0;
 
 extern uint32_t qspi_write_time;
+extern uint32_t qspi_usb_read_time;
 
 _Bool zd_abort =0;
 void ZDAbort(){
@@ -93,7 +94,9 @@ uint8_t readMapFile(uint32_t addr){
   if (addr>=mapCacheStart && addr<mapCacheEnd)
     return mapCache[ addr-mapCacheStart ];
 
-  if (qspi_write_time) {zd_abort=1;return 0;}
+  do {
+    if (qspi_write_time) {zd_abort=1;return 0;}
+  } while (qspi_usb_read_time);
 
   f_lseek( file, addr);
   if (file->err) {zd_abort=1;return 0;}
@@ -111,7 +114,9 @@ uint8_t readMapFileReverse(uint32_t addr){
   if (addr>=mapCacheStart && addr<mapCacheEnd)
     return mapCache[ addr-mapCacheStart ];
 
-  if (qspi_write_time) {zd_abort=1;return 0;}
+  do {
+    if (qspi_write_time) {zd_abort=1;return 0;}
+  } while (qspi_usb_read_time);
 
   mapCacheStart = addr -MAP_CACHE_SIZE +1;
   mapCacheEnd = addr +1;

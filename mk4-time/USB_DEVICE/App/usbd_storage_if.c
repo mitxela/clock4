@@ -243,6 +243,9 @@ int8_t STORAGE_Read_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t bl
   uint32_t size = blk_len * W25Q128_SECTOR_SIZE;
   uint32_t address =  blk_addr * W25Q128_SECTOR_SIZE;
 
+  qspi_usb_read_time = uwTick;
+  if (!qspi_usb_read_time) qspi_usb_read_time=1;
+
   if (QSPI_Locked()) return (USBD_FAIL);
 
   if (QSPI_Read(buf, address, size) == QSPI_STATUS_OK)

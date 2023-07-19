@@ -81,6 +81,7 @@ extern uint8_t decisec, centisec, millisec;
 extern uint8_t displayMode, countMode, nmea_cdc_level;
 
 extern uint32_t qspi_write_time;
+extern uint32_t qspi_usb_read_time;
 
 /* USER CODE END EV */
 
@@ -239,6 +240,9 @@ void DMA1_Channel3_IRQHandler(void)
 
   // 10Hz interrupt, preemption priority 1, same as USB
   // (DAC DMA still runs with display off)
+  if (qspi_usb_read_time && uwTick - qspi_usb_read_time > 10) {
+    qspi_usb_read_time=0;
+  }
   if (qspi_write_time && uwTick - qspi_write_time > 100) {
     delayedReadConfigFile=1;
     qspi_write_time=0;
