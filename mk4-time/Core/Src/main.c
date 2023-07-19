@@ -143,7 +143,7 @@ struct {
 uint8_t decisec=0, centisec=0, millisec=0;
 
 float longitude=-9999, latitude=-9999;
-_Bool data_valid=0, had_pps=0, rtc_good=0;
+_Bool data_valid=0, had_pps=0, rtc_good=0, new_position=1;
 #define rtc_last_write RTC->BKP30R
 #define rtc_last_calibration RTC->BKP31R
 uint32_t last_pps_time = 0;
@@ -539,6 +539,7 @@ void decodeRMC(void){
   if (!config.fake_long && !config.fake_lat) {
     longitude = tempLongitude;
     latitude = tempLatitude;
+    new_position=1;
   }
 
   nextField() // Speed over ground, Knots
@@ -750,6 +751,7 @@ void parseConfigString(char *key, char *value) {
 
     strcpy(preloadRulesString, value);
     delayedLoadRules=1;
+    ZDAbort();
 
   } else if (strcasecmp(key, "brightness") == 0) {
 
@@ -883,6 +885,7 @@ void postConfigCleanup(void){
   if (config.fake_long && config.fake_lat) {
     longitude = config.fake_long;
     latitude = config.fake_lat;
+    new_position =1;
   }
 }
 
@@ -1846,9 +1849,11 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    if (new_position && !qspi_write_time && !config.zone_override
+        && (data_valid || (config.fake_long && config.fake_lat))
+        && latitude>=-90.0 && latitude<=90.0 && longitude>=-180.0 && longitude<=180.0) {
 
-    if (!qspi_write_time && !config.zone_override && data_valid && latitude>=-90.0 && latitude<=90.0 && longitude>=-180.0 && longitude<=180.0) {
-
+      new_position=0;
       FIL mapfile;
       if (f_open(&mapfile, MAP_FILENAME, FA_READ) == FR_OK) {
         ZoneDetect *const zdb = ZDOpenDatabase(&mapfile);
@@ -1866,8 +1871,7 @@ int main(void)
         }
       }
       // else no_map = 1
-
-    } else HAL_Delay(50);
+    }
 
     if (delayedCheckOnEject) firmwareCheckOnEject();
 
