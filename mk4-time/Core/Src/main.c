@@ -1854,13 +1854,20 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    uint32_t start;
     if (new_position && !qspi_write_time && !config.zone_override
         && (data_valid || (config.fake_long && config.fake_lat))
         && latitude>=-90.0 && latitude<=90.0 && longitude>=-180.0 && longitude<=180.0) {
 
       new_position=0;
+      start=uwTick;
       FIL mapfile;
+#define SZ_TBL 4096
+      DWORD clmt[SZ_TBL];
       if (f_open(&mapfile, MAP_FILENAME, FA_READ) == FR_OK) {
+        mapfile.cltbl = clmt;
+        clmt[0]=SZ_TBL;
+        f_lseek(&mapfile, CREATE_LINKMAP);
         ZoneDetect *const zdb = ZDOpenDatabase(&mapfile);
 
         if (!zdb) {
@@ -1868,6 +1875,7 @@ int main(void)
         } else {
           char* zone = ZDHelperSimpleLookupString(zdb, latitude, longitude);
           if (zone && !delayedLoadRules) {
+            sprintf(textDisplay,"o%ld",uwTick-start);
             loadRulesSingle(zone);
           }
           free(zone);
