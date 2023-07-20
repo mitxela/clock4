@@ -182,7 +182,7 @@ struct {
   float fake_lat;
   time_t countdown_to;
   float brightness_override;
-  _Bool zone_override;
+  volatile _Bool zone_override;
   _Bool modes_enabled[NUM_DISPLAY_MODES];
 
 } config = {0};
@@ -1443,6 +1443,7 @@ void checkDelayedLoadRules(){
     config.zone_override = 1;
     if (loadRulesSingle(preloadRulesString) !=RULES_OK) {
       config.zone_override = 0;
+      if (data_valid) new_position=1;
     }
   }
   delayedLoadRules=0;

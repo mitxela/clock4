@@ -83,7 +83,7 @@ uint32_t mapCacheStart = 0xffffffff, mapCacheEnd = 0;
 extern uint32_t qspi_write_time;
 extern uint32_t qspi_usb_read_time;
 
-_Bool zd_abort =0;
+volatile _Bool zd_abort =0;
 void ZDAbort(){
   zd_abort=1;
 }
