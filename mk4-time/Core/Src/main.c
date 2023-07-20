@@ -168,6 +168,8 @@ uint8_t requestMode = 255;
 uint8_t nmea_cdc_level=0;
 int debug_rtc_val = 0;
 
+#define CHECK_CONFIG_MTIME
+
 struct {
 #ifdef CHECK_CONFIG_MTIME
   unsigned short fdate;
