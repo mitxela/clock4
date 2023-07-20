@@ -169,8 +169,10 @@ uint8_t nmea_cdc_level=0;
 int debug_rtc_val = 0;
 
 struct {
+#ifdef CHECK_CONFIG_MTIME
   unsigned short fdate;
   unsigned short ftime;
+#endif
   uint32_t tolerance_1ms;
   uint32_t tolerance_10ms;
   uint32_t tolerance_100ms;
@@ -935,6 +937,7 @@ void rxConfigString(char c){
 
 void readConfigFile(void){
 
+#ifdef CHECK_CONFIG_MTIME
   FILINFO fno;
   if (f_stat(CONFIG_FILENAME, &fno) == FR_OK) {
     // if unchanged, exit early before touching any config
@@ -943,6 +946,7 @@ void readConfigFile(void){
     config.fdate=fno.fdate;
     config.ftime=fno.ftime;
   }
+#endif
 
   config.tolerance_1ms   = 1000;
   config.tolerance_10ms  = 10000;
@@ -993,8 +997,6 @@ void readConfigFile(void){
 
      }
    }
-
-   f_close(&file);
 
    requestMode=255;
    postConfigCleanup();
@@ -1876,6 +1878,7 @@ int main(void)
     if (delayedCheckOnEject) firmwareCheckOnEject();
 
     if (delayedReadConfigFile) {
+      FATFS_remount();
       readConfigFile();
       delayedReadConfigFile=0;
     }

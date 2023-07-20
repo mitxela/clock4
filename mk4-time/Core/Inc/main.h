@@ -208,7 +208,6 @@ void button1pressed(void);
 void button2pressed(void);
 void setPrecision(void);
 void sendDate( _Bool now );
-void readConfigFile(void);
 void generateDACbuffer(uint16_t * buf);
 void PPS(void);
 void PPS_NoUpdate(void);

@@ -53,7 +53,12 @@ DWORD get_fattime(void)
 }
 
 /* USER CODE BEGIN Application */
-     
+
+void FATFS_remount(void)
+{
+  if (f_mount(&USERFatFS, (TCHAR const*)USERPath, 0) != FR_OK)
+    Error_Handler();
+}
 /* USER CODE END Application */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
