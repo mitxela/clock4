@@ -1795,7 +1795,7 @@ int main(void)
       memcpyword( (uint32_t*)zone,  (uint32_t*)&(RTC->BKP0R), 8 );
       zone[31]=0;
 
-      if (loadRulesSingle(zone) != RULES_OK){ // takes 34ms -O0, 26ms -O2
+      if (loadRulesSingle(zone) != RULES_OK){ // takes ~8ms
         memcpyword( (uint32_t*)loadedRulesString,  (uint32_t*)&(RTC->BKP0R), 8 );
         loadedRulesString[31]=0;//paranoia
         memcpyword( (uint32_t*)rules, (uint32_t*)&(RTC->BKP8R), 22 );
@@ -1846,7 +1846,7 @@ int main(void)
   PPS_Init();
   HAL_UART_Receive_DMA(&huart1, nmea, sizeof(nmea));
 
-
+#define MEASURE_LOOKUP_TIME
 
   /* USER CODE END 2 */
 
@@ -1861,14 +1861,26 @@ int main(void)
       new_position=0;
       FIL mapfile;
       if (f_open(&mapfile, MAP_FILENAME, FA_READ) == FR_OK) {
+#ifdef MEASURE_LOOKUP_TIME
+        uint32_t start=uwTick;
+#endif
         ZoneDetect *const zdb = ZDOpenDatabase(&mapfile);
 
         if (!zdb) {
           // mapfile error
         } else {
           char* zone = ZDHelperSimpleLookupString(zdb, latitude, longitude);
+#ifdef MEASURE_LOOKUP_TIME
+          uint32_t ztime=uwTick-start;
+#endif
           if (zone && !delayedLoadRules) {
+#ifdef MEASURE_LOOKUP_TIME
+            start=uwTick;
+#endif
             loadRulesSingle(zone);
+#ifdef MEASURE_LOOKUP_TIME
+            sprintf(textDisplay,"d%ld L%ld",ztime, uwTick-start);
+#endif
           }
           free(zone);
           ZDCloseDatabase(zdb);
@@ -1889,8 +1901,6 @@ int main(void)
     checkDelayedLoadRules();
 
     monitor_vbus();
-
-    // qspi_usb_read_time too?
 
     /* USER CODE END WHILE */
 
