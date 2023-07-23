@@ -161,6 +161,9 @@ _Bool delayedLoadRules = 0;
 _Bool delayedReadConfigFile = 0;
 _Bool delayedCheckOnEject = 0;
 
+_Bool waitingForLatch = 0;
+_Bool resendDate = 0;
+
 uint32_t LPTIM1_high;
 
 uint8_t displayMode = 0, countMode = 0, colonMode = 0;
@@ -206,8 +209,21 @@ void memcpyword(volatile uint32_t *dest, volatile uint32_t *src, size_t n){
   }
 }
 
+// 12 bytes at 115200 8E1 is 1.14ms, 32 bytes would be 3.06ms
 void sendDate( _Bool now ){
+  if (waitingForLatch) {
+    if (countMode==COUNT_HIDDEN) {
+      // if we've entered count_hidden while waiting for latch, it will never happen
+      huart2.Instance->TDR = 0xFE;
+      waitingForLatch=0;
+    } else {
+      resendDate=1;
+      return;
+    }
+  }
+
   uint8_t i = 10;
+  HAL_UART_AbortTransmit(&huart2);
   uart2_tx_buffer[0] = CMD_LOAD_TEXT;
 
   switch (displayMode) {
@@ -340,8 +356,12 @@ void sendDate( _Bool now ){
     uart2_tx_buffer[0]=CMD_SHOW_CRC;
     break;
   }
-  uart2_tx_buffer[++i]= now ? CMD_RELOAD_TEXT : '\n';
-  HAL_UART_AbortTransmit(&huart2);
+  if (now) {
+    uart2_tx_buffer[++i]= CMD_RELOAD_TEXT;
+  } else {
+    uart2_tx_buffer[++i]= '\n';
+    waitingForLatch=1;
+  }
   HAL_UART_Transmit_DMA(&huart2, uart2_tx_buffer, i+1);
 
 }
@@ -1544,8 +1564,8 @@ void nextMode(_Bool reverse){
   if (wasOff && displayMode != MODE_STANDBY) displayOn();
   if ( displayMode == MODE_ISO_WEEK ||
        (wasCountdown && displayMode != MODE_COUNTDOWN)) {
-    // It shouldn't be possible to exit countdown mode at .9 seconds
-    // but if we did, it would show the wrong time for .1 seconds
+    // If we exit countdown mode at .9 seconds
+    // it will show the wrong time for .1 seconds
     setNextTimestamp(currentTime);
   }
 
@@ -1582,27 +1602,13 @@ void nextMode(_Bool reverse){
       latchSegments();
     }
   }
-
+  sendDate(1);
 }
 void button1pressed(void){
-
-  // 12 bytes at 115200 8E1 is 1.14ms
-
   nextMode(0);
-
-  // Normally this routine is only called when it is safe to do so
-  // But if we have just left COUNT_HIDDEN, the button press could have been called at any time, so
-  // avoid transmission if <3ms till rollover.
-  // If we are still in COUNT_HIDDEN, always send.
-  if (countMode == COUNT_HIDDEN || decisec!=9 || centisec!=9 || millisec<7)
-    sendDate(1);
-  // todo: detect this and resend date in pendsv
-
 }
 void button2pressed(void){
   nextMode(1);
-  if (countMode == COUNT_HIDDEN || decisec!=9 || centisec!=9 || millisec<7)
-    sendDate(1);
 }
 
 void generateDACbuffer(uint16_t * buf) {
@@ -1846,7 +1852,7 @@ int main(void)
   PPS_Init();
   HAL_UART_Receive_DMA(&huart1, nmea, sizeof(nmea));
 
-#define MEASURE_LOOKUP_TIME
+//#define MEASURE_LOOKUP_TIME
 
   /* USER CODE END 2 */
 

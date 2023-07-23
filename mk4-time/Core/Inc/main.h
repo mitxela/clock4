@@ -77,6 +77,9 @@ extern uint16_t buffer_b[];
 extern _Bool delayedReadConfigFile;
 extern _Bool delayedCheckOnEject;
 
+extern _Bool waitingForLatch;
+extern _Bool resendDate;
+
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
@@ -229,6 +232,7 @@ void monitor_vbus(void);
 #define loadNextTimestamp() \
   latchSegments() \
   huart2.Instance->TDR = 0xFE; \
+  waitingForLatch=0;\
   triggerPendSV()
 
 extern uint32_t __VECTORS_FLASH[];

@@ -44,7 +44,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-uint8_t delayButtonPress=0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -209,12 +209,9 @@ void PendSV_Handler(void)
 
   //if (buffer_c[3].high & cSegDP) buffer_c[3].high&=~cSegDP; else buffer_c[3].high|=cSegDP;
 
-  if (delayButtonPress & 1) {  delayButtonPress &= ~1; button1pressed(); }
-  if (delayButtonPress & 2) {  delayButtonPress &= ~2; button2pressed(); }
-
   setPrecision();
 
-  if (displayMode==MODE_SHOW_OFFSET) {sendDate(1);}
+  if (resendDate) {sendDate(1); resendDate=0;}
 
   GLONASS_sv = 255; GPS_sv = 255;
 
@@ -385,12 +382,9 @@ void USART2_IRQHandler(void)
 
     uint8_t x = (USART2->RDR &0xFF);
     if (x == 0x91) {
-      // if we're beyond 0.9 seconds the date side will already be waiting for latch
-      if (decisec==9 && countMode!=COUNT_HIDDEN) delayButtonPress |= 1;
-      else button1pressed();
+        button1pressed();
     } else if (x == 0x92) {
-      if (decisec==9 && countMode!=COUNT_HIDDEN) delayButtonPress |= 2;
-      else button2pressed();
+        button2pressed();
     }
     return;
   }
