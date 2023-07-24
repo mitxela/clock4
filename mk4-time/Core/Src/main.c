@@ -160,6 +160,7 @@ char textDisplay[32];
 _Bool delayedLoadRules = 0;
 _Bool delayedReadConfigFile = 0;
 _Bool delayedCheckOnEject = 0;
+uint32_t delayedDisplayFreq = 0;
 
 _Bool waitingForLatch = 0;
 _Bool resendDate = 0;
@@ -639,14 +640,21 @@ void displayOn(void){
 }
 
 void setDisplayFreq(uint32_t freq){
+  if (waitingForLatch) {
+    delayedDisplayFreq = freq;
+    return;
+  }
 
-  if (freq<1000 || freq>100000) return;
+  if (freq<1000 || freq>100000) {delayedDisplayFreq=0; return;}
 
-  uart2_tx_buffer[0]= CMD_SET_FREQUENCY;
-  uart2_tx_buffer[1]= (freq>>14) & 0x7F;
-  uart2_tx_buffer[2]= (freq>>7)  & 0x7F;
-  uart2_tx_buffer[3]= (freq)     & 0x7F;
-  HAL_UART_Transmit(&huart2, uart2_tx_buffer, 4, 2);
+  uint8_t tx_buf[4];
+  tx_buf[0]= CMD_SET_FREQUENCY;
+  tx_buf[1]= (freq>>14) & 0x7F;
+  tx_buf[2]= (freq>>7)  & 0x7F;
+  tx_buf[3]= (freq)     & 0x7F;
+  if (HAL_UART_Transmit(&huart2, tx_buf, 4, 2) == HAL_OK) {
+    delayedDisplayFreq = 0;
+  }
 
   uint32_t arr = round(16000000.0 / (float)freq) -1.0;
 
@@ -762,11 +770,10 @@ void parseConfigString(char *key, char *value) {
 
   if (strcasecmp(key, "text") == 0) {
 
-     strcpy(textDisplay, value);
+    strcpy(textDisplay, value);
 
   } else if (strcasecmp(key, "MATRIX_FREQUENCY") == 0) {
 
-    //todo: check not waiting for latch
     setDisplayFreq(atoi(value));
 
   } else if (strcasecmp(key, "zone_override") == 0) {
@@ -1905,6 +1912,8 @@ int main(void)
     }
 
     checkDelayedLoadRules();
+
+    if (delayedDisplayFreq) setDisplayFreq(delayedDisplayFreq);
 
     monitor_vbus();
 
