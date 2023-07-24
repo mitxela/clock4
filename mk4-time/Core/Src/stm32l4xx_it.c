@@ -205,7 +205,7 @@ void PendSV_Handler(void)
   // Writing to the RTC is normally very fast, but if something goes wrong
   // the HAL functions will fail to time out if it's running with the same
   // preemption priority as systick
-  if (had_pps) write_rtc();
+  if (had_pps && !qspi_write_time && !qspi_usb_read_time) write_rtc();
 
   //if (buffer_c[3].high & cSegDP) buffer_c[3].high&=~cSegDP; else buffer_c[3].high|=cSegDP;
 
