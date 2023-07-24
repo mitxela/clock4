@@ -367,15 +367,21 @@ void firmwareCheckOnEject(){
   if (f_open(&file2, "/FWT.BIN", FA_READ) == FR_OK) {
     f_lseek(&file2, TIME_APP_SIZE - 4);
     f_read(&file2, &new_fwt_crc, 4, &rc);
-    if (rc==4 && new_fwt_crc != cur_fwt_crc)
+    if (rc==4 && new_fwt_crc != cur_fwt_crc) {
+      displayOff();
+      HAL_Delay(5);
       NVIC_SystemReset();
+    }
   }
 
   if (f_open(&file1, "/FWD.BIN", FA_READ) == FR_OK) {
     f_lseek(&file1, DATE_APP_SIZE - 4);
     f_read(&file1, &new_fwd_crc, 4, &rc);
-    if (rc==4 && new_fwd_crc != cur_fwd_crc)
+    if (rc==4 && new_fwd_crc != cur_fwd_crc) {
+      displayOff();
+      HAL_Delay(5);
       NVIC_SystemReset();
+    }
   }
   delayedCheckOnEject = 0;
 }
