@@ -209,6 +209,12 @@ void PendSV_Handler(void)
 
   //if (buffer_c[3].high & cSegDP) buffer_c[3].high&=~cSegDP; else buffer_c[3].high|=cSegDP;
 
+  if (waitingForLatch) {
+    // in the specific case of countdown reaching zero, it will leave the latch hanging
+    sendLatch()
+    waitingForLatch=0;
+  }
+
   setPrecision();
 
   if (resendDate) {sendDate(1); resendDate=0;}

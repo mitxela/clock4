@@ -214,7 +214,7 @@ void sendDate( _Bool now ){
   if (waitingForLatch) {
     if (countMode==COUNT_HIDDEN) {
       // if we've entered count_hidden while waiting for latch, it will never happen
-      huart2.Instance->TDR = 0xFE;
+      sendLatch()
       waitingForLatch=0;
     } else {
       resendDate=1;
@@ -1495,7 +1495,7 @@ void setPrecision(void){
       SetSysTick( &SysTick_CountUp_P0 );
     }
 
-  } else if (countMode == COUNT_DOWN) {
+  } else if (displayMode == MODE_COUNTDOWN) {
 
     if (config.countdown_to >= currentTime) {
       SetPPS( &PPS_Countdown );
@@ -1521,6 +1521,7 @@ void setPrecision(void){
       }
 
     } else {
+      countMode = COUNT_HIDDEN;
       SetSysTick( &SysTick_CountUp_NoUpdate );
       SetPPS( &PPS_NoUpdate );
       buffer_c[0].low=cSegDecode0;
@@ -1570,27 +1571,26 @@ void nextMode(_Bool reverse){
   }
 
   if (displayMode == MODE_SHOW_OFFSET) {
-    if (countMode != COUNT_HIDDEN) {
-      countMode = COUNT_HIDDEN;
-      SetSysTick( &SysTick_CountUp_NoUpdate );
-      SetPPS( &PPS_NoUpdate );
-      colonAnimationStop()
-      TIM2->CCR1 = 0; // specific to show_offset
-      TIM2->CCR2 = 300;
-    }
+    countMode = COUNT_HIDDEN;
+    SetSysTick( &SysTick_CountUp_NoUpdate );
+    SetPPS( &PPS_NoUpdate );
+    colonAnimationStop()
+    TIM2->CCR1 = 0; // specific to show_offset
+    TIM2->CCR2 = 300;
   } else if (displayMode == MODE_COUNTDOWN) {
-    if (countMode != COUNT_DOWN) {
+
+    if (config.countdown_to >= currentTime) {
       countMode = COUNT_DOWN;
-
-      if (config.countdown_to >= currentTime) {
-        setNextCountdown(currentTime);
-      } else countdown_days = 0;
-
-      setPrecision();
-      TIM2->CCR1 = 0;
-      TIM2->CCR2 = 0;
-      latchSegments();
+      setNextCountdown(currentTime);
+    } else {
+      countMode = COUNT_HIDDEN;
+      countdown_days = 0;
     }
+    setPrecision();
+    TIM2->CCR1 = 0;
+    TIM2->CCR2 = 0;
+    latchSegments();
+
   }
   else {
     if (countMode != COUNT_NORMAL) {

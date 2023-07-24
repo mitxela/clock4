@@ -229,9 +229,12 @@ void monitor_vbus(void);
 #define triggerPendSV() \
   SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
 
+#define sendLatch() \
+  huart2.Instance->TDR = 0xFE;
+
 #define loadNextTimestamp() \
   latchSegments() \
-  huart2.Instance->TDR = 0xFE; \
+  sendLatch() \
   waitingForLatch=0;\
   triggerPendSV()
 
