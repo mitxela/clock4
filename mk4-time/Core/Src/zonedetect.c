@@ -80,8 +80,8 @@ struct ZoneDetectOpaque {
 uint8_t mapCache[MAP_CACHE_SIZE];
 uint32_t mapCacheStart = 0xffffffff, mapCacheEnd = 0;
 
-extern uint32_t qspi_write_time;
-extern uint32_t qspi_usb_read_time;
+extern volatile uint32_t qspi_write_time;
+extern volatile uint32_t qspi_usb_read_time;
 
 volatile _Bool zd_abort =0;
 void ZDAbort(){

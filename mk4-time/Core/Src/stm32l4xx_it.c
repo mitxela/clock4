@@ -80,8 +80,8 @@ extern _Bool data_valid, had_pps;
 extern uint8_t decisec, centisec, millisec;
 extern uint8_t displayMode, countMode, nmea_cdc_level;
 
-extern uint32_t qspi_write_time;
-extern uint32_t qspi_usb_read_time;
+extern volatile uint32_t qspi_write_time;
+extern volatile uint32_t qspi_usb_read_time;
 
 /* USER CODE END EV */
 
