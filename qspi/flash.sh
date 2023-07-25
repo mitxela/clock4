@@ -37,6 +37,7 @@ function cleanup {
 trap cleanup EXIT
 
 sudo mkfs.fat -I -S 4096 "$dev"
+sudo fatlabel "$dev" CLOCK
 sudo mount "$dev" mnt/ # auto detects if loop device
 
 
