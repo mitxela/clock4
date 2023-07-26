@@ -114,7 +114,7 @@ static int8_t SCSI_ProcessWrite(USBD_HandleTypeDef *pdev, uint8_t lun);
 */
 int8_t SCSI_ProcessCmd(USBD_HandleTypeDef *pdev, uint8_t lun, uint8_t *cmd)
 {
-  extern uint8_t ejected_state;
+  extern volatile uint8_t ejected_state;
   if (ejected_state==1) ejected_state=2;
   switch (cmd[0])
   {

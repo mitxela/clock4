@@ -124,7 +124,7 @@ void setDisplayPWM(uint32_t bright){
   HAL_DMA_Start(&hdma_tim4_up, (uint32_t)buffer_c, (uint32_t)&GPIOC->ODR, bright);
 }
 
-uint8_t ejected_state = 0;
+volatile uint8_t ejected_state = 0;
 
 void hang_error(uint16_t errno){
   MX_USB_DEVICE_Init();
