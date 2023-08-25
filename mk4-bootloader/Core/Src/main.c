@@ -71,27 +71,6 @@ static void MX_TIM4_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-// Firmware image on file system fails CRC check
-#define ERR_FS_IMG_CRC_INVALID    0b0011111100 // 0
-
-// Loaded firmware image is invalid and no replacement found in file system
-#define ERR_INVALID_NO_FW         0b0000011000 // 1
-
-// Flash page erase failed
-#define ERR_ERASE_FAILED          0b0101101100 // 2
-
-// Data written to flash didn't match data read back
-#define ERR_WRITE_INVALID         0b0100111100 // 3
-
-// Write data to flash returned failure
-#define ERR_WRITE_FAILED          0b0110011000 // 4
-
-//0b0110110100 // 5
-//0b0111110100 // 6
-//0b0000011100 // 7
-//0b0111111100 // 8
-//0b0110111100 // 9
-
 #define byteswap32(x) \
    ( ((x & 0xff000000) >> 24) | ((x & 0x00ff0000) >> 8) \
    | ((x & 0x0000ff00) <<  8) | ((x & 0x000000ff) << 24))
@@ -787,7 +766,7 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
-  while(1){}
+  hang_error(ERR_UNKNOWN);
   /* USER CODE END Error_Handler_Debug */
 }
 

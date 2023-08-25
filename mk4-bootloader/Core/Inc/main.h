@@ -73,6 +73,27 @@ extern "C" {
 #define bCat3 0b1011001000000000
 #define bCat4 0b0111001000000000
 
+// Unable to mount / fatfs failure
+#define ERR_FATFS                 bSegDecode0
+
+// Firmware image on file system fails CRC check
+#define ERR_FS_IMG_CRC_INVALID    bSegDecode1
+
+// Loaded firmware image is invalid and no replacement found in file system
+#define ERR_INVALID_NO_FW         bSegDecode2
+
+// Flash page erase failed
+#define ERR_ERASE_FAILED          bSegDecode3
+
+// Data written to flash didn't match data read back
+#define ERR_WRITE_INVALID         bSegDecode4
+
+// Write data to flash returned failure
+#define ERR_WRITE_FAILED          bSegDecode5
+
+
+#define ERR_UNKNOWN               bSegDecode9
+
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -82,6 +103,7 @@ extern "C" {
 
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
+void hang_error(uint16_t errno);
 
 /* USER CODE BEGIN EFP */
 

@@ -35,7 +35,7 @@ void MX_FATFS_Init(void)
   /* USER CODE BEGIN Init */
 
   if (f_mount(&USERFatFS, (TCHAR const*)USERPath, 0) != FR_OK)
-    Error_Handler();
+    hang_error(ERR_FATFS);
 
   /* USER CODE END Init */
 }
