@@ -34,6 +34,8 @@ void MX_FATFS_Init(void)
 
   /* USER CODE BEGIN Init */
 
+  // This should never fail, as f_mount does not do anything until
+  // the first read (unless forced)
   if (f_mount(&USERFatFS, (TCHAR const*)USERPath, 0) != FR_OK)
     hang_error(ERR_FATFS);
 
