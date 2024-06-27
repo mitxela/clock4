@@ -8,6 +8,7 @@ MATRIX_FREQUENCY = 20000
 
 # Use this timezone, leave blank to calculate automatically
 # Must be an IANA timezone string, use e.g. Etc/GMT+5 for fixed offsets
+# For UTC use Etc/UTC
 #ZONE_OVERRIDE = America/New_York
 
 
@@ -19,13 +20,13 @@ MATRIX_FREQUENCY = 20000
 MODE_ISO8601_STD=Enabled
 
 # ISO8601 ordinal (day of year)
-MODE_ISO_Ordinal=Enabled
+MODE_ISO_Ordinal=disabled
 
 # ISO8601 week (year can be different around new year)
 MODE_ISO_WEEK = disabled
 
 # Unix timestamp mode. The unix timestamp is always UTC.
-MODE_UNIX = Enabled
+MODE_UNIX = Disabled
 
 # Julian Date
 MODE_JULIAN_DATE = disabled
@@ -40,14 +41,14 @@ MODE_SHOW_OFFSET = enabled
 # Attempt to display tz name on the 7-segment display, this is usually fairly illegible
 MODE_SHOW_TZ_NAME = enabled
 
-MODE_WEEKDAY = enabled
+MODE_WEEKDAY = disabled
 
 # Turn off all LEDs. This mode can be useful if you want to reduce power consumption
 # but keep the GPS module fully powered.
-MODE_STANDBY=Enabled
+MODE_STANDBY=disabled
 
 
-MODE_COUNTDOWN = on
+MODE_COUNTDOWN = off
 COUNTDOWN_TO = 2023-05-06T23:00:00Z
 
 
@@ -92,4 +93,4 @@ MODE_DEBUG_BRIGHTNESS = 0
 MODE_DEBUG_RTC = 0
 
 # list number of GPS/GLONASS satellites (number, not signal strength)
-mode_satview = 1
+mode_satview = 0
