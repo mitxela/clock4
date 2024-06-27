@@ -186,7 +186,8 @@ uint32_t app_crc()
   return result;
 }
 
-
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
 void launch_app(){
   HAL_RCC_DeInit();
   HAL_DeInit();
@@ -205,7 +206,7 @@ void launch_app(){
   __set_MSP(_app_start[0]);
   ((void (*)(void)) _app_start[1])();
 }
-
+#pragma GCC pop_options
 
 
 void progressBar(uint32_t addr){
