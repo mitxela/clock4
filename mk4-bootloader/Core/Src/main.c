@@ -383,7 +383,7 @@ int main(void)
   __HAL_TIM_ENABLE(&htim4);
 
   _Bool new_fw_present;
-  uint32_t new_fw_crc;
+  uint32_t new_fw_crc =0;
 
   // Calculate CRC of loaded image
   uint32_t loaded_fw_crc = app_crc();
