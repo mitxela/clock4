@@ -145,7 +145,11 @@ SECTIONS
     
   } >RAM AT> FLASH
 
-  .pad : { KEEP(*(.pad)) } > PAD
+  .pad :
+  {
+    KEEP(*(.pad))
+    . = LENGTH(PAD);
+  } > PAD
 
   /* Uninitialized data section into "RAM" Ram type memory */
   . = ALIGN(4);
