@@ -26,19 +26,19 @@ c1y= h/2+deltaV/2;
 c2y= h/2-deltaV/2;
 
 //latch size, depth and margin
-ls=4.5;
-ld=0.4;
-lmv=0.2;
+ls=5.5;
+ld=0.6;
+lmv=0.15;
 lmh=0.6;
 
 module latchMale(){
     translate([w/2-ls/2,-ld,d/2-ls/2])cube([ls,ld,ls]);
 }
 module latchFemale(){
-    difference(){
-        translate([0,-ld,0])cube([w,ld,d]);
-        translate([w/2-ls/2-lmh,-ld*2,d/2-ls/2-lmv])cube([ls+lmh*2,ld*3,ls+lmv*2]);
-    }
+    //difference(){
+    //    translate([0,-ld,0])cube([w,ld,d]);
+        translate([w/2-ls/2-lmh,-ld*2,d/2-ls/2-lmv])cube([ls+lmh*2,ld*2,ls+lmv*2]);
+    //}
 }
 
 
@@ -60,7 +60,7 @@ module colon(){
 }
 
 module switchcover(){
-    h=34.4;
+    h=34.6;
     difference(){
         union(){
             difference() {
@@ -69,14 +69,16 @@ module switchcover(){
             }
             tab();
             translate([w,h,0])rotate([0,0,180]) tab();
+            latchMale();
         }
         translate([w/2,h/2-4.5,-1])cylinder(11,d=3.5);
         translate([w/2,h/2+4.5,-1])cylinder(11,d=3.5);
-        magnet();
+        translate([0,-ld,0])magnet();
+        translate([w/2-2,0.3,6])rotate([-20,0,0])cube([4,3,4]);
     }
-    magnetHolder();
+    translate([0,-ld,0])magnetHolder();
     
-    latchMale();
+    //latchMale();
     //latchFemale();
 }
 
@@ -87,7 +89,7 @@ module magnet(){
 module magnetHolder(){
     cutaway=0;
     difference(){
-        translate([w/2-3,0,d/2-4])cube([6,4.5-cutaway,4.5]);
+        translate([w/2-3,1,d/2-4.5])cube([6,3.5-cutaway,5]);
         magnet();
     }
     translate([w/2-3,4,5.75])rotate([-20,0,0])cube([6,0.5,2]);
@@ -96,7 +98,7 @@ module magnetHolder(){
 }
 ldr_pad=0.07;
 module ldr(){
-    h=34.4;
+    h=34.6;
     difference(){
         union(){
             difference() {
@@ -118,10 +120,12 @@ module ldr(){
             translate([-5,-4.0/2-ldr_pad,0])cube([10,4.0+ldr_pad*2,ldr_height+1]);
         }
         translate([w-1,1.5+3.58,d-2])cube([1,8,2]);
-        magnet();
+        translate([0,ld,0])magnet();
+        //translate([w/2-2,0.9+ld,6])rotate([-20,0,0])cube([4,3,4]);
+        translate([0,ld,0])latchFemale();
     }
     magnetHolder();
-    latchFemale();
+
 }
 
 module tab(){
@@ -142,17 +146,21 @@ module ldrFitTest() {
         translate([1,12,0]) cube([10-cutaway*5,10,5]);
     }
 }
+
+
 /*
 intersection(){
+    //ldr();
     switchcover();
-    translate([0,-2,0])cube([12,9,14]);
+
+    translate([0,-2,0])cube([w/2,40,20]);
 }
 //*/
 
 //ldrFitTest();
 
-ldr();
-//switchcover();
+//ldr();
+switchcover();
 //colon();
 
 //translate([-40,0,0]) colon();
