@@ -12,7 +12,7 @@ tabwidth=5;
 tabheight=2.9;
 
 led_height=3;
-led_dia=3.1;
+led_dia=3.15;
 
 ldr_height=1.9;
 
