@@ -41,6 +41,13 @@ module latchFemale(){
     //}
 }
 
+module sideCutout(){
+    sc_r = 7;
+    sc_i = 12;
+    translate([-1,sc_i,11])rotate([0,90,0])cylinder(h=w+2,r=sc_r);
+    translate([-1,h-sc_i,11])rotate([0,90,0])cylinder(h=w+2,r=sc_r);
+    translate([-1,sc_i,11])rotate([0,90,0])cube([sc_r,h-sc_i*2,w+2]);
+}
 
 module colon(){
     difference(){
@@ -48,6 +55,8 @@ module colon(){
             difference() {
                 cube([w,h,d]);
                 translate([t_side,t_top,t_front])cube([w-t_side*2,h-t_top*2,d]);
+
+                sideCutout();
             }
             translate([c1x,c1y,0])cylinder(led_height,d=5);
             translate([c2x,c2y,0])cylinder(led_height,d=5);
@@ -160,8 +169,8 @@ intersection(){
 //ldrFitTest();
 
 //ldr();
-switchcover();
-//colon();
+//switchcover();
+colon();
 
 //translate([-40,0,0]) colon();
 //translate([-20,0,0]) colon();
