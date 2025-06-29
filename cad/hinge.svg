@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -10 150 100" fill="none" stroke="#000" stroke-width="0.2">
+
+<!-- White 5mm Delrin -->
+<g>
+<rect x="45" y="39" width="3" height="5"/>
+<circle cx="50" cy="24.72" r="1.5"/>
+<circle cx="50" cy="36" r="1.5"/>
+<circle cx="50" cy="47.28" r="1.5"/>
+<polyline points="50,18.72 56,18.72 56,53.28 44,53.28 44,24.72"/>
+<path d="M44,24.72 A6 6 0 0 1 50,18.72"/>
+</g>
+
+<g>
+<rect x="32" y="39" width="3" height="5"/>
+<circle cx="30" cy="24.72" r="1.5"/>
+<circle cx="30" cy="36" r="1.5"/>
+<circle cx="30" cy="47.28" r="1.5"/>
+<polyline points="30,18.72 24,18.72 24,53.28 36,53.28 36,24.72"/>
+<path d="M30,18.72 A6 6 0 0 1 36,24.72"/>
+</g>
+
+<!-- Black 6mm Delrin -->
+<g>
+<circle cx="42" cy="5" r="1.5"/>
+<circle cx="30" cy="5" r="1.5"/>
+<path d="M30,11 L42,11 A6 6 0 0 0 42,-1 L30,-1 A6 6 0 0 0 30,11"/>
+</g>
+
+<g>
+<circle cx="10" cy="47.28" r="1.5"/>
+<circle cx="10" cy="36" r="1.5"/>
+<polyline points="16,53.28 4,53.28 4,31 16,31 16,53.28"/>
+</g>
+
+<!-- White 3mm Delrin -->
+<g>
+<circle cx="72" cy="5" r="1.3"/>
+<circle cx="60" cy="5" r="1.3"/>
+<path d="M60,11 L72,11 A6 6 0 0 0 72,-1 L 60,-1 A6 6 0 0 0 60,11"/>
+</g>
+
+
+<!-- Acetate film -->
+<g>
+<circle cx="122" cy="25" r="1.45"/>
+<circle cx="110" cy="25" r="1.45"/>
+<circle cx="122" cy="38" r="1.45"/>
+<circle cx="110" cy="38" r="1.45"/>
+<path d="M110,42 L 122,42
+A4 4 0 0 0 122,34
+L 121.5,34
+A2.5 2.5 0 0 1 121.5,29
+L 122,29
+A4 4 0 0 0 122,21
+L110,21
+A4 4 0 0 0 110,29
+L110.5,29
+A2.5 2.5 0 0 1 110.5,34
+L110,34
+A4 4 0 0 0 110,42
+"/>
+</g>
+
+</svg>
+
