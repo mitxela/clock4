@@ -12,6 +12,7 @@ ctx = canvas.getContext('2d')
 w = canvas.width; h = canvas.height;
 gw = w-50; gh = h-50
 gx=25; gy=25
+b={x:0,y:0}
 
 curve = [
  [0, 0],
@@ -35,6 +36,8 @@ function circle(x,y) {
 }
   ctx.font = '18px Courier, monospace';
 function draw(wb){
+  b=canvas.getBoundingClientRect()
+
   ctx.clearRect(0,0,w,h)
   ctx.fillStyle='rgba(1,1,1,0.05)'
   ctx.fillRect(gx,gy,gw,gh)
@@ -90,15 +93,15 @@ function clamp(x,y,i){
 
 canvas.onmousedown=function(e){
   e.preventDefault()
-  let x = (e.layerX-gx)/gw;
-  let y = 1-(e.layerY-gy)/gh;
+  let x = (e.pageX-gx-b.x)/gw;
+  let y = 1-(e.pageY-gy-b.y)/gh;
 
   let i = nearestPoint(x,y)
 
   curve[i] = clamp(x,y,i)
   document.onmousemove=function(e){
-    let x = (e.layerX-gx)/gw;
-    let y = 1-(e.layerY-gy)/gh;
+    let x = (e.pageX-gx-b.x)/gw;
+    let y = 1-(e.pageY-gy-b.y)/gh;
     curve[i] = clamp(x,y,i)
     draw()
   }
@@ -108,6 +111,34 @@ canvas.onmousedown=function(e){
   }
   draw()
 }
+
+
+touch={};
+canvas.addEventListener("touchstart",function(e){
+  if (e.touches.length>1) return;
+  for (let t of e.changedTouches) {
+    let x = (t.pageX-gx-b.x)/gw
+    let y = 1-(t.pageY-gy-b.y)/gh
+
+    let i = nearestPoint(x,y)
+    curve[i] = clamp(x,y,i)
+    touch = {id:t.identifier,i}
+  }
+  e.preventDefault();
+  draw()
+},true);
+canvas.addEventListener("touchmove",function(e){
+  for (let t of e.changedTouches) {
+    if (touch.id == t.identifier) {
+      let x = (t.pageX-gx-b.x)/gw
+      let y = 1-(t.pageY-gy-b.y)/gh
+
+      curve[touch.i] = clamp(x,y,touch.i)
+    }
+  }
+  draw()
+},true);
+
 
 function parse(){
   var lines = pre.value.split("\n");
