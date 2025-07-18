@@ -3,9 +3,11 @@
 <canvas width=800 height=600 style='position:relative;'></canvas>
 <br>
 <textarea style="width:300px;height:100px" oninput='parse()'></textarea>
+<span style='position:absolute;pointer-events:none;font-family:monospace;'></span>
 
 <script>
 pre = document.querySelector('textarea')
+span = document.querySelector('span')
 canvas = document.querySelector('canvas')
 ctx = canvas.getContext('2d')
 
@@ -91,10 +93,25 @@ function clamp(x,y,i){
   return [Math.min(maxx,Math.max(minx,x)),Math.min(1,Math.max(0,y))]
 }
 
+function highlight(e){
+  let x = (e.pageX-gx-b.x)/gw;
+  let y = 1-(e.pageY-gy-b.y)/gh;
+  if (x<0.0 || x>1.0 || y<0.0 || y>1.0) {
+    span.textContent="";
+  } else {
+    let out = single(x)
+    span.textContent=Math.round(x*4095)+","+Math.round(out*4095);
+    span.style.left=e.pageX+"px"
+    span.style.top=((1-out)*gh+gy+b.y)+"px"
+  }
+}
+document.onmousemove=highlight
+
 canvas.onmousedown=function(e){
   e.preventDefault()
   let x = (e.pageX-gx-b.x)/gw;
   let y = 1-(e.pageY-gy-b.y)/gh;
+  span.textContent="";
 
   let i = nearestPoint(x,y)
 
@@ -106,7 +123,7 @@ canvas.onmousedown=function(e){
     draw()
   }
   document.onmouseup=function(e){
-    document.onmousemove=null
+    document.onmousemove=highlight
     document.onmouseup=null
   }
   draw()
@@ -150,33 +167,21 @@ function parse(){
   draw(1)
 }
 
-draw()
-
-
-
-
 
 function single(inp){
-
-
-  inp /=4095.0
   let i;
   for (i=1; i< curve.length-1; i++){
     if (curve[i][0] > inp) break;
   }
   let factor = (inp - curve[i-1][0]) / (curve[i][0] - curve[i-1][0]);
-
   let out = curve[i-1][1]*(1.0-factor) + curve[i][1]*factor;
 
   if (out>1.0 || isNaN(out)) out=1.0;
   else if (out<0.0) out=0.0;
 
-  console.log(Math.round(out*4095,2))
-
+  return out
 }
 
-
-[1500,1550,1430,3560,3470,2920,2050,2015,1980,900,580,350,450,230].forEach(single)
-
+draw()
 
 </script>
