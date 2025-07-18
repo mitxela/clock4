@@ -151,4 +151,32 @@ function parse(){
 }
 
 draw()
+
+
+
+
+
+function single(inp){
+
+
+  inp /=4095.0
+  let i;
+  for (i=1; i< curve.length-1; i++){
+    if (curve[i][0] > inp) break;
+  }
+  let factor = (inp - curve[i-1][0]) / (curve[i][0] - curve[i-1][0]);
+
+  let out = curve[i-1][1]*(1.0-factor) + curve[i][1]*factor;
+
+  if (out>1.0 || isNaN(out)) out=1.0;
+  else if (out<0.0) out=0.0;
+
+  console.log(Math.round(out*4095,2))
+
+}
+
+
+[1500,1550,1430,3560,3470,2920,2050,2015,1980,900,580,350,450,230].forEach(single)
+
+
 </script>
