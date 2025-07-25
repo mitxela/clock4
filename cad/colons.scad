@@ -1,6 +1,6 @@
 $fn=100;
 
-h=34.4;//34.1;
+h=34.2;//34.1;
 w=12.0;
 d=10.5;
 
@@ -137,6 +137,31 @@ module ldr(){
 
 }
 
+module vtt9812fh(){
+    h=34.6;
+    difference(){
+        union(){
+            difference() {
+                cube([w,h,d]);
+                translate([t_side,t_top,t_front])cube([w-t_side*2,h-t_top*2,d]);
+            }
+            tab();
+            translate([w,h,0])rotate([0,0,180]) tab();
+
+            translate([w/2,h/2,0]) cylinder(d=7,h=2.8);
+        }
+        translate([w/2,h/2,-1]) intersection(){
+            cylinder(d=5,h=5);
+
+        }
+        translate([w-1,1.5+3.58,d-2])cube([1,8,2]);
+        translate([0,ld,0])magnet();
+        translate([0,ld,0])latchFemale();
+    }
+    magnetHolder();
+
+}
+
 module tab(){
     difference(){
         translate([w/2-tabwidth/2,0,d]) {
@@ -170,10 +195,11 @@ intersection(){
 
 //ldr();
 //switchcover();
-colon();
+//colon();
+//vtt9812fh();
 
-//translate([-40,0,0]) colon();
-//translate([-20,0,0]) colon();
-//translate([0,0,0]) switchcover();
-//translate([20,0,0]) ldr();
+translate([-30,0,0]) colon();
+translate([-15,0,0]) colon();
+translate([0,0,0]) switchcover();
+translate([15,0,0]) vtt9812fh();//ldr();
 
