@@ -17,7 +17,7 @@ To run the builder install shapelib (and I had to add `#include <cstdint>`)
 
 Rename `out/timezone21.bin` to `tzmap.bin`
 
-The `out_v1/` format is smaller but takes longer to parse on the clock, so use the 11MB version.
+The `out_v1/` format is smaller but takes longer to parse on the clock, so use the `out/` version.
 
 Natural earth data is used only for the "country" database which isn't used here. All data comes from https://github.com/evansiroky/timezone-boundary-builder
 
@@ -28,7 +28,7 @@ We need to match the zones in the shapefile, so it now uses the `timezone-names.
 
 E.g.
 ```
-curl -L https://github.com/evansiroky/timezone-boundary-builder/releases/download/2023b/timezone-names.json | jq '.' > timezone-names.json
+curl -L https://github.com/evansiroky/timezone-boundary-builder/releases/download/2025b/timezone-names.json | jq '.' > timezone-names.json
 ```
 
 The `generate-tzrules.py` file uses these names and the installed timezone database on the system it's running. Query the tzdata package to see the version (`pacman -Q tzdata` or `apt show tzdata`)
@@ -48,4 +48,4 @@ Both firmware images are unencrypted/unobfuscated, but the last 32bit word of ea
 The update is performed if the CRC of the image in external flash is valid and different to the CRC of the loaded image, so downgrades are easy.
 
 ## loop device to create disk image
-`create-image.sh` will create a correctly formatted 16MB disk image of the QSPI contents using a loop device. The resulting image can be written using `dd` or some other disk image utility, which may be more convenient on other platforms.
+`./flash.sh loop` will create a correctly formatted 16MB disk image of the QSPI contents using a loop device. The resulting image can be written using `dd` or some other disk image utility, which may be more convenient on other platforms.
