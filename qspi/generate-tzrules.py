@@ -8,8 +8,10 @@ ZDUMP="/usr/bin/zdump"
 # except for pacman -Q tzdata or whatever
 
 zoneNames = json.load(open('timezone-names.json'))
-# e.g. https://github.com/evansiroky/timezone-boundary-builder/releases/download/2023b/timezone-names.json
-# this includes the Etc/ zones
+# Collect all timezones from the timezone-boundary-builder release:
+# wget https://github.com/evansiroky/timezone-boundary-builder/releases/download/2025b/timezones-with-oceans-now.geojson.zip
+# unzip timezones-with-oceans-now.geojson.zip
+# grep -o 'tzid":"[^"]*' combined-with-oceans-now.json | sort | uniq | cut -d\" -f3
 
 zoneNames.sort() # input may not be grouped by prefix (e.g. Etc/UTC is on its own)
 
