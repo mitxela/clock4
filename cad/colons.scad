@@ -1,6 +1,9 @@
 $fn=100;
 
-h=34.2;//34.1;
+revD = true; // set false to generate Rev C parts
+
+
+h=revD ? 34.2 : 34.4;
 w=12.0;
 d=10.5;
 
@@ -201,5 +204,9 @@ intersection(){
 translate([-30,0,0]) colon();
 translate([-15,0,0]) colon();
 translate([0,0,0]) switchcover();
-translate([15,0,0]) vtt9812fh();//ldr();
+if (revD) {
+    translate([15,0,0]) vtt9812fh();
+} else {
+    translate([15,0,0]) ldr();
+}
 
