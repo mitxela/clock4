@@ -120,6 +120,7 @@ uint8_t uart2_tx_buffer[32];
 volatile uint16_t buffer_adc[ADC_BUFFER_SIZE] = {0};
 uint16_t buffer_dac[DAC_BUFFER_SIZE] = {[0 ... DAC_BUFFER_SIZE-1] = 4095};
 float dac_target=4095;
+float vbat = 0.0;
 
 uint16_t buffer_colons_L[200] = {0};
 uint16_t buffer_colons_R[200] = {0};
@@ -364,6 +365,9 @@ void sendDate( _Bool now ){
       uart2_tx_buffer[1]='-';
       i=1;
     }
+    break;
+  case MODE_VBAT:
+    i = sprintf((char*)&uart2_tx_buffer[1], "bat %.4f", vbat);
     break;
   case MODE_FIRMWARE_CRC_T:
   {
@@ -885,6 +889,8 @@ void parseConfigString(char *key, char *value) {
     set_mode_enabled(MODE_DEBUG_RTC, value);
   } else if (strcasecmp(key, "MODE_TEXT") == 0) {
     set_mode_enabled(MODE_TEXT, value);
+  } else if (strcasecmp(key, "MODE_VBAT") == 0) {
+    set_mode_enabled(MODE_VBAT, value);
   } else if (strcasecmp(key, "MODE_FIRMWARE_CRC") == 0) {
     set_mode_enabled(MODE_FIRMWARE_CRC_D, value);
     set_mode_enabled(MODE_FIRMWARE_CRC_T, value);
@@ -1421,7 +1427,15 @@ void monitor_vbus(void){
   vbus_state = vbus;
 }
 
-
+void measure_vbat(void){
+  ADC123_COMMON->CCR |= ADC_CCR_VBATEN;
+  HAL_Delay(5);
+  HAL_ADC_Start(&hadc3);
+  HAL_ADC_PollForConversion(&hadc3, 10);
+  uint16_t adc = HAL_ADC_GetValue(&hadc3);
+  ADC123_COMMON->CCR &= ~ADC_CCR_VBATEN;
+  vbat = (float)adc *0.0024102564102564104;//3*3.29/4095.0;
+}
 
 uint8_t f_getzcmp(FIL* fp, char * str){
   unsigned int rc;
@@ -1971,14 +1985,9 @@ int main(void)
 
     monitor_vbus();
 
-    ADC123_COMMON->CCR |= ADC_CCR_VBATEN;
-    HAL_Delay(5);
-    HAL_ADC_Start(&hadc3);
-    HAL_ADC_PollForConversion(&hadc3, 10);
-    uint16_t vbat = HAL_ADC_GetValue(&hadc3) *3;
-    ADC123_COMMON->CCR &= ~ADC_CCR_VBATEN;
-    float vbatf = (float)vbat *0.0008034188034188035;//3.29/4095.0;
-    sprintf(textDisplay,"bat %.4f",vbatf);
+    if (displayMode == MODE_VBAT)
+      measure_vbat();
+
 
     /* USER CODE END WHILE */
 
@@ -2139,14 +2148,12 @@ static void MX_ADC3_Init(void)
 
   /* USER CODE BEGIN ADC3_Init 1 */
 
-  LL_ADC_StartCalibration(ADC3, LL_ADC_SINGLE_ENDED);
-  while (LL_ADC_IsCalibrationOnGoing(ADC3) != 0);
 
   /* USER CODE END ADC3_Init 1 */
   /** Common config
   */
   hadc3.Instance = ADC3;
-  hadc3.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+  hadc3.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV2;
   hadc3.Init.Resolution = ADC_RESOLUTION_12B;
   hadc3.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc3.Init.ScanConvMode = ADC_SCAN_DISABLE;
@@ -2166,11 +2173,14 @@ static void MX_ADC3_Init(void)
   {
     Error_Handler();
   }
+
+  HAL_ADCEx_Calibration_Start(&hadc3, ADC_SINGLE_ENDED);
+
   /** Configure Regular Channel
   */
   sConfig.Channel = ADC_CHANNEL_VBAT;
   sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_92CYCLES_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_640CYCLES_5;
   sConfig.SingleDiff = ADC_SINGLE_ENDED;
   sConfig.OffsetNumber = ADC_OFFSET_NONE;
   sConfig.Offset = 0;
