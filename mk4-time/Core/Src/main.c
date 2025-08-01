@@ -123,7 +123,7 @@ uint16_t buffer_colons_L[200] = {0};
 uint16_t buffer_colons_R[200] = {0};
 
 uint8_t nmea[NMEA_BUF_SIZE];
-uint8_t GPS_sv = 255, GLONASS_sv = 255;
+uint8_t GPS_sv = 255, GLONASS_sv = 255, satview_stale = 0;
 
 time_t currentTime;
 bcdStamp_t nextBcd;
@@ -605,6 +605,7 @@ void decodeGSV(void){
   uint8_t sv = (nmea[11]-'0')*10 + (nmea[12]-'0');
   if (nmea[2] == 'P') {
       GPS_sv = sv;
+      satview_stale = 0;
   } else if (nmea[2] == 'L') {
       GLONASS_sv = sv;
   }
