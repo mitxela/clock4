@@ -615,9 +615,20 @@ void decodeRMC(void){
 }
 
 void decodeGSV(uint8_t rec){
-  uint8_t sv = (nmea[11]-'0')*10 + (nmea[12]-'0');
+  unsigned int sv = (nmea[11]-'0')*10 + (nmea[12]-'0');
   uint8_t constellation = nmea[2];
-  uint8_t signal_id = nmea[rec-6];
+  uint8_t signal_id;
+
+  // signal ID is not always present in GSV (on M8Q)
+
+  unsigned int num_fields = 0, r=0;
+  while (++r<rec) if (nmea[r]==',') num_fields++;
+
+  if (num_fields % 4 != 0) {
+    signal_id = '0';
+  } else {
+    signal_id = nmea[rec-6];
+  }
 
   if (constellation == 'P') {
       if (signal_id == '0') {
