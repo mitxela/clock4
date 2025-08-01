@@ -323,20 +323,24 @@ void sendDate( _Bool now ){
     if (satview[SV_GPS_L1]==255 && satview[SV_GPS_UNKNOWN]==255) {
       i = sprintf((char*)&uart2_tx_buffer[1], "GPS -");
     } else {
-      uint8_t GPS_sv = 0, GLONASS_sv = 0, GALILEO_sv = 0;
+      uint8_t GPS_sv = 0, GLONASS_sv = 0, GALILEO_sv = 0, BEIDOU_sv = 0;
       if (satview[SV_GPS_L1]!=255) GPS_sv += satview[SV_GPS_L1];
       if (satview[SV_GPS_UNKNOWN]!=255) GPS_sv += satview[SV_GPS_UNKNOWN];
       if (satview[SV_GLONASS_L1]!=255) GLONASS_sv += satview[SV_GLONASS_L1];
       if (satview[SV_GLONASS_UNKNOWN]!=255) GLONASS_sv += satview[SV_GLONASS_UNKNOWN];
       if (satview[SV_GALILEO_E1]!=255) GALILEO_sv += satview[SV_GALILEO_E1];
       if (satview[SV_GALILEO_UNKNOWN]!=255) GALILEO_sv += satview[SV_GALILEO_UNKNOWN];
+      if (satview[SV_BEIDOU_B1]!=255) BEIDOU_sv += satview[SV_BEIDOU_B1];
+      if (satview[SV_BEIDOU_UNKNOWN]!=255)  BEIDOU_sv += satview[SV_BEIDOU_UNKNOWN];
 
-      if (GLONASS_sv>0) {
-        i = sprintf((char*)&uart2_tx_buffer[1], "GPS %d. L%d", GPS_sv, GLONASS_sv);
-      } else if (GALILEO_sv>0){
-        i = sprintf((char*)&uart2_tx_buffer[1], "GPS %d. A%d", GPS_sv, GALILEO_sv);
+      if (GLONASS_sv>0 && GLONASS_sv>=GALILEO_sv && GLONASS_sv>=BEIDOU_sv) {
+        i = sprintf((char*)&uart2_tx_buffer[1], "GPS %d L%d", GPS_sv, GLONASS_sv);
+      } else if (GALILEO_sv>0 && GALILEO_sv>=GLONASS_sv && GALILEO_sv>=BEIDOU_sv){
+        i = sprintf((char*)&uart2_tx_buffer[1], "GPS %d A%d", GPS_sv, GALILEO_sv);
+      } else if (BEIDOU_sv>0 && BEIDOU_sv>=GLONASS_sv && BEIDOU_sv>=GALILEO_sv){
+        i = sprintf((char*)&uart2_tx_buffer[1], "GPS %d b%d", GPS_sv, BEIDOU_sv);
       } else {
-        i = sprintf((char*)&uart2_tx_buffer[1], "GPS %d. -", GPS_sv);
+        i = sprintf((char*)&uart2_tx_buffer[1], "GPS %d -", GPS_sv);
       }
     }
     break;
@@ -648,6 +652,12 @@ void decodeGSV(uint8_t rec){
       satview[SV_GALILEO_UNKNOWN] = sv;
     } else {
       satview[SV_GALILEO_E1] = sv;
+    }
+  } else if (constellation == 'B') {
+    if (signal_id == '0') {
+      satview[SV_BEIDOU_UNKNOWN] = sv;
+    } else {
+      satview[SV_BEIDOU_B1] = sv;
     }
   }
 }

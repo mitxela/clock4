@@ -227,7 +227,8 @@ void PendSV_Handler(void)
     satview[SV_GLONASS_UNKNOWN]=255;
     satview[SV_GALILEO_E1]=255;
     satview[SV_GALILEO_UNKNOWN]=255;
-    //satview[SV_BEIDOU_B1]=255;
+    satview[SV_BEIDOU_B1]=255;
+    satview[SV_BEIDOU_UNKNOWN]=255;
   } else satview_stale++;
 
   /* USER CODE END PendSV_IRQn 0 */
