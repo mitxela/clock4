@@ -50,6 +50,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
+ADC_HandleTypeDef hadc3;
 
 CRC_HandleTypeDef hcrc;
 
@@ -96,6 +97,7 @@ static void MX_TIM7_Init(void);
 static void MX_CRC_Init(void);
 static void MX_LPTIM1_Init(void);
 static void MX_TIM5_Init(void);
+static void MX_ADC3_Init(void);
 /* USER CODE BEGIN PFP */
 void tmToBcd(struct tm *in, bcdStamp_t *out );
 uint8_t loadRulesSingle(char * str);
@@ -1805,7 +1807,7 @@ int main(void)
   USART1->CR1 |= USART_CR1_UE;
 
 
-
+  MX_ADC3_Init();
 
   // Configure ADC and DAC DMA for display brightness
   HAL_ADC_Start(&hadc1);
@@ -1969,6 +1971,15 @@ int main(void)
 
     monitor_vbus();
 
+    ADC123_COMMON->CCR |= ADC_CCR_VBATEN;
+    HAL_Delay(5);
+    HAL_ADC_Start(&hadc3);
+    HAL_ADC_PollForConversion(&hadc3, 10);
+    uint16_t vbat = HAL_ADC_GetValue(&hadc3) *3;
+    ADC123_COMMON->CCR &= ~ADC_CCR_VBATEN;
+    float vbatf = (float)vbat *0.0008034188034188035;//3.29/4095.0;
+    sprintf(textDisplay,"bat %.4f",vbatf);
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -2109,6 +2120,67 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 2 */
 
   /* USER CODE END ADC1_Init 2 */
+
+}
+
+/**
+  * @brief ADC3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC3_Init(void)
+{
+
+  /* USER CODE BEGIN ADC3_Init 0 */
+
+  /* USER CODE END ADC3_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC3_Init 1 */
+
+  LL_ADC_StartCalibration(ADC3, LL_ADC_SINGLE_ENDED);
+  while (LL_ADC_IsCalibrationOnGoing(ADC3) != 0);
+
+  /* USER CODE END ADC3_Init 1 */
+  /** Common config
+  */
+  hadc3.Instance = ADC3;
+  hadc3.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+  hadc3.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc3.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc3.Init.ScanConvMode = ADC_SCAN_DISABLE;
+  hadc3.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  hadc3.Init.LowPowerAutoWait = DISABLE;
+  hadc3.Init.ContinuousConvMode = DISABLE;
+  hadc3.Init.NbrOfConversion = 1;
+  hadc3.Init.DiscontinuousConvMode = DISABLE;
+  hadc3.Init.NbrOfDiscConversion = 1;
+  hadc3.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc3.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc3.Init.DMAContinuousRequests = DISABLE;
+  hadc3.Init.Overrun = ADC_OVR_DATA_PRESERVED;
+  hadc3.Init.OversamplingMode = DISABLE;
+
+  if (HAL_ADC_Init(&hadc3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_VBAT;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_92CYCLES_5;
+  sConfig.SingleDiff = ADC_SINGLE_ENDED;
+  sConfig.OffsetNumber = ADC_OFFSET_NONE;
+  sConfig.Offset = 0;
+  if (HAL_ADC_ConfigChannel(&hadc3, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC3_Init 2 */
+  ADC123_COMMON->CCR &= ~ADC_CCR_VBATEN;
+  /* USER CODE END ADC3_Init 2 */
 
 }
 
