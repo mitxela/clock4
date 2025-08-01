@@ -69,7 +69,8 @@ extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 /* USER CODE BEGIN EV */
 extern uint8_t nmea[90];
-extern uint8_t GPS_sv, GLONASS_sv, satview_stale;
+extern uint8_t satview[SV_COUNT];
+extern uint8_t satview_stale;
 extern uint16_t buffer_adc[ADC_BUFFER_SIZE];
 extern uint16_t buffer_dac[DAC_BUFFER_SIZE];
 extern DAC_HandleTypeDef hdac1;
@@ -219,9 +220,14 @@ void PendSV_Handler(void)
 
   if (resendDate) {sendDate(1); resendDate=0;}
 
-  if (satview_stale>2){
-    GLONASS_sv = 255;
-    GPS_sv = 255;
+  if (satview_stale>3){
+    satview[SV_GPS_L1]=255;
+    satview[SV_GPS_UNKNOWN]=255;
+    satview[SV_GLONASS_L1]=255;
+    satview[SV_GLONASS_UNKNOWN]=255;
+    satview[SV_GALILEO_E1]=255;
+    satview[SV_GALILEO_UNKNOWN]=255;
+    //satview[SV_BEIDOU_B1]=255;
   } else satview_stale++;
 
   /* USER CODE END PendSV_IRQn 0 */
@@ -363,7 +369,7 @@ void USART1_IRQHandler(void)
    && nmea[3]=='G'
    && nmea[4]=='S'
    && nmea[5]=='V')
-    decodeGSV();
+    decodeGSV(rec);
 
 
   HAL_UART_AbortReceive(&huart1);

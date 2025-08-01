@@ -185,6 +185,17 @@ enum {
   RULES_CATEGORY_UNKNOWN,
   RULES_ZONE_UNKNOWN
 };
+
+enum {
+  SV_GPS_L1=0,
+  SV_GPS_UNKNOWN,
+  SV_GLONASS_L1,
+  SV_GLONASS_UNKNOWN,
+  SV_GALILEO_E1,
+  SV_GALILEO_UNKNOWN,
+  //SV_BEIDOU_B1,
+  SV_COUNT
+};
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -203,7 +214,7 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 void decodeRMC(void);
-void decodeGSV(void);
+void decodeGSV(uint8_t rec);
 void setDisplayPWM(uint32_t bright);
 void write_rtc(void);
 void displayOff(void);

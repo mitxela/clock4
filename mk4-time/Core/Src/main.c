@@ -123,7 +123,8 @@ uint16_t buffer_colons_L[200] = {0};
 uint16_t buffer_colons_R[200] = {0};
 
 uint8_t nmea[NMEA_BUF_SIZE];
-uint8_t GPS_sv = 255, GLONASS_sv = 255, satview_stale = 0;
+uint8_t satview[SV_COUNT];
+uint8_t satview_stale = 0;
 
 time_t currentTime;
 bcdStamp_t nextBcd;
@@ -319,12 +320,24 @@ void sendDate( _Bool now ){
     i = sprintf((char*)&uart2_tx_buffer[1], "%s", wday_str[tm_wday]);
     break;
   case MODE_SATVIEW:
-    if (GPS_sv==255) {
-      i = sprintf((char*)&uart2_tx_buffer[1], "GPS - L-");
-    } else if (GLONASS_sv==255) {
-      i = sprintf((char*)&uart2_tx_buffer[1], "GPS %d. L-", GPS_sv);
+    if (satview[SV_GPS_L1]==255 && satview[SV_GPS_UNKNOWN]==255) {
+      i = sprintf((char*)&uart2_tx_buffer[1], "GPS -");
     } else {
-      i = sprintf((char*)&uart2_tx_buffer[1], "GPS %d. L%d", GPS_sv, GLONASS_sv);
+      uint8_t GPS_sv = 0, GLONASS_sv = 0, GALILEO_sv = 0;
+      if (satview[SV_GPS_L1]!=255) GPS_sv += satview[SV_GPS_L1];
+      if (satview[SV_GPS_UNKNOWN]!=255) GPS_sv += satview[SV_GPS_UNKNOWN];
+      if (satview[SV_GLONASS_L1]!=255) GLONASS_sv += satview[SV_GLONASS_L1];
+      if (satview[SV_GLONASS_UNKNOWN]!=255) GLONASS_sv += satview[SV_GLONASS_UNKNOWN];
+      if (satview[SV_GALILEO_E1]!=255) GALILEO_sv += satview[SV_GALILEO_E1];
+      if (satview[SV_GALILEO_UNKNOWN]!=255) GALILEO_sv += satview[SV_GALILEO_UNKNOWN];
+
+      if (GLONASS_sv>0) {
+        i = sprintf((char*)&uart2_tx_buffer[1], "GPS %d. L%d", GPS_sv, GLONASS_sv);
+      } else if (GALILEO_sv>0){
+        i = sprintf((char*)&uart2_tx_buffer[1], "GPS %d. A%d", GPS_sv, GALILEO_sv);
+      } else {
+        i = sprintf((char*)&uart2_tx_buffer[1], "GPS %d. -", GPS_sv);
+      }
     }
     break;
   case MODE_STANDBY:
@@ -601,13 +614,30 @@ void decodeRMC(void){
 
 }
 
-void decodeGSV(void){
+void decodeGSV(uint8_t rec){
   uint8_t sv = (nmea[11]-'0')*10 + (nmea[12]-'0');
-  if (nmea[2] == 'P') {
-      GPS_sv = sv;
+  uint8_t constellation = nmea[2];
+  uint8_t signal_id = nmea[rec-6];
+
+  if (constellation == 'P') {
+      if (signal_id == '0') {
+        satview[SV_GPS_UNKNOWN] = sv;
+      } else {
+        satview[SV_GPS_L1] = sv;
+      }
       satview_stale = 0;
-  } else if (nmea[2] == 'L') {
-      GLONASS_sv = sv;
+  } else if (constellation == 'L') {
+    if (signal_id == '0') {
+      satview[SV_GLONASS_UNKNOWN] = sv;
+    } else {
+      satview[SV_GLONASS_L1] = sv;
+    }
+  } else if (constellation == 'A') {
+    if (signal_id == '0') {
+      satview[SV_GALILEO_UNKNOWN] = sv;
+    } else {
+      satview[SV_GALILEO_E1] = sv;
+    }
   }
 }
 
