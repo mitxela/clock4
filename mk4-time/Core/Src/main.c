@@ -367,7 +367,11 @@ void sendDate( _Bool now ){
     }
     break;
   case MODE_VBAT:
-    i = sprintf((char*)&uart2_tx_buffer[1], "bat %.4f", vbat);
+    if (vbat == 0.0) {
+      i = sprintf((char*)&uart2_tx_buffer[1], "bat -");
+    } else {
+      i = sprintf((char*)&uart2_tx_buffer[1], "bat %.4f", vbat);
+    }
     break;
   case MODE_FIRMWARE_CRC_T:
   {
@@ -1866,6 +1870,8 @@ int main(void)
   readConfigFile();
   checkDelayedLoadRules();
 
+  measure_vbat();
+
   if (RTC->ISR & RTC_ISR_INITS) //RTC contains non-zero data
   {
     RTC_DateTypeDef sdate;
@@ -1913,7 +1919,17 @@ int main(void)
     setNextTimestamp( currentTime );
     sendDate(1);
     latchSegments();
-    rtc_good=1;
+
+    // As the coin cell goes flat, the RTC stops ticking long before the backup registers die.
+    // Powering on with a flat battery means the clock thinks no time has passed, and assumes it has good precision.
+    // Explicitly stop this by checking the battery voltage.
+    if (vbat > 2.70) {
+      rtc_good=1;
+    } else {
+      // trash the calibration time to ensure lowest precision display
+      if (currentTime - rtc_last_calibration < config.tolerance_100ms)
+        rtc_last_calibration -= config.tolerance_100ms +1;
+    }
 
   } else { // backup domain reset
 
@@ -1922,6 +1938,8 @@ int main(void)
     // The init process blanks the subsecond registers
     MX_RTC_Init();
   }
+
+  vbat = 0.0; // don't allow measurement to go stale
 
   setPrecision();
   PPS_Init();
