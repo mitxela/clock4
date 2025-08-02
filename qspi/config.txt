@@ -92,5 +92,8 @@ MODE_DEBUG_BRIGHTNESS = 0
 # show remainder of RTC calibration after 63 second period
 MODE_DEBUG_RTC = 0
 
-# list number of GPS/GLONASS satellites (number, not signal strength)
+# list number of satellites in view (number, not signal strength)
 mode_satview = 0
+
+# show coin cell voltage
+mode_vbat = 0
