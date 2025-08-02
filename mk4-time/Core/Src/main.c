@@ -1619,10 +1619,10 @@ void setPrecision(void){
   }
 }
 
+#define justExited(x) ((oldMode==x) && (displayMode != x))
 void nextMode(_Bool reverse){
 
-  _Bool wasOff = (displayMode==MODE_STANDBY);
-  _Bool wasCountdown = (displayMode==MODE_COUNTDOWN);
+  uint8_t oldMode = displayMode;
 
   if (requestMode!=255){
     if (!config.modes_enabled[requestMode]) {
@@ -1641,9 +1641,9 @@ void nextMode(_Bool reverse){
     } while (!config.modes_enabled[displayMode]);
   }
 
-  if (wasOff && displayMode != MODE_STANDBY) displayOn();
-  if ( displayMode == MODE_ISO_WEEK ||
-       (wasCountdown && displayMode != MODE_COUNTDOWN)) {
+  if (justExited(MODE_VBAT)) vbat = 0.0;
+  if (justExited(MODE_STANDBY)) displayOn();
+  if ( displayMode == MODE_ISO_WEEK || justExited(MODE_COUNTDOWN)) {
     // If we exit countdown mode at .9 seconds
     // it will show the wrong time for .1 seconds
     setNextTimestamp(currentTime);
