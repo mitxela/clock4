@@ -66,6 +66,7 @@ extern "C" {
 #define bSegDecode7 0b0000011100
 #define bSegDecode8 0b0111111100
 #define bSegDecode9 0b0110111100
+#define bSegDecodeU 0b0011111000
 
 #define bCat0 0b1111000000000000
 #define bCat1 0b1110001000000000
@@ -93,6 +94,9 @@ extern "C" {
 
 
 #define ERR_UNKNOWN               bSegDecode9
+
+// User request bootloader hang for backup USB stack
+#define ERR_USER                  bSegDecodeU
 
 /* USER CODE END EC */
 

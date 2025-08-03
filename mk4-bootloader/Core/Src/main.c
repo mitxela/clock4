@@ -402,6 +402,11 @@ int main(void)
 // debug force reload
 // new_fw_crc=0;
 
+  // Hinge TX connection shorted to ground - force bootloader to hang
+  if ((GPIOA->IDR & (1<<2))==0) {
+    hang_error(ERR_USER);
+  }
+
 
   if (loaded_fw_crc == byteswap32(*(uint32_t*)(FLASH_BASE + BOOT_SIZE + APP_SIZE -4)) ) { // loaded firmware valid
 
@@ -715,6 +720,15 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /**USART2 GPIO Configuration
+  PA2     ------> USART2_TX
+  PA3     ------> USART2_RX
+  */
+  GPIO_InitStruct.Pin = GPIO_PIN_2;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pin Output Level */
