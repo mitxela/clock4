@@ -77,11 +77,12 @@ Tolerance_time_100ms = 100000
 
 
 # nonlinear brightness curve, five stops of input->output, use brightness-curve.htm for a GUI
-#BS1 = 0,0
-#BS2 = 1425,737
-#BS3 = 2566,1601
-#BS4 = 3396,2725
-#BS5 = 4095,4095
+# VTT9812FH with R11 = 470K
+BS1 = 0,0
+BS2 = 131,365
+BS3 = 1076,1422
+BS4 = 2774,2665
+BS5 = 3849,4095
 
 # shows input and output values of DAC/ADC
 MODE_DEBUG_BRIGHTNESS = 0
