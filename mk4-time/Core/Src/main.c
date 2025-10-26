@@ -1603,6 +1603,7 @@ void setPrecision(void){
       countMode = COUNT_HIDDEN;
       SetSysTick( &SysTick_CountUp_NoUpdate );
       SetPPS( &PPS_NoUpdate );
+      buffer_c[0].high= 0b11001110 | cSegDP;
       buffer_c[0].low=cSegDecode0;
       buffer_c[1].low=cSegDecode0;
       buffer_c[2].low=cSegDecode0;
