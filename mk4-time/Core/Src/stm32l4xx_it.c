@@ -218,7 +218,7 @@ void PendSV_Handler(void)
 
   setPrecision();
 
-  if (resendDate) {sendDate(1); resendDate=0;}
+  if (resendDate || countMode == COUNT_HIDDEN) {sendDate(1); resendDate=0;}
 
   if (satview_stale>3){
     satview[SV_GPS_L1]=255;
