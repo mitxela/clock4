@@ -373,6 +373,62 @@ void sendDate( _Bool now ){
       i = sprintf((char*)&uart2_tx_buffer[1], "bat %.4f", vbat);
     }
     break;
+  case MODE_DISPLAYTEST:
+    int nn = currentTime%10;
+
+    TIM2->CCR1 = 0;
+    TIM2->CCR2 = 0;
+    buffer_c[0].high &= ~cSegDP;
+    buffer_c[1].high &= ~cSegDP;
+    buffer_c[2].high &= ~cSegDP;
+    buffer_c[3].high &= ~cSegDP;
+
+    if ((currentTime%20)<10) {
+      uart2_tx_buffer[1] =
+      uart2_tx_buffer[2] =
+      uart2_tx_buffer[3] =
+      uart2_tx_buffer[4] =
+      uart2_tx_buffer[5] =
+      uart2_tx_buffer[6] =
+      uart2_tx_buffer[7] =
+      uart2_tx_buffer[8] =
+      uart2_tx_buffer[9] =
+      uart2_tx_buffer[10]= '0'+ nn;
+
+      buffer_b[0]=bCat0 | bLut[ nn ];
+      buffer_b[1]=bCat1 | bLut[ nn ];
+      buffer_b[2]=bCat2 | bLut[ nn ];
+      buffer_b[3]=bCat3 | bLut[ nn ];
+      buffer_b[4]=bCat4 | bLut[ nn ];
+
+      buffer_c[0].low= cLut[ nn ];
+      buffer_c[1].low=cLut[ nn ];
+      buffer_c[2].low=cLut[ nn ];
+      buffer_c[3].low=cLut[ nn ];
+
+      if ((currentTime%2) ==0) {
+        TIM2->CCR2 = 300;
+      } else {
+        TIM2->CCR1 = 300;
+      }
+    } else {
+
+      buffer_b[0]=bCat0 | (nn==0?bLut[8]:0);
+      buffer_b[1]=bCat1 | (nn==1?bLut[8]:0);
+      buffer_b[2]=bCat2 | (nn==2?bLut[8]:0);
+      buffer_b[3]=bCat3 | (nn==3?bLut[8]:0);
+      buffer_b[4]=bCat4 | (nn==4?bLut[8]:0);
+      buffer_c[0].low=(nn==5?cLut[8]:0);
+      buffer_c[1].low=(nn==6?cLut[8]:0);
+      buffer_c[2].low=(nn==7?cLut[8]:0);
+      buffer_c[3].low=(nn==8?cLut[8]:0);
+
+      if (nn>=5) buffer_c[nn-5].high |= cSegDP;
+
+      i = sprintf((char*)&uart2_tx_buffer[1], "%*s8.", nn, "");
+    }
+
+    break;
   case MODE_FIRMWARE_CRC_T:
   {
     extern uint32_t _app_crc[];
@@ -895,6 +951,8 @@ void parseConfigString(char *key, char *value) {
     set_mode_enabled(MODE_TEXT, value);
   } else if (strcasecmp(key, "MODE_VBAT") == 0) {
     set_mode_enabled(MODE_VBAT, value);
+  } else if (strcasecmp(key, "MODE_DISPLAYTEST") == 0) {
+    set_mode_enabled(MODE_DISPLAYTEST, value);
   } else if (strcasecmp(key, "MODE_FIRMWARE_CRC") == 0) {
     set_mode_enabled(MODE_FIRMWARE_CRC_D, value);
     set_mode_enabled(MODE_FIRMWARE_CRC_T, value);
@@ -1644,13 +1702,18 @@ void nextMode(_Bool reverse){
 
   if (justExited(MODE_VBAT)) vbat = 0.0;
   if (justExited(MODE_STANDBY)) displayOn();
+  if (justExited(MODE_DISPLAYTEST)) {
+    buffer_c[1].high &= ~cSegDP;
+    buffer_c[2].high &= ~cSegDP;
+    buffer_c[3].high &= ~cSegDP;
+  }
   if ( displayMode == MODE_ISO_WEEK || justExited(MODE_COUNTDOWN)) {
     // If we exit countdown mode at .9 seconds
     // it will show the wrong time for .1 seconds
     setNextTimestamp(currentTime);
   }
 
-  if (displayMode == MODE_SHOW_OFFSET) {
+  if (displayMode == MODE_SHOW_OFFSET || displayMode == MODE_DISPLAYTEST) {
     countMode = COUNT_HIDDEN;
     SetSysTick( &SysTick_CountUp_NoUpdate );
     SetPPS( &PPS_NoUpdate );
