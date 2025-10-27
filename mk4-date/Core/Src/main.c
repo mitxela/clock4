@@ -315,7 +315,7 @@ static void MX_TIM21_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-
+__attribute__((naked,noreturn))
 void triggerBootloader(void){
 
 
@@ -351,6 +351,7 @@ void triggerBootloader(void){
   __set_MSP(*(volatile uint32_t*) SYSMEM);
   ((void (*)(void)) (*((volatile uint32_t *)(SYSMEM + 4))))();
 
+  __builtin_unreachable();
 }
 
 
