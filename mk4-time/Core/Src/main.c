@@ -245,6 +245,20 @@ void sendDate( _Bool now ){
     uart2_tx_buffer[9] ='0'+nextBcd.tenDays;
     uart2_tx_buffer[10]='0'+nextBcd.days;
     break;
+#ifdef NONCOMPLIANT_DATE_MODES
+  case MODE_DDMMYYYY:
+    uart2_tx_buffer[1] ='0'+nextBcd.tenDays;
+    uart2_tx_buffer[2] ='0'+nextBcd.days;
+    uart2_tx_buffer[3] ='-';
+    uart2_tx_buffer[4] ='0'+nextBcd.tenMonths;
+    uart2_tx_buffer[5] ='0'+nextBcd.months;
+    uart2_tx_buffer[6] ='-';
+    uart2_tx_buffer[7] ='2';
+    uart2_tx_buffer[8] ='0';
+    uart2_tx_buffer[9] ='0'+nextBcd.tenYears;
+    uart2_tx_buffer[10]='0'+nextBcd.years;
+    break;
+#endif
   case MODE_ISO_ORDINAL:
     uart2_tx_buffer[1] ='2' ;//-2+nextBcd.seconds;
     uart2_tx_buffer[2] ='0';
@@ -953,6 +967,10 @@ void parseConfigString(char *key, char *value) {
     set_mode_enabled(MODE_VBAT, value);
   } else if (strcasecmp(key, "MODE_DISPLAYTEST") == 0) {
     set_mode_enabled(MODE_DISPLAYTEST, value);
+#ifdef NONCOMPLIANT_DATE_MODES
+  } else if (strcasecmp(key, "MODE_DDMMYYYY") == 0) {
+    set_mode_enabled(MODE_DDMMYYYY, value);
+#endif
   } else if (strcasecmp(key, "MODE_FIRMWARE_CRC") == 0) {
     set_mode_enabled(MODE_FIRMWARE_CRC_D, value);
     set_mode_enabled(MODE_FIRMWARE_CRC_T, value);

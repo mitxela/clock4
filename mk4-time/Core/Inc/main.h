@@ -133,6 +133,8 @@ extern _Bool resendDate;
 #define CMD_RELOAD_TEXT        0x92
 #define CMD_SHOW_CRC           0x9D
 
+//#define NONCOMPLIANT_DATE_MODES
+
 enum {
   MODE_ISO8601_STD =0,
   MODE_ISO_ORDINAL,
@@ -153,6 +155,9 @@ enum {
   MODE_FIRMWARE_CRC_D,
   MODE_VBAT,
   MODE_DISPLAYTEST,
+#ifdef NONCOMPLIANT_DATE_MODES
+  MODE_DDMMYYYY,
+#endif
 
   NUM_DISPLAY_MODES
 };
