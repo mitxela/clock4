@@ -7,6 +7,7 @@ static QSPI_STATUS QSPI_ResetMemory();
 static QSPI_STATUS QSPI_WriteEnable();
 static QSPI_STATUS QSPI_AutoPollingMemReady(uint32_t Timeout);
 static QSPI_STATUS QSPI_Write_Page(uint8_t *pData, uint32_t address);
+static QSPI_STATUS QSPI_Check_if_Sector_is_Erased(uint32_t ReadAddr);
 
 uint8_t initialized = 0;
 uint8_t locked = 0;
@@ -191,6 +192,8 @@ QSPI_STATUS QSPI_Erase_Sector(uint32_t SectorAddress)
 {
   QSPI_CommandTypeDef sCommand;
 
+  if (QSPI_Check_if_Sector_is_Erased(SectorAddress) == QSPI_STATUS_OK) return QSPI_STATUS_OK;
+
   locked++;
 
   /* Initialize the erase command */
@@ -336,6 +339,51 @@ QSPI_STATUS QSPI_Read(uint8_t* pData, uint32_t ReadAddr, uint32_t size)
   }
 
   locked--;
+  return QSPI_STATUS_OK;
+}
+
+QSPI_STATUS QSPI_Check_if_Sector_is_Erased(uint32_t ReadAddr)
+{
+  QSPI_CommandTypeDef sCommand;
+
+  uint8_t pData[W25Q128_SECTOR_SIZE];
+
+  locked++;
+
+  /* Reading Sequence ------------------------------------------------ */
+  sCommand.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
+  sCommand.Instruction       = READ_CMD;
+  sCommand.AddressMode       = QSPI_ADDRESS_1_LINE;
+  sCommand.AddressSize       = QSPI_ADDRESS_24_BITS;
+  sCommand.Address           = ReadAddr;
+  sCommand.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
+  sCommand.DataMode          = QSPI_DATA_1_LINE;
+  sCommand.DummyCycles       = 0;
+  sCommand.NbData            = W25Q128_SECTOR_SIZE;
+  sCommand.DdrMode           = QSPI_DDR_MODE_DISABLE;
+  sCommand.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;
+  sCommand.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
+
+  /* Configure the command */
+  if (HAL_QSPI_Command(&hqspi, &sCommand, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    locked--;
+    return QSPI_STATUS_ERROR;
+  }
+
+  /* Reception of the data */
+  if (HAL_QSPI_Receive(&hqspi, (uint8_t*)pData, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    locked--;
+    return QSPI_STATUS_ERROR;
+  }
+
+  locked--;
+
+  for (int i=0; i<W25Q128_SECTOR_SIZE; i++) {
+    if (pData[i] != 0xFF) return QSPI_STATUS_ERROR;
+  }
+
   return QSPI_STATUS_OK;
 }
 
