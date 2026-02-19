@@ -25,6 +25,9 @@ def polyline3(x1,y1,x2,y2,x3,y3,stroke=""):
 	s = f" stroke='{stroke}'" if stroke else ""
 	print(f"<polyline{s} points='{x1:.2f},{y1:.2f} {x2:.2f},{y2:.2f} {x3:.2f},{y3:.2f}'/>")
 
+def polyline4(x1,y1,x2,y2,x3,y3,x4,y4,stroke=""):
+	s = f" stroke='{stroke}'" if stroke else ""
+	print(f"<polyline{s} points='{x1:.2f},{y1:.2f} {x2:.2f},{y2:.2f} {x3:.2f},{y3:.2f} {x4:.2f},{y4:.2f}'/>")
 
 canvas_w = round(ox +nx*w +10)
 canvas_h = round(oy +ny*h +10)
@@ -34,32 +37,41 @@ print(f"\n<!-- {nx}x{ny} kerf={kerf} -->")
 print('<g>')
 
 
-# left and top
-polyline3(ox-kerf,oy-kerf+ny*h, ox-kerf,oy-kerf, ox-kerf+nx*w,oy-kerf,'#f00')
+#colors=['#000','#f00','#0f0','#00f','#ff0','#0ff','#f0f','#fff']
+colors=['#000','#f00','#0f0','#00f','#ff0','#0ff','#f0f','#fff']
+
+# left
+polyline2(ox-kerf,oy-kerf+ny*h, ox-kerf,oy-kerf, colors[0])
 
 
-# circles
 for x in range(nx):
+	# circles
 	for y in range(ny):
-		circle( ox+6 +x*w, oy+5.28 +y*h,1.5 )
-		circle( ox+6 +x*w, oy+16.56+y*h,1.5 )
+		circle( ox+6 +x*w, oy+5.28 +y*h,1.5 ,colors[x])
+		circle( ox+6 +x*w, oy+16.56+y*h,1.5 ,colors[x])
+	# horizontal dividing lines
+	for y in range(1,ny):
+		polyline2( ox-kerf +x*w,oy-kerf+y*h, ox-kerf+(x+1)*w,oy-kerf+y*h, colors[x])
+	# outline
+	polyline4( ox-kerf+x*w,oy-kerf, ox-kerf+(x+1)*w,oy-kerf, ox-kerf+(x+1)*w,oy-kerf+ny*h, ox-kerf+x*w,oy-kerf+ny*h,colors[x+1])
 	print()
 
 # vertical lines
-for x in range(1,nx):
-	polyline2(ox-kerf+x*w,oy-kerf, ox-kerf+x*w,oy-kerf+ny*h,'#0f0')
+#for x in range(1,nx):
+#	polyline2(ox-kerf+x*w,oy-kerf, ox-kerf+x*w,oy-kerf+ny*h,'#0f0')
 
-print()
+#print()
 
 # horiz lines
-for y in range(1,ny):
-	polyline2(ox-kerf,oy-kerf+y*h, ox-kerf+nx*w,oy-kerf+y*h,'#0f0')
+#for y in range(1,ny):
+#	polyline2(ox-kerf,oy-kerf+y*h, ox-kerf+nx*w,oy-kerf+y*h,'#0f0')
 
-print()
+#print()
 
 # bottom and right
-polyline3(ox-kerf+nx*w,oy-kerf, ox-kerf+nx*w,oy-kerf+ny*h, ox-kerf,oy-kerf+ny*h, '#00f')
+#polyline3(ox-kerf+nx*w,oy-kerf, ox-kerf+nx*w,oy-kerf+ny*h, ox-kerf,oy-kerf+ny*h, '#00f')
 
 
 
 print('</g>')
+print()
