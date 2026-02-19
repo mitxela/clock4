@@ -228,6 +228,7 @@ void write_rtc(void);
 void displayOff(void);
 void button1pressed(void);
 void button2pressed(void);
+void buttonsBothHeld(void);
 void setPrecision(void);
 void sendDate( _Bool now );
 void generateDACbuffer(uint16_t * buf);

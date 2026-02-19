@@ -401,6 +401,8 @@ void USART2_IRQHandler(void)
         button1pressed();
     } else if (x == 0x92) {
         button2pressed();
+    } else if (x == 0x93) {
+        buttonsBothHeld();
     }
     return;
   }

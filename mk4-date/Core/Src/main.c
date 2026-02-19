@@ -424,9 +424,10 @@ void TIM21_IRQHandler(void){
 #define btn_delay 42
 #define btn_repeat 10
 
+
     if ((LL_GPIO_ReadInputPort(GPIOB) & LL_GPIO_PIN_3)==0) {
       if (++b1_held == btn_debounce || b1_held == btn_delay) {
-          if ( (USART2->ISR & USART_ISR_TXE) ) {
+          if ( (USART2->ISR & USART_ISR_TXE) && b2_held==0 ) {
             USART2->TDR = 0x91 + inverted;
           }
           if (b1_held==btn_delay) b1_held -= btn_repeat;
@@ -434,12 +435,34 @@ void TIM21_IRQHandler(void){
     } else b1_held=0;
     if ((LL_GPIO_ReadInputPort(GPIOC) & LL_GPIO_PIN_13)==0) {
       if (++b2_held == btn_debounce || b2_held == btn_delay) {
-          if ( (USART2->ISR & USART_ISR_TXE) ) {
+          if ( (USART2->ISR & USART_ISR_TXE) && b1_held==0) {
             USART2->TDR = 0x92 - inverted;
           }
           if (b2_held==btn_delay) b2_held -= btn_repeat;
       }
     } else b2_held=0;
+
+    if (b1_held > btn_delay-btn_repeat && b2_held > btn_delay-btn_repeat){
+      if ( (USART2->ISR & USART_ISR_TXE)) {
+        // If triggering a reset the bootloader expects the line to be empty
+        // Don't resend the command until buttons are released
+        if (b1_held<btn_delay) {
+          USART2->TDR = 0x93;
+          // Wipe our display too
+          buffer_b[0] = 0;
+          buffer_b[1] = 0;
+          buffer_b[2] = 0;
+          buffer_b[3] = 0;
+          buffer_b[4] = 0;
+          buffer_a[0] = 0;
+          buffer_a[1] = 0;
+          buffer_a[2] = 0;
+          buffer_a[3] = 0;
+          buffer_a[4] = 0;
+        }
+        b1_held = b2_held = btn_delay+1;
+      }
+    }
   }
 }
 

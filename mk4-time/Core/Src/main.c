@@ -1771,6 +1771,17 @@ void button1pressed(void){
 void button2pressed(void){
   nextMode(1);
 }
+void buttonsBothHeld(void){
+  HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_2);
+
+  HAL_DMA_Abort(&hdma_tim1_up);
+  HAL_DMA_Abort(&hdma_tim7_up);
+  GPIOB->ODR=0;
+  GPIOC->ODR=0;
+
+  NVIC_SystemReset();
+}
 
 void generateDACbuffer(uint16_t * buf) {
 
