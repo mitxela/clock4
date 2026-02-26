@@ -1175,7 +1175,10 @@ void readConfigFile(void){
      }
    }
 
-   requestMode=255;
+   // if enabled, always boot into ttff
+   if (config.modes_enabled[MODE_TTFF]) requestMode=MODE_TTFF;
+   else requestMode=255;
+
    postConfigCleanup();
 }
 
