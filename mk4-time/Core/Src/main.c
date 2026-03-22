@@ -151,6 +151,7 @@ _Bool data_valid=0, had_pps=0, rtc_good=0, new_position=1;
 #define rtc_last_write RTC->BKP30R
 #define rtc_last_calibration RTC->BKP31R
 uint32_t last_pps_time = 0;
+uint32_t time_till_first_fix = 0;
 
 struct {
   uint32_t t;
@@ -386,6 +387,11 @@ void sendDate( _Bool now ){
     } else {
       i = sprintf((char*)&uart2_tx_buffer[1], "bat %.4f", vbat);
     }
+    break;
+  case MODE_TTFF:
+    // Our assumption is that uwTick is zero at power on
+    if (!had_pps) time_till_first_fix = (int)(uwTick/1000);
+    i = sprintf((char*)&uart2_tx_buffer[1], "ttff %3d.%02d", (int)(time_till_first_fix/60), (int)(time_till_first_fix%60));
     break;
   case MODE_DISPLAYTEST:
     int nn = currentTime%10;
@@ -967,6 +973,8 @@ void parseConfigString(char *key, char *value) {
     set_mode_enabled(MODE_VBAT, value);
   } else if (strcasecmp(key, "MODE_DISPLAYTEST") == 0) {
     set_mode_enabled(MODE_DISPLAYTEST, value);
+  } else if (strcasecmp(key, "MODE_TTFF") == 0) {
+    set_mode_enabled(MODE_TTFF, value);
 #ifdef NONCOMPLIANT_DATE_MODES
   } else if (strcasecmp(key, "MODE_DDMMYYYY") == 0) {
     set_mode_enabled(MODE_DDMMYYYY, value);
@@ -1167,7 +1175,10 @@ void readConfigFile(void){
      }
    }
 
-   requestMode=255;
+   // if enabled, always boot into ttff
+   if (config.modes_enabled[MODE_TTFF]) requestMode=MODE_TTFF;
+   else requestMode=255;
+
    postConfigCleanup();
 }
 
