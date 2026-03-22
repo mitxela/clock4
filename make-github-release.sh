@@ -8,6 +8,18 @@ fi
 
 name=$(echo clock4-$version.zip)
 
+fwtver=$(dd if=qspi/output/fwt.bin skip=196544 count=40 bs=1 2>/dev/null)
+fwdver=$(dd if=qspi/output/fwd.bin skip=32704 count=40 bs=1 2>/dev/null)
+bootver=$(dd if=mk4-bootloader/Release/mk4-bootloader.bin skip=65472 count=40 bs=1 2>/dev/null)
+
+echo "Releasing $name"
+echo
+echo "- \`tzmap\` and \`tzrules\` are ..."
+echo "- \`fwt\` is \`$fwtver\`"
+echo "- \`fwd\` is \`$fwdver\`"
+echo "- \`bootloader\` is \`$bootver\`"
+echo
+
 
 function cleanup {
   rm -rf disk-image
@@ -36,3 +48,4 @@ cp qspi/output/tzmap.bin flash/tzmap.bin
 
 zip -r $name disk-image bootloader flash
 
+echo "Done"
