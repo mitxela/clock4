@@ -8,9 +8,9 @@ fi
 
 name=$(echo clock4-$version.zip)
 
-fwtver=$(dd if=qspi/output/fwt.bin skip=196544 count=40 bs=1 2>/dev/null)
-fwdver=$(dd if=qspi/output/fwd.bin skip=32704 count=40 bs=1 2>/dev/null)
-bootver=$(dd if=mk4-bootloader/Release/mk4-bootloader.bin skip=65472 count=40 bs=1 2>/dev/null)
+fwtver=$(tail -c 64 qspi/output/fwt.bin | head -c 40)
+fwdver=$(tail -c 64 qspi/output/fwd.bin | head -c 40)
+bootver=$(tail -c 64 mk4-bootloader/Release/mk4-bootloader.bin | head -c 40)
 
 echo "Releasing $name"
 echo
