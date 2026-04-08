@@ -43,6 +43,8 @@ MODE_SHOW_TZ_NAME = enabled
 
 MODE_WEEKDAY = disabled
 
+MODE_WEEKDA_DD = disabled
+
 # Turn off all LEDs. This mode can be useful if you want to reduce power consumption
 # but keep the GPS module fully powered.
 MODE_STANDBY=disabled
