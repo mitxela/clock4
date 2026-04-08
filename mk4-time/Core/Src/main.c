@@ -342,6 +342,14 @@ void sendDate( _Bool now ){
     uart2_tx_buffer[9] ='0'+nextBcd.tenDays;
     uart2_tx_buffer[10]='0'+nextBcd.days;
     break;
+  case MODE_WDY_MM_DD:
+    sprintf((char*)&uart2_tx_buffer[1], "%.4s ", wday_str[tm_wday]);
+    uart2_tx_buffer[6] ='0'+nextBcd.tenMonths;
+    uart2_tx_buffer[7] ='0'+nextBcd.months;
+    uart2_tx_buffer[8] ='-';
+    uart2_tx_buffer[9] ='0'+nextBcd.tenDays;
+    uart2_tx_buffer[10]='0'+nextBcd.days;
+    break;
   case MODE_SATVIEW:
     if (satview[SV_GPS_L1]==255 && satview[SV_GPS_UNKNOWN]==255) {
       i = sprintf((char*)&uart2_tx_buffer[1], "GPS -");
@@ -964,6 +972,8 @@ void parseConfigString(char *key, char *value) {
     set_mode_enabled(MODE_WEEKDAY, value);
   } else if (strcasecmp(key, "MODE_WEEKDA_DD") == 0) {
     set_mode_enabled(MODE_WEEKDA_DD, value);
+  } else if (strcasecmp(key, "MODE_WDY_MM_DD") == 0) {
+    set_mode_enabled(MODE_WDY_MM_DD, value);
   } else if (strcasecmp(key, "MODE_STANDBY") == 0) {
     set_mode_enabled(MODE_STANDBY, value);
   } else if (strcasecmp(key, "MODE_COUNTDOWN") == 0) {
