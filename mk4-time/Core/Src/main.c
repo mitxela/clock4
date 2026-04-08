@@ -1721,7 +1721,7 @@ void nextMode(_Bool reverse){
     requestMode=255;
   } else if (reverse) {
     do {
-      if (--displayMode > NUM_DISPLAY_MODES) displayMode=NUM_DISPLAY_MODES;
+      if (--displayMode >= NUM_DISPLAY_MODES) displayMode=NUM_DISPLAY_MODES-1;
     } while (!config.modes_enabled[displayMode]);
   } else {
     do {
