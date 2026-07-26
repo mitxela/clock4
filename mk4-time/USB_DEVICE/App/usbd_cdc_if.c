@@ -291,6 +291,9 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
   /* USER CODE BEGIN 7 */
 
   USBD_CDC_HandleTypeDef *hcdc = (USBD_CDC_HandleTypeDef*)hUsbDeviceFS.pClassDataCDC;
+  if (hcdc == NULL){          /* not enumerated — same NULL-deref-on-charger-only pattern */
+    return USBD_BUSY;
+  }
   if (hcdc->TxState != 0){
     return USBD_BUSY;
   }
@@ -304,11 +307,25 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
 
 uint8_t CDC_Copy_Transmit(uint8_t* nmea, uint16_t Len)
 {
-  static uint8_t txbuf[NMEA_BUF_SIZE];
+  /* Sized for the LONGEST sentence we emit, not NMEA_BUF_SIZE: a mature $PMADEV (epoch + tau0 +
+     valid + 11 octaves) is ~133 bytes. At NMEA_BUF_SIZE (128) the Len guard below returned
+     USBD_FAIL, which adev_dump_step treats as done — so once the Allan record grew past 10
+     octaves the dump was SILENTLY dropped on hardware (the emulator bypasses CDC and never saw
+     it). Keep this >= the largest snprintf buffer any *_dump_step builds into. */
+  static uint8_t txbuf[192];
 
   USBD_CDC_HandleTypeDef *hcdc = (USBD_CDC_HandleTypeDef*)hUsbDeviceFS.pClassDataCDC;
+  /* pClassDataCDC is NULL until a host enumerates the device. On charger-only power it
+     never gets set, so the unconditional hcdc->TxState below dereferenced NULL and
+     hard-faulted on every forwarded NMEA sentence. Bail out cleanly when not enumerated. */
+  if (hcdc == NULL){
+    return USBD_FAIL;
+  }
   if (hcdc->TxState != 0){
     return USBD_BUSY;
+  }
+  if (Len > sizeof txbuf){    /* never overrun the static buffer (defensive) */
+    return USBD_FAIL;
   }
 
   memcpy( txbuf, nmea, Len );
