@@ -125,8 +125,9 @@ extern _Bool resendDate;
 #define DAC_BUFFER_SIZE 20
 #define ADC_BUFFER_SIZE 50
 
-// NMEA 0183 messages have a max length of 82 characters
-#define NMEA_BUF_SIZE 90
+// NMEA 0183 messages have a max length of 82 characters; the extended $PMTXTS (with the SOF-
+// correlation tail: dwt_pps, sof_frame, dwt_sof) runs ~110, so this sizes the tx/rx buffers for it.
+#define NMEA_BUF_SIZE 128
 
 #define CMD_LOAD_TEXT          0x90
 #define CMD_SET_FREQUENCY      0x91
@@ -161,6 +162,20 @@ enum {
 #ifdef NONCOMPLIANT_DATE_MODES
   MODE_DDMMYYYY,
 #endif
+
+  // Astro pack — GPS-derived astronomy read-outs. SATVIEW-style: the payload
+  // shows on the 10-char date row while the live clock keeps running on the
+  // time row. Enabled individually via the MODE_* config keys, like any mode.
+  MODE_SUN,        // sunrise / sunset / solar noon (local), auto-paged
+  MODE_SUN_AZEL,   // sun azimuth & elevation, now
+  MODE_MOON,       // moon phase index + illuminated %
+  MODE_GRID,       // Maidenhead grid locator
+  MODE_LATLON,     // latitude / longitude, auto-paged
+
+  // Observing-session twilight ladder: civil / nautical / astronomical dusk times and a live countdown
+  // to astronomical darkness (sun -18 deg). Answers "when is it actually dark, and for how long." Honest:
+  // high-latitude white nights that never reach -18 report NO DARK; polar night reports DARK NOW.
+  MODE_DARK,
 
   NUM_DISPLAY_MODES
 };

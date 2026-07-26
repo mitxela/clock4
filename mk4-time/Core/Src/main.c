@@ -32,6 +32,7 @@
 #include "qspi_drv.h"
 #include "zonedetect.h"
 #include "chainloader.h"
+#include "astro.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -148,6 +149,25 @@ uint8_t decisec=0, centisec=0, millisec=0;
 
 float longitude=-9999, latitude=-9999;
 _Bool data_valid=0, had_pps=0, rtc_good=0, new_position=1;
+
+// Astro pack — sun/moon/grid read-outs, computed once a second in the main loop
+// (astro_update) and formatted by the sendDate cases, the same compute-in-loop /
+// format-in-ISR split MODE_VBAT uses for vbat.
+struct astro_cache_s {
+  uint32_t epoch;          // currentTime this was computed for; 0 = never computed
+  _Bool    have_pos;       // a usable lat/lon was available
+  _Bool    sun_up_today;   // false = polar day/night (no rise/set this date)
+  int16_t  rise_min, set_min, noon_min;  // local minutes-of-day [0,1440)
+  int16_t  az, el;         // sun azimuth 0..359 / elevation, whole degrees
+  uint8_t  moon_idx, moon_pct;           // phase index 0..7 / illuminated %
+  char     grid[8];        // Maidenhead locator, or "----"
+  float    lat_show, lon_show;           // the snapshot lat/lon, for MODE_LATLON
+  // MODE_DARK twilight ladder — local minutes-of-day, -1 = not applicable (dashes).
+  int16_t  civ_dusk_min, nau_dusk_min;   // civil (-6) / nautical (-12) evening twilight
+  int16_t  ast_dusk_min, ast_dawn_min;   // astronomical (-18) darkness begins / ends
+  _Bool    dark_tonight;                 // astronomical darkness occurs this date
+  _Bool    always_dark;                  // polar night: sun below -18 now (dark round the clock)
+} astro = {0};
 #define rtc_last_write RTC->BKP30R
 #define rtc_last_calibration RTC->BKP31R
 uint32_t last_pps_time = 0;
@@ -177,6 +197,38 @@ uint8_t requestMode = 255;
 uint8_t nmea_cdc_level=0;
 int debug_rtc_val = 0;
 
+// --- PPS host timestamping ----------------------------------------------------------------
+// Optional: emit one proprietary NMEA sentence ($PMTXTS) per PPS edge over the CDC port so a
+// host can measure the clock's timing stability (phase jitter, oscillator drift, holdover) —
+// things the plain NMEA stream cannot convey. Enabled by config "pps = on". Capture happens in
+// the PPS ISR (cheap, just snapshots); the sentence is formatted + sent from the main loop.
+volatile uint8_t pps_ts_enabled = 0;
+volatile _Bool   pps_record_pending = 0;
+int16_t die_temp_c = 0;  // latest STM32 die temperature (°C), a proxy for the crystal temperature
+volatile struct {
+  uint32_t seq;        // increments every PPS edge (32-bit: no practical wrap; host detects gaps)
+  uint32_t systick;    // SysTick->VAL at the edge, captured BEFORE the reload (down-counter)
+  uint16_t subms;      // 0..999 modelled ms-of-second at the edge, BEFORE the counters reset
+  uint32_t epoch;      // currentTime at the edge (Unix seconds, UTC)
+  int32_t  calerr;     // debug_rtc_val: signed LSE cycle error over CAL_PERIOD s (=> ppm on host)
+  uint32_t sincecal;   // seconds since last successful RTC calibration (holdover age)
+  int16_t  temp;       // die temperature (°C) — for host-side ppm-vs-temperature characterisation
+  uint8_t  flags;      // bit0 data_valid, bit1 had_pps, bit2 rtc_good
+  uint32_t dwt_pps;    // DWT->CYCCNT (free-running 12.5ns) latched at the edge — SOF-correlation timebase
+} pps_cap;
+
+// --- SOF correlation (experimental: sub-ms USB timestamping without a hardware PPS wire) -----------
+// Latched by the USB SOF interrupt (PCD_SOFCallback, usbd_conf.c) every 1ms WHEN pps_ts_enabled: the
+// 11-bit USB frame number and the DWT count at that Start-Of-Frame. Emitted in $PMTXTS so a host —
+// which can read each USB frame's own arrival time in hardware — can place the PPS edge on its clock
+// via the frame, immune to the ~6ms host-driven read jitter. Written in the SOF ISR, read at emit
+// under __disable_irq. pps_sof_valid gates emission of the tail: it is 0 until the first SOF has
+// latched a real anchor (so the first PPS after enumeration, or with pps just toggled on, or the
+// emulator which has no SOF, emits the plain 9-field sentence rather than a stale (0,0) anchor).
+volatile uint32_t pps_sof_dwt   = 0;   // DWT->CYCCNT at the most recent SOF
+volatile uint16_t pps_sof_frame = 0;   // USB 11-bit frame number at that SOF (matches host frame mod 2048)
+volatile uint8_t  pps_sof_valid = 0;   // 1 once a real SOF anchor has been latched; 0 = emit 9-field only
+
 #define CHECK_CONFIG_MTIME
 
 struct {
@@ -192,6 +244,7 @@ struct {
   time_t countdown_to;
   float brightness_override;
   volatile _Bool zone_override;
+  uint16_t page_ms;             // sub-screen dwell, ms, for every mode that pages its date row on uwTick / page_ms()
   _Bool modes_enabled[NUM_DISPLAY_MODES];
 
 } config = {0};
@@ -216,6 +269,71 @@ void memcpyword(volatile uint32_t *dest, volatile uint32_t *src, size_t n){
 }
 
 // 12 bytes at 115200 8E1 is 1.14ms, 32 bytes would be 3.06ms
+// --- Astro pack helpers ----------------------------------------------------
+// A usable position is held in latitude/longitude from either a GPS fix or the
+// configured fake_latitude/fake_longitude; both sit at the -9999 sentinel until
+// a position is known, so a simple range check is the "have we got a fix" test.
+static _Bool astro_pos_ok(float lat, float lon){
+  return lat >= -90.0f && lat <= 90.0f && lon >= -180.0f && lon <= 180.0f;
+}
+// Sub-screen dwell (ms) for every mode that pages its date row. Unset -> 5500 ms, a
+// subjectively-tuned cadence found by feel. Floored at 250 ms so a tiny value can't
+// flood the date-board UART.
+static uint32_t page_ms(void){ uint32_t m = config.page_ms; return m == 0 ? 5500 : (m < 250 ? 250 : m); }
+// Decimal UTC hour (sun_times may return <0 or >24) -> local minutes-of-day [0,1440).
+static int astro_local_minutes(double utc_h){
+  double h = fmod(utc_h + currentOffset / 3600.0, 24.0);
+  if (h < 0) h += 24.0;
+  int m = (int)(h * 60.0 + 0.5);
+  if (m >= 1440) m -= 1440;
+  return m;
+}
+// Recompute the astro cache (called from the main loop, never the ISR). The
+// double soft-float maths runs here, then the small result struct is swapped in
+// under a brief IRQ mask so sendDate() always reads a consistent snapshot.
+static void astro_update(void){
+  if (astro.epoch == (uint32_t)currentTime) return;     // at most once a second
+  struct astro_cache_s c = {0};
+  c.epoch = (uint32_t)currentTime;
+  double ph = moon_phase((double)currentTime);          // moon needs no fix
+  c.moon_idx = moon_phase_index(ph);
+  c.moon_pct = (uint8_t)(moon_illuminated_fraction(ph) * 100.0 + 0.5);
+  float lat = latitude, lon = longitude;                // one consistent snapshot of the fix
+  c.have_pos = astro_pos_ok(lat, lon);
+  if (c.have_pos) {
+    c.lat_show = lat;
+    c.lon_show = lon;
+    double az, el, rise = 0, set = 0, noon = 0, civd = 0, naud = 0, astd = 0;
+    sun_az_el(lat, lon, (double)currentTime, &az, &el);
+    int ia = (int)(az + 0.5); if (ia >= 360) ia -= 360;
+    c.az = (int16_t)ia;
+    c.el = (int16_t)(el < 0 ? el - 0.5 : el + 0.5);
+    c.civ_dusk_min = c.nau_dusk_min = c.ast_dusk_min = c.ast_dawn_min = -1;   // MODE_DARK: n/a unless computed below
+    c.sun_up_today = (sun_times(lat, lon, (double)currentTime,
+                                &rise, &set, &noon, &civd, &naud, 0, &astd) == 0);
+    c.noon_min = (int16_t)astro_local_minutes(noon);     // noon is valid even at the poles
+    if (c.sun_up_today) {
+      c.rise_min = (int16_t)astro_local_minutes(rise);
+      c.set_min  = (int16_t)astro_local_minutes(set);
+      c.civ_dusk_min = (int16_t)astro_local_minutes(civd);
+      c.nau_dusk_min = (int16_t)astro_local_minutes(naud);
+      if (!isnan(astd)) {                                 // astronomical dark occurs -> dusk + symmetric dawn
+        c.ast_dusk_min = (int16_t)astro_local_minutes(astd);
+        c.ast_dawn_min = (int16_t)astro_local_minutes(2.0 * noon - astd);   // dawn = mirror of dusk about solar noon
+        c.dark_tonight = 1;
+      }
+    } else {
+      c.always_dark = (c.el < -18);                       // polar night: sun deep below the horizon now
+    }
+    maidenhead(lat, lon, c.grid);
+  } else {
+    strcpy(c.grid, "----");
+  }
+  __disable_irq();
+  astro = c;
+  __enable_irq();
+}
+
 void sendDate( _Bool now ){
   if (waitingForLatch) {
     if (countMode==COUNT_HIDDEN) {
@@ -472,6 +590,90 @@ void sendDate( _Bool now ){
   case MODE_FIRMWARE_CRC_D:
     uart2_tx_buffer[0]=CMD_SHOW_CRC;
     break;
+
+  // --- Astro pack: format the main-loop-computed cache onto the date row only,
+  //     leaving the time row as the running clock (SATVIEW-style). --------------
+  case MODE_SUN: {
+    if (!astro.have_pos || !astro.epoch) { i = sprintf((char*)&uart2_tx_buffer[1], "RISE  ----"); break; }
+    int page = (uwTick / page_ms()) % 3;               // rise -> set -> solar noon, page_ms each
+    // labels padded to 4 chars in the literal ("SET "/"SOL ") so the time digits
+    // line up under RISE without relying on the nano printf honouring "%-4s"
+    const char *lbl = page == 0 ? "RISE" : page == 1 ? "SET " : "SOL ";
+    int m           = page == 0 ? astro.rise_min : page == 1 ? astro.set_min : astro.noon_min;
+    if (!astro.sun_up_today && page != 2) {            // sun never rises/sets today
+      i = sprintf((char*)&uart2_tx_buffer[1], "%s ----", lbl);
+    } else {
+      i = sprintf((char*)&uart2_tx_buffer[1], "%s %02d.%02d", lbl, m / 60, m % 60);
+    }
+    break;
+  }
+  case MODE_SUN_AZEL:
+    if (!astro.have_pos || !astro.epoch) { i = sprintf((char*)&uart2_tx_buffer[1], "AZ -- EL--"); }
+    else if (astro.el < 0) i = sprintf((char*)&uart2_tx_buffer[1], "AZ%03dEL-%02d", astro.az, -astro.el);
+    else                   i = sprintf((char*)&uart2_tx_buffer[1], "AZ%03dEL%02d",  astro.az,  astro.el);
+    break;
+  case MODE_MOON:                                      // UTC only; no fix needed
+    if (!astro.epoch) i = sprintf((char*)&uart2_tx_buffer[1], "MOON -");
+    else              i = sprintf((char*)&uart2_tx_buffer[1], "MOON %d %3d", astro.moon_idx, astro.moon_pct);
+    break;
+  case MODE_GRID:
+    i = sprintf((char*)&uart2_tx_buffer[1], "%s", astro.epoch ? astro.grid : "----");
+    break;
+  case MODE_LATLON:
+    // RISE/SET-style layout: label, separator space, a sign slot (space when positive), then
+    // the digits — numbers align whether signed or not, and short values keep clear space at
+    // the row's end. A 3-digit longitude can't fit both the separator and the sign slot in
+    // 10 chars, so the separator is dropped just for that case ("LON 179.99" / "LON-179.99").
+    if (!astro.have_pos || !astro.epoch) { i = sprintf((char*)&uart2_tx_buffer[1], "LAT  ----"); }
+    else {
+      _Bool lat = (uwTick / page_ms()) % 2 == 0;       // page latitude / longitude, page_ms each
+      double v = lat ? astro.lat_show : astro.lon_show;
+      long h = (long)(v * 100.0 + (v < 0 ? -0.5 : 0.5));  // hundredths, rounded
+      long a2 = h < 0 ? -h : h;
+      i = sprintf((char*)&uart2_tx_buffer[1], (a2 >= 10000) ? "%s%c%ld.%02ld" : "%s %c%ld.%02ld",
+                  lat ? "LAT" : "LON", h < 0 ? '-' : ' ', a2 / 100, a2 % 100);
+    }
+    break;
+  case MODE_DARK: {
+    // The observing-session twilight ladder, paged: headline countdown to astronomical darkness, then
+    // civil / nautical / astronomical dusk times and the astronomical dawn (dark ends). Honest at the
+    // edges: no fix -> dashes; a white night that never reaches -18 -> "NO DARK"; polar night -> "DARK NOW".
+    if (!astro.have_pos || !astro.epoch) { i = sprintf((char*)&uart2_tx_buffer[1], "%-4.4s ----", "DARK"); break; }
+    int now_min = (int)((((long)currentTime + currentOffset) % 86400L + 86400L) % 86400L) / 60;
+    // Every page uses MODE_SUN's RISE/SET layout: a 4-wide label + " HH.MM", so the digits sit in the
+    // SAME columns as the ladder pages -> the numbers stay put as the mode pages. Countdown hours are
+    // 2-digit too (05.57, not 5.57) so they line up with the times; no hyphen.
+    switch ((int)((uwTick / page_ms()) % 5)) {
+    case 0:                                              // headline: live countdown / status
+      if (astro.always_dark)        i = sprintf((char*)&uart2_tx_buffer[1], "DARK  NOW");
+      else if (!astro.dark_tonight) i = sprintf((char*)&uart2_tx_buffer[1], "NO DARK");
+      else {
+        int dusk = astro.ast_dusk_min, dawn = astro.ast_dawn_min;
+        _Bool in_dark = (now_min >= dusk) || (now_min < dawn);   // dark window wraps midnight
+        int togo = in_dark ? ((dawn - now_min + 1440) % 1440) : (dusk - now_min);   // minutes to the next edge
+        // DAWN = counting to the end of dark (observing time left); DARK = counting down to its start.
+        i = sprintf((char*)&uart2_tx_buffer[1], "%-4.4s %02d.%02d", in_dark ? "DAWN" : "DARK", togo / 60, togo % 60);
+      }
+      break;
+    case 1:                                              // civil dusk (-6)
+      i = astro.civ_dusk_min < 0 ? sprintf((char*)&uart2_tx_buffer[1], "%-4.4s ----", "CIV")
+        : sprintf((char*)&uart2_tx_buffer[1], "%-4.4s %02d.%02d", "CIV", astro.civ_dusk_min/60, astro.civ_dusk_min%60);
+      break;
+    case 2:                                              // nautical dusk (-12)
+      i = astro.nau_dusk_min < 0 ? sprintf((char*)&uart2_tx_buffer[1], "%-4.4s ----", "NAU")
+        : sprintf((char*)&uart2_tx_buffer[1], "%-4.4s %02d.%02d", "NAU", astro.nau_dusk_min/60, astro.nau_dusk_min%60);
+      break;
+    case 3:                                              // astronomical dusk (-18): dark begins
+      i = astro.ast_dusk_min < 0 ? sprintf((char*)&uart2_tx_buffer[1], "%-4.4s ----", "AST")
+        : sprintf((char*)&uart2_tx_buffer[1], "%-4.4s %02d.%02d", "AST", astro.ast_dusk_min/60, astro.ast_dusk_min%60);
+      break;
+    default:                                             // astronomical dawn: dark ends
+      i = astro.ast_dawn_min < 0 ? sprintf((char*)&uart2_tx_buffer[1], "%-4.4s ----", "End")
+        : sprintf((char*)&uart2_tx_buffer[1], "%-4.4s %02d.%02d", "End", astro.ast_dawn_min/60, astro.ast_dawn_min%60);
+      break;
+    }
+    break;
+  }
   }
   if (now) {
     uart2_tx_buffer[++i]= CMD_RELOAD_TEXT;
@@ -999,6 +1201,21 @@ void parseConfigString(char *key, char *value) {
   } else if (strcasecmp(key, "MODE_FIRMWARE_CRC") == 0) {
     set_mode_enabled(MODE_FIRMWARE_CRC_D, value);
     set_mode_enabled(MODE_FIRMWARE_CRC_T, value);
+  } else if (strcasecmp(key, "MODE_SUN") == 0) {
+    set_mode_enabled(MODE_SUN, value);
+  } else if (strcasecmp(key, "MODE_SUN_AZEL") == 0) {
+    set_mode_enabled(MODE_SUN_AZEL, value);
+  } else if (strcasecmp(key, "MODE_MOON") == 0) {
+    set_mode_enabled(MODE_MOON, value);
+  } else if (strcasecmp(key, "MODE_GRID") == 0) {
+    set_mode_enabled(MODE_GRID, value);
+  } else if (strcasecmp(key, "MODE_LATLON") == 0) {
+    set_mode_enabled(MODE_LATLON, value);
+  } else if (strcasecmp(key, "MODE_DARK") == 0) {
+    set_mode_enabled(MODE_DARK, value);
+  } else if (strcasecmp(key, "page_ms") == 0) {
+    int v = atoi(value);
+    config.page_ms = v < 0 ? 0 : (v > 65535 ? 65535 : v);   // fits uint16; 0 -> default
   } else if (strcasecmp(key, "Tolerance_time_1ms") == 0) {
     config.tolerance_1ms = atoi(value);
   } else if (strcasecmp(key, "Tolerance_time_10ms") == 0) {
@@ -1030,6 +1247,10 @@ void parseConfigString(char *key, char *value) {
     } else if (strcasecmp(value, "rmc") == 0) {
       nmea_cdc_level = NMEA_RMC;
     } else nmea_cdc_level = NMEA_ALL;
+
+  } else if (strcasecmp(key, "pps") == 0) {
+
+    pps_ts_enabled = truthy(value);   // emit a $PMTXTS timing sentence on each PPS edge
 
   } else if (key[0]=='B' && key[1]=='S' && key[3]==0) { //BS1, BS2, etc
     if (!key[2] || key[2]<'1' || key[2]>'0'+sizeof(brightnessCurve)/sizeof(brightnessCurve[0])) return;
@@ -1247,9 +1468,26 @@ skipRtcCal:
 
 void EXTI9_5_IRQHandler(void){__HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_7);}
 
+// Snapshot the timing state at the instant of the PPS edge. MUST run before SysTick->VAL is
+// reloaded and before millisec/centisec/decisec are zeroed, so it captures the phase error
+// between the firmware's modelled second and the true GPS edge.
+#define capturePPS() do { \
+    pps_cap.dwt_pps  = DWT->CYCCNT; \
+    pps_cap.systick  = SysTick->VAL; \
+    pps_cap.subms    = (uint16_t)decisec*100 + (uint16_t)centisec*10 + millisec; \
+    pps_cap.epoch    = (uint32_t)currentTime; \
+    pps_cap.calerr   = debug_rtc_val; \
+    pps_cap.sincecal = (uint32_t)currentTime - (uint32_t)rtc_last_calibration; \
+    pps_cap.temp     = die_temp_c; \
+    pps_cap.flags    = (data_valid?1:0) | (had_pps?2:0) | (rtc_good?4:0); \
+    pps_cap.seq++; \
+    pps_record_pending = 1; \
+  } while(0)
+
 // PPS rising edge
 void PPS(void)
 {
+  capturePPS();
   SysTick->VAL = SysTick->LOAD;
 
   buffer_c[3].low=cLut[0];
@@ -1278,6 +1516,7 @@ void PPS(void)
 
 void PPS_NoUpdate(void)
 {
+  capturePPS();
   SysTick->VAL = SysTick->LOAD;
   triggerPendSV();
 
@@ -1297,6 +1536,7 @@ void PPS_NoUpdate(void)
 
 void PPS_Countdown(void)
 {
+  capturePPS();
   SysTick->VAL = SysTick->LOAD;
 
   buffer_c[3].low=cLut[9];
@@ -1331,6 +1571,81 @@ void PPS_Init(void){
   HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
   SetPPS( &PPS );
+}
+
+// usbd_cdc_if.h isn't pulled into main.c; forward-declare the one symbol we need.
+extern uint8_t CDC_Copy_Transmit(uint8_t* buf, uint16_t Len);
+extern USBD_HandleTypeDef hUsbDeviceFS;
+
+// Format + send one $PMTXTS sentence from the values captured at the last PPS edge.
+// Runs in the main loop (snprintf is fine here, never in the ISR). Clears pps_record_pending
+// on a successful send and for any undeliverable record (no host, formatting failure) — a
+// fresh record arrives on the next edge, so only USBD_BUSY is worth retrying.
+// Sentence: $PMTXTS,<seq>,<epoch>,<subms>,<systick>,<load>,<calerr>,<sincecal>,<temp>,<flags>,<dwt_pps>,<sof_frame>,<dwt_sof>*CC
+//   subms+(load-systick)/(load+1) = modelled sub-second position at the edge (phase error);
+//   ppm = calerr * 1e6 / (32768 * CAL_PERIOD)  [CAL_PERIOD=63];  temp = die °C;
+//   flags: b0 valid, b1 pps, b2 rtc.
+//   SOF-correlation tail (experimental): dwt_pps = DWT cycle count at the PPS edge; sof_frame = USB
+//   11-bit frame number of the most recent SOF; dwt_sof = DWT at that SOF. A host that knows each USB
+//   frame's own arrival time places the edge as hostTime(sof_frame) + (dwt_pps-dwt_sof)/f_dwt, immune
+//   to USB read jitter. dwt_pps deltas (~80e6/s) self-calibrate f_dwt, so no core-clock assumption.
+static uint8_t emitPPSTimestamp(void){
+  // With no enumerated host (e.g. charger-only power) CDC can never accept the sentence;
+  // drop the record before doing any formatting work, otherwise the pending flag would
+  // re-run the whole format-and-fail cycle every main-loop pass until a host appears.
+  if (hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED) {
+    pps_record_pending = 0;
+    return USBD_FAIL;
+  }
+
+  __disable_irq();                       // atomic snapshot of the ISR-written capture
+  uint32_t snap_seq = pps_cap.seq;
+  uint32_t st       = pps_cap.systick;
+  uint16_t subms    = pps_cap.subms;
+  uint32_t epoch    = pps_cap.epoch;
+  int32_t  calerr   = pps_cap.calerr;
+  uint32_t sincecal = pps_cap.sincecal;
+  int16_t  temp     = pps_cap.temp;
+  uint8_t  flags    = pps_cap.flags;
+  uint32_t dwt_pps  = pps_cap.dwt_pps;   // DWT at the PPS edge (SOF-correlation timebase)
+  uint32_t sof_dwt  = pps_sof_dwt;       // DWT at the most recent SOF ...
+  uint16_t sof_fr   = pps_sof_frame;     // ... and that SOF's 11-bit USB frame number ...
+  uint8_t  sof_ok   = pps_sof_valid;     // ... valid only once a real SOF has latched an anchor
+  __enable_irq();
+
+  uint32_t load = SysTick->LOAD;         // constant; sent so the host needn't assume core clock
+
+  char body[128];                        // everything between '$' and '*'
+  int n = snprintf(body, sizeof body, "PMTXTS,%lu,%lu,%u,%lu,%lu,%ld,%lu,%d,%X",
+                   (unsigned long)snap_seq, (unsigned long)epoch, (unsigned)subms,
+                   (unsigned long)st, (unsigned long)load, (long)calerr,
+                   (unsigned long)sincecal, (int)temp, (unsigned)flags);
+  if (n < 0 || n >= (int)sizeof body) { pps_record_pending = 0; return USBD_FAIL; }
+  // Append the SOF-correlation tail only when a real anchor exists — never a stale (0,0). Absent tail =
+  // the plain sentence a 9-field parser expects (also the emulator's output, which has no USB SOF).
+  if (sof_ok) {
+    int t = snprintf(body + n, sizeof body - n, ",%lu,%u,%lu",
+                     (unsigned long)dwt_pps, (unsigned)sof_fr, (unsigned long)sof_dwt);
+    if (t < 0 || t >= (int)(sizeof body - n)) { pps_record_pending = 0; return USBD_FAIL; }
+    n += t;
+  }
+
+  uint8_t cks = 0;                       // standard NMEA XOR checksum
+  for (int i = 0; i < n; i++) cks ^= (uint8_t)body[i];
+
+  char line[NMEA_BUF_SIZE];              // must fit the CDC txbuf[NMEA_BUF_SIZE] downstream
+  int m = snprintf(line, sizeof line, "$%s*%02X\r\n", body, (unsigned)cks);
+  if (m < 0 || m >= (int)sizeof line) { pps_record_pending = 0; return USBD_FAIL; }
+
+  // The CDC IN endpoint is shared with the ISR NMEA passthrough; serialise the (tiny) submit,
+  // and clear the pending flag only if no fresh PPS edge arrived since the snapshot (so a
+  // record captured mid-send isn't silently dropped). FAIL also clears: the record is
+  // undeliverable (USB de-inited under us), unlike BUSY where the host may drain the FIFO.
+  __disable_irq();
+  uint8_t r = CDC_Copy_Transmit((uint8_t*)line, (uint16_t)m);
+  if (r != USBD_BUSY && pps_cap.seq == snap_seq) pps_record_pending = 0;
+  __enable_irq();
+  return r;
 }
 
 #define timetick() \
@@ -1543,6 +1858,34 @@ void measure_vbat(void){
   uint16_t adc = HAL_ADC_GetValue(&hadc3);
   ADC123_COMMON->CCR &= ~ADC_CCR_VBATEN;
   vbat = (float)adc *0.0024102564102564104;//3*3.29/4095.0;
+}
+
+// Read the STM32 internal die-temperature sensor on hadc3 (shared with VBAT) into die_temp_c.
+// The die sits slightly above ambient on this low-power board, but it tracks the crystal well
+// enough to characterise the oscillator's temperature dependence.
+void measure_temp(void){
+  ADC_ChannelConfTypeDef s = {0};
+  s.Rank = ADC_REGULAR_RANK_1;
+  s.SamplingTime = ADC_SAMPLETIME_640CYCLES_5;   // temp sensor needs a long sampling time
+  s.SingleDiff = ADC_SINGLE_ENDED;
+  s.OffsetNumber = ADC_OFFSET_NONE;
+  s.Offset = 0;
+
+  s.Channel = ADC_CHANNEL_TEMPSENSOR;
+  HAL_ADC_ConfigChannel(&hadc3, &s);
+  ADC123_COMMON->CCR |= ADC_CCR_TSEN;
+  HAL_Delay(1);                                  // tSTART for the temperature sensor (~120 us)
+  HAL_ADC_Start(&hadc3);
+  HAL_ADC_PollForConversion(&hadc3, 10);
+  uint16_t raw = HAL_ADC_GetValue(&hadc3);
+  ADC123_COMMON->CCR &= ~ADC_CCR_TSEN;
+
+  // Factory-calibrated conversion (TS_CAL1/TS_CAL2 in flash). VREF taken as 3300 mV; absolute
+  // accuracy isn't critical — the curve is fitted against GPS-measured ppm, not trusted raw.
+  die_temp_c = (int16_t)__HAL_ADC_CALC_TEMPERATURE(3300, raw, ADC_RESOLUTION_12B);
+
+  s.Channel = ADC_CHANNEL_VBAT;                  // restore so measure_vbat() keeps working
+  HAL_ADC_ConfigChannel(&hadc3, &s);
 }
 
 uint8_t f_getzcmp(FIL* fp, char * str){
@@ -1889,6 +2232,12 @@ int main(void)
 
   /* USER CODE BEGIN SysInit */
 
+  // Enable the DWT cycle counter (free-running at the 80 MHz core clock, 12.5 ns/tick, wraps ~53.7 s):
+  // the monotonic timebase the PPS edge and each USB SOF are both latched against for host correlation.
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CYCCNT = 0;
+  DWT->CTRL  |= DWT_CTRL_CYCCNTENA_Msk;
+
   buffer_c[0].high=0b11001110;
   buffer_c[1].high=0b11001101;
   buffer_c[2].high=0b11001011;
@@ -2124,8 +2473,32 @@ int main(void)
 
     monitor_vbus();
 
+    if (pps_ts_enabled) {
+      static uint32_t last_temp_read = 0;
+      if ((uint32_t)currentTime - last_temp_read >= 4) {   // refresh die temp every ~4 s
+        last_temp_read = (uint32_t)currentTime;
+        measure_temp();
+      }
+      if (pps_record_pending) emitPPSTimestamp();           // emit clears pending itself on success
+    }
+
     if (displayMode == MODE_VBAT)
       measure_vbat();
+
+    if (displayMode == MODE_SUN  || displayMode == MODE_SUN_AZEL || displayMode == MODE_MOON
+        || displayMode == MODE_GRID || displayMode == MODE_LATLON || displayMode == MODE_DARK) {
+      astro_update();
+      // honour the ms page dwell: the date row otherwise only repaints at 1 Hz, so repaint
+      // the moment a paged mode flips sub-screen. Only with a fix (no-fix shows a
+      // page-independent "----"), and never in the last decisecond -- there the SysTick ISR
+      // runs its own (non-reentrant, shared-UART) sendDate(0), so we'd race it. Same
+      // decisec!=9 guard the existing main-loop sendDate(1) calls use.
+      if ((displayMode == MODE_SUN || displayMode == MODE_LATLON || displayMode == MODE_DARK) && astro.have_pos && astro.epoch) {
+        static uint32_t last_pg = 0;
+        uint32_t pg = uwTick / page_ms();
+        if (pg != last_pg && decisec != 9) { last_pg = pg; sendDate(1); }
+      }
+    }
 
 
     /* USER CODE END WHILE */
