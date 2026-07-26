@@ -57,6 +57,7 @@ QSPI_STATUS QSPI_Driver_Init();
 QSPI_STATUS QSPI_Read(uint8_t* pData, uint32_t address, uint32_t size);
 QSPI_STATUS QSPI_Erase_Sector(uint32_t SectorAddress);
 QSPI_STATUS QSPI_Write_Sector(uint8_t *pData, uint32_t address);
+QSPI_STATUS QSPI_Program(uint8_t *pData, uint32_t address, uint32_t len);   // 1..256 B within one page
 
 uint8_t QSPI_Initialized();
 uint8_t QSPI_Locked();

@@ -48,6 +48,13 @@ sudo touch 'mnt/System Volume Information'
 # mark it hidden
 sudo fatattr +h 'mnt/System Volume Information' || echo "fatattr failed"
 
+# SETTINGS.BIN: the firmware's on-device settings store (menu overrides + learned tempcomp model) on
+# 256K-silicon clocks, which have no spare internal flash. It MUST be created FIRST on the fresh
+# volume so its 4 clusters are contiguous (the firmware verifies contiguity and falls back to
+# RAM-only settings if the file is fragmented), and filled with 0xFF (NOR erased state). The firmware
+# rewrites the file's sectors in place; treat it as opaque and don't copy/edit it from the host.
+tr '\0' '\377' < /dev/zero | dd bs=4096 count=4 2>/dev/null | sudo tee mnt/SETTINGS.BIN > /dev/null
+
 # each file individually is optional, warn but continue
 sudo cp config.txt mnt/ || true
 sudo cp output/tzrules.bin mnt/ || true

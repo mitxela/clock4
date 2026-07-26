@@ -202,6 +202,8 @@ void DebugMon_Handler(void)
 void PendSV_Handler(void)
 {
   /* USER CODE BEGIN PendSV_IRQn 0 */
+  extern volatile uint8_t pmloop_lasttag;
+  pmloop_lasttag = 15;   // $PMLOOP attribution: the .900 display prep preempted the main loop
 
   // Writing to the RTC is normally very fast, but if something goes wrong
   // the HAL functions will fail to time out if it's running with the same
@@ -397,12 +399,11 @@ void USART2_IRQHandler(void)
     //if (buffer_c[2].high & cSegDP) buffer_c[2].high&=~cSegDP; else buffer_c[2].high|=cSegDP;
 
     uint8_t x = (USART2->RDR &0xFF);
-    if (x == 0x91) {
-        button1pressed();
-    } else if (x == 0x92) {
-        button2pressed();
-    } else if (x == 0x93) {
-        buttonsBothHeld();
+    // Defer ALL button work to the main loop (menu_poll): nextMode()/reset must not run at ISR
+    // priority. Covers taps 0x91/0x92, re-tasked 0x93 (chord release / legacy reset), and the new
+    // chord-stage crossings 0x94/95/96. A stock date board only ever sends 0x91/0x92/0x93.
+    if (x >= EVT_BTN1 && x <= EVT_CHORD_S3) {
+        menu_isr_event(x);
     }
     return;
   }

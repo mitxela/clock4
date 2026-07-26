@@ -10,6 +10,25 @@ sudo mkfs.fat -I -S 4096 /dev/sdx
 ```
 where `/dev/sdx` is the device name
 
+## SETTINGS.BIN
+On clocks built with 256K-flash silicon (STM32L476RC) the firmware has no spare internal flash for
+its settings store (on-device menu changes + the learned temperature-compensation model), so it
+keeps them inside `SETTINGS.BIN` on this volume instead: a 16 KiB file whose four 4 KB clusters the
+firmware rewrites *in place* through the QSPI driver, without ever writing FAT metadata. Rules:
+
+- Create it **first** on a freshly formatted volume (flash.sh does this) so it is contiguous -- the
+  firmware verifies contiguity at boot and falls back to RAM-only settings (lost at power-off) if
+  the file is fragmented, missing, or under 16 KiB.
+- Fill it with `0xFF` (the NOR erased state): `tr '\0' '\377' < /dev/zero | dd bs=4096 count=4 of=SETTINGS.BIN`.
+  A zero-filled file also works -- the firmware erases it on first use -- but 0xFF is the honest state.
+- Treat it as **opaque**: don't edit, copy over, or defragment it. If a host tool rewrites or moves
+  it, the firmware detects this before its next write, re-resolves the file's location, and
+  re-initialises it (stored settings reset to the live values; nothing else on the volume is touched).
+- `menu_dump = on` over serial reports the store state: internal-flash-backed (1M silicon),
+  QSPI SETTINGS.BIN, or RAM-only with the reason.
+
+1M-silicon (STM32L476RG) clocks ignore the file entirely and keep using the internal-flash store.
+
 ## tzmap
 The `tzmap.bin` file matches the format used by [ZoneDetect](https://github.com/BertoldVdb/ZoneDetect). The repo has a directory with the database builder.
 
