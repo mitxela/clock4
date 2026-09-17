@@ -28,7 +28,7 @@ We need to match the zones in the shapefile, so it now uses the `timezone-names.
 
 E.g.
 ```
-curl -L https://github.com/evansiroky/timezone-boundary-builder/releases/download/2025b/timezone-names.json | jq '.' > timezone-names.json
+curl -L https://github.com/evansiroky/timezone-boundary-builder/releases/download/2026d/timezone-names-with-oceans.json | jq '.' > timezone-names.json
 ```
 
 The `generate-tzrules.py` file uses these names and the installed timezone database on the system it's running. Query the tzdata package to see the version (`pacman -Q tzdata` or `apt show tzdata`)
