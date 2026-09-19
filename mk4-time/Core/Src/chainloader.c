@@ -360,9 +360,12 @@ void firmwareCheckOnEject(){
   unsigned int rc;
   FIL file1, file2;
 
-  // if QSPI is locked in this context, we have interrupted another fatfs read
-  // we can't wait for it to finish as it's running at lower priority
-  if (QSPI_Locked()) {delayedCheckOnEject=1; return;}
+  // This runs from the USB MSC eject command, i.e. in the USB OTG ISR. FATFS is not
+  // reentrant, so if the lower-priority main loop is mid-operation we must not touch it.
+  // QSPI_Locked() only catches an in-flight QSPI transfer; fatfs_busy covers the whole
+  // main-loop FATFS region, including the gaps between transfers where QSPI_Locked() reads
+  // false. If either says busy, defer back to the main loop (it polls delayedCheckOnEject).
+  if (fatfs_busy || QSPI_Locked()) {delayedCheckOnEject=1; return;}
 
   if (f_open(&file2, "/FWT.BIN", FA_READ) == FR_OK) {
     f_lseek(&file2, TIME_APP_SIZE - 4);
