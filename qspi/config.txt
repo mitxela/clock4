@@ -1,7 +1,7 @@
 
 # Matrix refresh rate, in Hz. Min 1000, max 100000
 # This number is only a target, exact frequency will be a division of processor clock speed.
-# Note the display is split into four matrices of 5 digits each. The number given here is the 
+# Note the display is split into four matrices of 5 digits each. The number given here is the
 # refresh rate of the display - the clock frequency of the matrix will be five times this number.
 MATRIX_FREQUENCY = 20000
 
@@ -76,15 +76,21 @@ Tolerance_time_100ms = 100000
 
 # For paranoia, set the 1ms tolerance to 1, which will disable the last digit as soon as GPS fix is lost.
 # To turn off the tolerance feature, set all tolerances to 0.
+# Or replace the fixed ladder with measured uncertainty: with significance_fade on, each digit
+# is dashed when the live 3-sigma holdover error passes its place value (uses the calibration +
+# the learned temperature model), instead of at the fixed times above.
+significance_fade = off
 
 
-# nonlinear brightness curve, five stops of input->output, use brightness-curve.htm for a GUI
+# nonlinear brightness curve, five stops of input->output, use brightness-curve.htm for a GUI.
+# The measured VTT9812FH (R11 = 470K) curve below is now the compiled-in firmware default, so these
+# lines are only needed to OVERRIDE it (e.g. a different photodiode). Uncomment and edit to change a stop.
 # VTT9812FH with R11 = 470K
-BS1 = 0,0
-BS2 = 131,365
-BS3 = 1076,1422
-BS4 = 2774,2665
-BS5 = 3849,4095
+#BS1 = 0,0
+#BS2 = 131,365
+#BS3 = 1076,1422
+#BS4 = 2774,2665
+#BS5 = 3849,4095
 
 # shows input and output values of DAC/ADC
 MODE_DEBUG_BRIGHTNESS = 0
@@ -100,3 +106,179 @@ mode_satview = 0
 
 # show coin cell voltage
 mode_vbat = 0
+
+# output a $PMTXTS timing sentence over USB serial on each GPS PPS pulse, carrying the
+# sub-millisecond phase measurement made at the edge, for host-side jitter/drift analysis.
+# When on, the sentence also carries a USB SOF-correlation tail (dwt_pps, sof_frame, dwt_sof)
+# that lets a host place the edge on its clock to ~microseconds despite USB delivery jitter;
+# a host that only needs the phase can ignore the extra fields. Enabling this turns on the USB
+# Start-Of-Frame interrupt (a cheap 1 kHz latch, below the display in priority).
+pps = off
+
+
+## temperature compensation (opt-in; all off = stock behaviour)
+# While GPS-locked the clock can LEARN how each oscillator drifts with die temperature
+# (tc_learn), then during a GPS outage steer the display timebase from that model
+# (tc_apply) and/or keep the battery RTC trimmed for the next power-up (tc_rtc).
+# Send "tc_dump = on" over USB serial to print the learned coefficients as lines you can
+# paste below: pasted tc_hse_*/tc_lse_* values freeze the model (they override learning).
+# "tc_reset = on" over serial clears the learned data. Both are ignored inside this file.
+tc_learn = off
+tc_apply = off
+tc_rtc = off
+
+# Auto-persist the learned model to a dedicated 2-page flash store (separate from config.txt and the
+# menu store), so the very first holdover after a power-up is already temperature-compensated instead
+# of waiting to re-learn. With tc_persist on, a well-supported model is saved at most once every 30
+# minutes (and only when it has moved meaningfully) — a handful of writes a day, so the flash lasts
+# for decades. On the next boot it loads as an EVOLVING seed (like tc_seed, but sourced from flash);
+# config.txt still wins per-key, so a tc_seed/coefficient/tc_t0 line here overrides the stored model.
+# "tc_forget = on" over USB serial erases the stored copy (live learning is untouched); "tc_reset = on"
+# clears the live model AND the stored copy. Both are ignored inside this file.
+tc_persist = off
+
+## refined model from tc_dump (worked example — these are a real unit's learned values)
+# model centre (deg C) and safety limits; paste frozen coefficients from tc_dump below.
+# HSE uses temperature DIFFERENCES only, so it has no 'a' term — just slope + curvature.
+# Setting a coefficient to "nan" unfreezes it (learning takes over again).
+#tc_t0 = 40
+#tc_hse_b = 0.00227
+#tc_hse_c = -0.000412
+#tc_lse_a = 15.3113
+#tc_lse_b = -0.67777
+#tc_lse_c = -0.031479
+# tc_engage_s = 2   (minimum 2)
+# tc_max_ppm = 100
+
+# Warm start (seed-and-evolve): with tc_seed on, the pasted coefficients above load as an
+# EVOLVING starting point instead of a freeze — compensated from the first second, refined as
+# the clock learns, handed over once its own data is at least as rich. tc_dump also prints
+# tc_seed_lo/hi (the model's temperature coverage) so a paste round-trips. Over serial, send
+# the coefficients first and "tc_seed = on" last (the order tc_dump prints).
+#tc_seed = on
+#tc_seed_lo = 26
+#tc_seed_hi = 36
+
+# show die temp / model offsets / sample count on the date row (pages like the astro modes)
+mode_tempcomp = 0
+
+# model centre (deg C) and safety limits; paste frozen coefficients from tc_dump below.
+# HSE uses temperature DIFFERENCES only, so it has no 'a' term — just slope + curvature.
+# Setting a coefficient to "nan" unfreezes it (learning takes over again).
+# tc_t0 = 40
+# tc_hse_b =
+# tc_hse_c =
+# tc_lse_a =
+# tc_lse_b =
+# tc_lse_c =
+# tc_engage_s = 2   (minimum 2)
+# tc_max_ppm = 100
+
+# Warm start (seed-and-evolve): with tc_seed on, the pasted coefficients above load as an
+# EVOLVING starting point instead of a freeze — compensated from the first second, refined as
+# the clock learns, handed over once its own data is at least as rich. tc_dump also prints
+# tc_seed_lo/hi (the model's temperature coverage) so a paste round-trips. Over serial, send
+# the coefficients first and "tc_seed = on" last (the order tc_dump prints).
+# tc_seed = on
+# tc_seed_lo =
+# tc_seed_hi =
+
+
+## astro modes (GPS-derived)
+# These show on the date row while the live clock keeps running on the time row.
+# They use the current position; with no GPS fix they fall back to fake_latitude/
+# fake_longitude below (handy indoors), or show "----" if neither is set.
+
+# Sunrise / sunset / solar noon (local time). Pages RISE -> SET -> SOL (see page_ms).
+MODE_SUN = disabled
+
+# Sun azimuth & elevation right now, e.g. "AZ142EL38" (degrees; elevation may be negative).
+MODE_SUN_AZEL = disabled
+
+# Moon: phase index 0-7 then illuminated %, e.g. "MOON 4 99".
+# Index: 0 new, 1 waxing crescent, 2 first quarter, 3 waxing gibbous,
+#        4 full, 5 waning gibbous, 6 last quarter, 7 waning crescent.
+MODE_MOON = disabled
+
+# Maidenhead grid locator, e.g. "IO91xl".
+MODE_GRID = disabled
+
+# Latitude / longitude in decimal degrees. Pages LAT -> LON (see page_ms).
+MODE_LATLON = disabled
+
+# Observing twilight ladder. Pages a live countdown to astronomical darkness, then
+# civil / nautical / astronomical dusk and the dawn that ends it (see page_ms):
+# "DARK 02.14" -> "CIV  21.56" -> "NAU  22.57" -> "AST  23.41" -> "End  05.59".
+# Where the sun never reaches -18 deg the astronomical pages read "----" and the
+# headline reads NO DARK; inside a polar night it reads DARK NOW.
+MODE_DARK = disabled
+
+# Bright-star meridian-transit predictor. Paged countdowns to the soonest bright stars crossing
+# your local meridian (culminating), e.g. "SIRI  0 45" = Sirius transits in 45 min. Needs a position
+# (GPS fix or fake_longitude); shows "STAr ----" without one. J2000 catalogue precessed to date.
+# (Companion serial command: "star_dump = on" prints the whole list as $PMSTAR.)
+MODE_STAR = disabled
+# Trim the transit catalogue to stars brighter than this apparent magnitude, applied when
+# STARS.BIN is loaded at boot. Smaller numbers keep fewer, brighter stars. Default 6.0, which
+# loads the whole supplied file (generate-stars.py cuts it at magnitude 2.5, about 90 stars).
+#star_max_mag = 1.5
+
+# Local Sidereal Time as a LIVE TICKING CLOCK on the time row (big digits). The date row
+# keeps the civil date, and the colons animate differently (colon_alt_mode below) so
+# it can never be mistaken for civil time. Sidereal runs 1.00273791x faster than civil, so
+# the seconds display double-steps about once every 6 minutes — real sidereal behaviour,
+# not a glitch. Needs a position (GPS fix or fake_longitude); shows dashes without one.
+MODE_LST = disabled
+
+# Apparent solar time on the time row — what a sundial reads: UTC shifted by your
+# longitude plus the equation of time. Reads exactly 12:00:00 at local solar noon.
+MODE_SOLAR = disabled
+
+# Live Allan deviation of the FREE-RUNNING crystal (its true stability, undisciplined). Pages
+# sigma_y(tau) across octave averaging times on the date row: "1 3.2e-11", "64 3e-11", ... up to
+# tau=1024 s, while the time row keeps live GPS time. Shows "Adev ----" until it has a few contiguous
+# locked seconds. The honest crystal signal (DWT phase, not the disciplined output).
+# (Companion serial command: "adev_dump = on" prints the whole curve as $PMADEV.)
+MODE_ADEV = disabled
+
+# Colon animation while an alternate-timebase mode (MODE_LST / MODE_SOLAR) is shown, so
+# it can never be mistaken for civil time at a glance — solar especially, which can sit
+# within minutes of civil. Same names as colon_mode; automatically kept different from
+# your civil colon unless you explicitly set them equal here. Leave commented to keep the
+# automatic distinctness guarantee (an explicit value disables the auto-demotion).
+# One of: slowfade, heartbeat, sawtooth, alt_sawtooth, toggle, solid
+#colon_alt_mode = alt_sawtooth
+
+# Dwell per sub-screen for the paged modes (MODE_SUN, MODE_LATLON, MODE_DARK,
+# MODE_TEMPCOMP, MODE_ADEV, MODE_STAR), in ms. Default 5500 (a subjectively-tuned
+# cadence, found by feel); floored at 250.
+page_ms = 5500
+
+# Fixed position for the astro modes when there is no GPS fix (decimal degrees, N+/E+).
+# Note: setting these also pins the clock's position (GPS position updates are ignored).
+#fake_latitude  = 51.48
+#fake_longitude = -0.01
+
+
+## display balance
+
+# Equalise per-segment brightness by duty, so a "1" isn't brighter than an "8" (current sharing).
+# "on"/1 = the calibrated auto curve (recommended). A number 2..300 pins a fixed manual strength.
+#seg_balance = on
+
+# Dim the colons in step with the main display brightness (they are on their own PWM rail and
+# otherwise stay bright as the digits dim down). "on"/1 = the auto curve; a number 2..256 pins a
+# fixed scale of 256. Leave off until the digit brightness levels are dialled in, then switch on.
+#colon_balance = on
+# Per-hardware anchors for the AUTO colon curve above (ignored when colon_balance is off or
+# pinned to a fixed number). colon_full_at is the brightness DAC value at and below which the
+# colons run at full scale; colon_floor is the scale, out of 256, they fall to at the dimmest
+# rail (DAC 4095). Defaults 2048 and 20; values are clamped to 0..4000 and 0..256.
+#colon_full_at = 2048
+#colon_floor   = 20
+
+# Factory reset: send "factory_reset = on" over USB serial (ignored in this file) to erase every
+# setting you changed with the two-button menu AND the learned temperature-compensation model,
+# returning the clock to exactly this config.txt. The on-device equivalent is the menu's SYS > RESET row; the REBOOT chord only
+# restarts the clock and keeps your menu settings.
+

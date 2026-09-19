@@ -76,6 +76,8 @@ extern uint16_t buffer_b[];
 
 extern _Bool delayedReadConfigFile;
 extern _Bool delayedCheckOnEject;
+extern volatile uint8_t fatfs_busy;
+extern volatile uint32_t settings_map_gen;   // bumped by STORAGE_Write_FS: host wrote the QSPI chip
 
 extern _Bool waitingForLatch;
 extern _Bool resendDate;
@@ -86,6 +88,7 @@ extern _Bool resendDate;
 /* USER CODE BEGIN EC */
 
 #define RULES_FILENAME  "/TZRULES.BIN"
+#define STARS_FILENAME  "/STARS.BIN"
 #define MAP_FILENAME    "/TZMAP.BIN"
 #define CONFIG_FILENAME "/CONFIG.TXT"
 
@@ -125,13 +128,54 @@ extern _Bool resendDate;
 #define DAC_BUFFER_SIZE 20
 #define ADC_BUFFER_SIZE 50
 
-// NMEA 0183 messages have a max length of 82 characters
-#define NMEA_BUF_SIZE 90
+// NMEA 0183 messages have a max length of 82 characters; the extended $PMTXTS (with the SOF-
+// correlation tail: dwt_pps, sof_frame, dwt_sof) runs ~110, so this sizes the tx/rx buffers for it.
+#define NMEA_BUF_SIZE 128
 
 #define CMD_LOAD_TEXT          0x90
 #define CMD_SET_FREQUENCY      0x91
 #define CMD_RELOAD_TEXT        0x92
 #define CMD_SHOW_CRC           0x9D
+
+// ---- On-device 2-button menu ------------------------------------------------------------------
+// Inbound date-board button events (date board -> this MCU over USART2). 0x91/0x92 are today's
+// tap/hold-autorepeat, UNCHANGED. 0x93 was "both held -> reset"; it is re-tasked to "chord release"
+// (fire the shown stage). 0x94/95/96 are NEW rolling chord-stage crossings. Note the same byte
+// values are OUTBOUND display opcodes in the other direction (0x92 CMD_RELOAD_TEXT etc.) — no
+// conflict, opposite wire direction. BACKWARD COMPAT: a stock date board emits only 0x91/0x92/0x93,
+// so with menu_chord==0 a bare 0x93 at L0 still triggers the legacy reset and the menu stays dormant
+// until a companion mk4-date firmware emits the 0x94/95/96 chord protocol.
+#define EVT_BTN1        0x91
+#define EVT_BTN2        0x92
+#define EVT_CHORD_REL   0x93
+#define EVT_CHORD_S1    0x94
+#define EVT_CHORD_S2    0x95
+#define EVT_CHORD_S3    0x96
+#define MENU_IDLE_MS    15000u
+
+typedef enum { MIT_TOGGLE, MIT_ENUM, MIT_STEP, MIT_ACTION, MIT_INFO } MItemType;   // MIT_ACTION: one-shot command (confirm at L3). MIT_INFO: read-only live readout (no editor; .lo = info kind)
+// v2 sections: the setup ring is grouped; physical table order is UNCHANGED (menu_idx stays absolute,
+// persistence keys off key_id) — the FSM just walks rows whose .section matches the entered section.
+enum { SEC_CAL=0, SEC_ASTRO, SEC_DISP, SEC_DIAG, SEC_SYS, NSEC };
+typedef struct MItem {
+  uint8_t     key_id;          // STABLE persistence id (KID_*), never renumbered
+  MItemType   type;
+  const char *label;           // <=10 chars, shown on the date row
+  int32_t     lo, hi, step;    // STEP bounds+increment; ENUM uses 0..hi (step ignored). i32: page_ms hi=60000 / matrix hi=100000 overflow i16
+  const char *const *enums;    // ENUM label array [0..hi], else NULL
+  int32_t   (*get)(const struct MItem *m);
+  void      (*set)(const struct MItem *m, int32_t v);   // write global + apply live effect
+  uint8_t     section;         // SEC_* — which setup section this row lives in
+} MItem;
+// Stable key ids (append-only; mode rows use KID_MODE_BASE + MODE_* ordinal).
+enum { KID_BRIGHTNESS=1, KID_COLON=2, KID_COLON_ALT=3, KID_PAGE_MS=4,
+       KID_SIG_FADE=5, KID_PPS=6, KID_NMEA=7, KID_MATRIX_FREQ=8, KID_TEMPCOMP=9,
+       KID_BALANCE=10, KID_RESET=11, KID_MODE_BASE=64 };   // KID_RESET: the SYS factory-reset action (never persisted)
+
+void menu_isr_event(uint8_t evt);   // called from the USART2 ISR — enqueue only, no work
+void menu_poll(void);               // main-loop FSM tick
+void ee_load(void);                 // boot: derive the EEPROM base, scan flash -> RAM override store
+void menu_apply_overrides(void);    // merge the override store into live config (config.txt precedence)
 
 //#define NONCOMPLIANT_DATE_MODES
 
@@ -162,13 +206,48 @@ enum {
   MODE_DDMMYYYY,
 #endif
 
+  // Astro pack — GPS-derived astronomy read-outs. SATVIEW-style: the payload
+  // shows on the 10-char date row while the live clock keeps running on the
+  // time row. Enabled individually via the MODE_* config keys, like any mode.
+  MODE_SUN,        // sunrise / sunset / solar noon (local), auto-paged
+  MODE_SUN_AZEL,   // sun azimuth & elevation, now
+  MODE_MOON,       // moon phase index + illuminated %
+  MODE_GRID,       // Maidenhead grid locator
+  MODE_LATLON,     // latitude / longitude, auto-paged
+
+  // Observing-session twilight ladder: civil / nautical / astronomical dusk times and a live countdown
+  // to astronomical darkness (sun -18 deg). Answers "when is it actually dark, and for how long." Honest:
+  // high-latitude white nights that never reach -18 report NO DARK; polar night reports DARK NOW.
+  MODE_DARK,
+
+  // Temperature-compensation diagnostics: die temp / model offsets / sample count
+  // paged on the date row (satview pattern). Values come from the tempcomp module.
+  MODE_TEMPCOMP,
+
+  // Alternate-timebase TIME-ROW modes: the big digits tick Local Sidereal Time or
+  // apparent solar time, reseeded from the GPS-disciplined second; the
+  // date row keeps the civil date and a dedicated colon animation marks the mode.
+  MODE_LST,
+  MODE_SOLAR,
+
+  // Live Allan deviation of the free-running crystal, sigma_y(tau) paged across octave
+  // taus (1,2,4,...,1024 s) on the date row. Date-row diagnostic (satview pattern); the
+  // time row keeps live GPS time. Enabled via the MODE_ADEV config key like any mode.
+  MODE_ADEV,
+
+  // Bright-star meridian-transit predictor: the soonest bright stars to cross the local
+  // meridian (culminate), paged as "<name> <h:mm>" countdowns on the date row. Uses the
+  // GPS fix + local_sidereal_time (transit when LST == RA). Gated by the MODE_STAR key.
+  MODE_STAR,
+
   NUM_DISPLAY_MODES
 };
 
 enum {
   COUNT_NORMAL =0,
   COUNT_HIDDEN,
-  COUNT_DOWN
+  COUNT_DOWN,
+  COUNT_ALT      // time row driven by the alternate timebase (MODE_LST / MODE_SOLAR)
 };
 
 enum {
