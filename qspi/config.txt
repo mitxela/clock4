@@ -100,3 +100,11 @@ mode_satview = 0
 
 # show coin cell voltage
 mode_vbat = 0
+
+# output a $PMTXTS timing sentence over USB serial on each GPS PPS pulse, carrying the
+# sub-millisecond phase measurement made at the edge, for host-side jitter/drift analysis.
+# When on, the sentence also carries a USB SOF-correlation tail (dwt_pps, sof_frame, dwt_sof)
+# that lets a host place the edge on its clock to ~microseconds despite USB delivery jitter;
+# a host that only needs the phase can ignore the extra fields. Enabling this turns on the USB
+# Start-Of-Frame interrupt (a cheap 1 kHz latch, below the display in priority).
+pps = off

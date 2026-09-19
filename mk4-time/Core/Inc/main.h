@@ -125,8 +125,9 @@ extern _Bool resendDate;
 #define DAC_BUFFER_SIZE 20
 #define ADC_BUFFER_SIZE 50
 
-// NMEA 0183 messages have a max length of 82 characters
-#define NMEA_BUF_SIZE 90
+// NMEA 0183 messages have a max length of 82 characters; the extended $PMTXTS (with the SOF-
+// correlation tail: dwt_pps, sof_frame, dwt_sof) runs ~110, so this sizes the tx/rx buffers for it.
+#define NMEA_BUF_SIZE 128
 
 #define CMD_LOAD_TEXT          0x90
 #define CMD_SET_FREQUENCY      0x91
