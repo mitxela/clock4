@@ -1,1 +1,5 @@
 */.settings/language.settings.xml filter=eclipse_env_hash
+
+# SETTINGS.BIN is 16 KiB of 0xFF: no NUL byte, so git would call it text and diff it as one enormous
+# line. Every .bin in this repo is binary.
+*.bin binary

@@ -25,6 +25,7 @@
 /* USER CODE BEGIN INCLUDE */
 #include "qspi_drv.h"
 #include <stdio.h>
+extern volatile uint32_t settings_map_gen;   // main.c settings store: any host write may move SETTINGS.BIN
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -267,6 +268,7 @@ int8_t STORAGE_Write_FS(uint8_t lun, uint8_t *buf, uint32_t blk_addr, uint16_t b
 
   qspi_write_time = uwTick;
   if (!qspi_write_time) qspi_write_time=1;
+  settings_map_gen++;                       // the settings store must re-resolve before its next commit
 
   if (QSPI_Locked()) return (USBD_FAIL);
 

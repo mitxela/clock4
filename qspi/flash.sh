@@ -48,10 +48,22 @@ sudo touch 'mnt/System Volume Information'
 # mark it hidden
 sudo fatattr +h 'mnt/System Volume Information' || echo "fatattr failed"
 
+# SETTINGS.BIN: the firmware's on-device settings store (menu overrides + learned tempcomp model),
+# used on every clock whichever STM32L476 it has. It MUST be created FIRST on the fresh
+# volume so its 4 clusters are contiguous (the firmware verifies contiguity and falls back to
+# RAM-only settings if the file is fragmented), and it must be blank: 0xFF, the NOR erased state.
+# output/settings.bin is that blank store. The firmware rewrites a clock's copy in place, so refuse
+# anything but the blank store: a used one copied back off a clock would provision every new drive
+# with that clock's settings.
+LC_ALL=C tr '\0' '\377' < /dev/zero | head -c 16384 | cmp -s - output/settings.bin \
+  || { echo "output/settings.bin is not a blank 16 KiB 0xFF store"; exit 1; }
+sudo cp output/settings.bin mnt/SETTINGS.BIN
+
 # each file individually is optional, warn but continue
 sudo cp config.txt mnt/ || true
 sudo cp output/tzrules.bin mnt/ || true
 sudo cp output/tzmap.bin mnt/ || true
+sudo cp output/stars.bin mnt/ || true
 sudo cp output/fwt.bin mnt/ || true
 sudo cp output/fwd.bin mnt/ || true
 
