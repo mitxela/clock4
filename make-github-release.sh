@@ -18,6 +18,7 @@ echo "- \`tzmap\` and \`tzrules\` are ..."
 echo "- \`fwt\` is \`$fwtver\`"
 echo "- \`fwd\` is \`$fwdver\`"
 echo "- \`bootloader\` is \`$bootver\`"
+echo "- \`settings/settings.bin\` is a blank settings store: copy it only onto a drive that has no \`SETTINGS.BIN\`"
 echo
 
 
@@ -25,6 +26,7 @@ function cleanup {
   rm -rf disk-image
   rm -rf bootloader
   rm -rf flash
+  rm -rf settings
 }
 trap cleanup EXIT
 
@@ -45,7 +47,13 @@ cp qspi/output/fwt.bin flash/fwt.bin
 cp qspi/output/fwd.bin flash/fwd.bin
 cp qspi/output/tzrules.bin flash/tzrules.bin
 cp qspi/output/tzmap.bin flash/tzmap.bin
+cp qspi/output/stars.bin flash/stars.bin
 
-zip -r $name disk-image bootloader flash
+# A blank settings store for a drive that has none. Kept out of flash/ on purpose: copying that
+# folder onto the drive is how firmware gets updated, and a blank store copied over a live one loses
+# its settings at the reboot that applies the update.
+mkdir settings
+cp qspi/output/settings.bin settings/settings.bin
+zip -r $name disk-image bootloader flash settings
 
 echo "Done"

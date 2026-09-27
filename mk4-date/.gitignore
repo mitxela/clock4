@@ -1,3 +1,6 @@
 Debug/*
 Release/*
 *.launch
+
+# Generated per-build id (gen-build-id.sh)
+Core/Src/build_id.h
