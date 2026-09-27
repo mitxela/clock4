@@ -1,5 +1,5 @@
 # QSPI flash contents
-The external flash memory is exposed as a USB MSC device directly. It's 16MB and contains the config, timezone rules, timezone shapefile (map), and optionally firmware images for both microcontrollers.
+The external flash memory is exposed as a USB MSC device directly. It's 16MB and contains the config, timezone rules, timezone shapefile (map), the bright-star catalogue, and optionally firmware images for both microcontrollers.
 
 ## Format
 The memory must be formatted FAT12 or FAT16, with block size of 4096 (not 512).
@@ -9,6 +9,31 @@ To reformat and erase the device (requires `dosfstools` installed):
 sudo mkfs.fat -I -S 4096 /dev/sdx
 ```
 where `/dev/sdx` is the device name
+
+## SETTINGS.BIN
+The firmware keeps its settings store (on-device menu changes + the learned temperature-compensation
+model) inside `SETTINGS.BIN` on this volume, on every clock whichever STM32L476 it was built with: a
+16 KiB file whose four 4 KB clusters the firmware rewrites *in place* through the QSPI driver,
+without ever writing FAT metadata. Rules:
+
+- Create it **first** on a freshly formatted volume (flash.sh does this) so it is contiguous -- the
+  firmware verifies contiguity at boot and falls back to RAM-only settings (lost at power-off) if
+  the file is fragmented, missing, or under 16 KiB.
+- Fill it with `0xFF` (the NOR erased state). `output/settings.bin` is that blank store, ready to
+  copy; flash.sh uses it. To make one yourself: `LC_ALL=C tr '\0' '\377' < /dev/zero | head -c 16384 > SETTINGS.BIN`.
+  A zero-filled file also works -- the firmware erases it on first use -- but 0xFF is the honest state.
+- Updating by copying files rather than reformatting? If the drive has no `SETTINGS.BIN` (one
+  formatted before the store existed), copy `output/settings.bin` onto it. Never copy it over an
+  existing one: that file holds your settings, and the reboot that applies a firmware update would
+  start from the blank copy. If `menu_dump` then reports it fragmented, reformat with flash.sh.
+- Treat it as **opaque**: don't edit, copy over, or defragment it. If a host tool rewrites or moves
+  it, the firmware detects this before its next write, re-resolves the file's location, and
+  re-initialises it (stored settings reset to the live values; nothing else on the volume is touched).
+- `menu_dump = on` over serial reports the store state: QSPI SETTINGS.BIN, or RAM-only with the
+  reason.
+
+Earlier builds used internal flash instead on 1M-silicon (STM32L476RG) clocks; those records are no
+longer read.
 
 ## tzmap
 The `tzmap.bin` file matches the format used by [ZoneDetect](https://github.com/BertoldVdb/ZoneDetect). The repo has a directory with the database builder.
@@ -32,6 +57,16 @@ curl -L https://github.com/evansiroky/timezone-boundary-builder/releases/downloa
 ```
 
 The `generate-tzrules.py` file uses these names and the installed timezone database on the system it's running. Query the tzdata package to see the version (`pacman -Q tzdata` or `apt show tzdata`)
+
+## stars
+The `stars.bin` file is the catalogue `MODE_STAR` predicts meridian transits from: about 90 naked-eye
+stars people recognise, magnitude 2.5 and brighter plus Megrez to complete the Plough, with J2000
+positions and proper motion.
+`MODE_STAR` requires it; there is no baked-in fallback, so without the file the mode has no stars.
+
+`generate-stars.py` builds it from the HYG database v4 (CC0), downloading the source on first run;
+the script's header documents the binary format. `STAR_MAG_CUT` in the environment sets a different
+magnitude cut at build time, and `star_max_mag` in config.txt trims the catalogue on the clock.
 
 ## config
 An example `config.txt` is provided. 

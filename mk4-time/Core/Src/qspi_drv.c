@@ -300,6 +300,64 @@ QSPI_STATUS QSPI_Write_Sector(uint8_t *pData, uint32_t address)
   return QSPI_STATUS_OK;
 }
 
+/* Program an arbitrary short run (1..256 bytes, not crossing a 256-byte page boundary) — the
+ * settings store programs 8-byte doublewords so its CRC lands last and a torn write is detectable.
+ * Same command sequence and locked++/-- discipline as QSPI_Write_Page, just with NbData = len. */
+QSPI_STATUS QSPI_Program(uint8_t *pData, uint32_t address, uint32_t len)
+{
+  QSPI_CommandTypeDef sCommand;
+
+  if (len == 0 || len > W25Q128_PAGE_SIZE - (address & (W25Q128_PAGE_SIZE - 1u)))
+    return QSPI_STATUS_ERROR;
+
+  locked++;
+
+  /* Enable write operations */
+  if (QSPI_WriteEnable() != QSPI_STATUS_OK)
+  {
+    locked--;
+    return QSPI_STATUS_ERROR;
+  }
+
+  sCommand.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
+  sCommand.Instruction       = QUAD_PAGE_PROG_CMD;
+  sCommand.AddressMode       = QSPI_ADDRESS_1_LINE;
+  sCommand.AddressSize       = QSPI_ADDRESS_24_BITS;
+  sCommand.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
+  sCommand.DataMode          = QSPI_DATA_4_LINES;
+  sCommand.DummyCycles       = 0;
+  sCommand.DdrMode           = QSPI_DDR_MODE_DISABLE;
+  sCommand.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;
+  sCommand.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
+
+  sCommand.Address = address;
+  sCommand.NbData  = len;
+
+  /* Configure the command */
+  if (HAL_QSPI_Command(&hqspi, &sCommand, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    locked--;
+    return QSPI_STATUS_ERROR;
+  }
+
+  /* Transmission of the data */
+  if (HAL_QSPI_Transmit(&hqspi, pData, HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != HAL_OK)
+  {
+    locked--;
+    return QSPI_STATUS_ERROR;
+  }
+
+  /* Configure automatic polling mode to wait for end of program */
+  if (QSPI_AutoPollingMemReady(HAL_QPSI_TIMEOUT_DEFAULT_VALUE) != QSPI_STATUS_OK)
+  {
+    locked--;
+    return QSPI_STATUS_ERROR;
+  }
+
+  locked--;
+  return QSPI_STATUS_OK;
+}
+
 
 QSPI_STATUS QSPI_Read(uint8_t* pData, uint32_t ReadAddr, uint32_t size)
 {
