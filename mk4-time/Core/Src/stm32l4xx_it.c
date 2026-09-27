@@ -202,6 +202,8 @@ void DebugMon_Handler(void)
 void PendSV_Handler(void)
 {
   /* USER CODE BEGIN PendSV_IRQn 0 */
+  extern volatile uint8_t pmloop_lasttag;
+  pmloop_lasttag = 15;   // $PMLOOP attribution: the .900 display prep preempted the main loop
 
   // Writing to the RTC is normally very fast, but if something goes wrong
   // the HAL functions will fail to time out if it's running with the same

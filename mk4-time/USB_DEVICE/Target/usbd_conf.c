@@ -204,6 +204,27 @@ static void PCD_SOFCallback(PCD_HandleTypeDef *hpcd)
 void HAL_PCD_SOFCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
+  /* USER CODE BEGIN SOF_latch */
+  /* SOF-correlation experiment: latch the DWT cycle count and the USB 11-bit frame number at the
+     instant of this Start-Of-Frame, as early as possible for minimal latency. main.c emits them in
+     $PMTXTS so the host can anchor the PPS edge to a USB frame (whose host-side arrival time it can
+     read in hardware), sidestepping the ~6 ms host-driven read jitter. Only latch when the timestamp
+     feature is on (SOF still fires — the interrupt is cheap, well below the priority-0 display DMA —
+     but does no work otherwise); pps_sof_valid tracks whether the anchor is real so a stale (0,0) is
+     never emitted (and resets to 0 whenever the feature is off, so a later re-enable can't reuse it). */
+  extern volatile uint8_t  pps_ts_enabled, pps_sof_valid;
+  extern volatile uint32_t pps_sof_dwt;
+  extern volatile uint16_t pps_sof_frame;
+  if (pps_ts_enabled) {
+    pps_sof_dwt = DWT->CYCCNT;
+    /* OTG device register block = global base + USB_OTG_DEVICE_BASE; frame number = DSTS[13:8]. */
+    USB_OTG_DeviceTypeDef *dev = (USB_OTG_DeviceTypeDef *)((uint32_t)hpcd->Instance + USB_OTG_DEVICE_BASE);
+    pps_sof_frame = (uint16_t)((dev->DSTS >> 8) & 0x7FFU);
+    pps_sof_valid = 1;
+  } else {
+    pps_sof_valid = 0;
+  }
+  /* USER CODE END SOF_latch */
   USBD_LL_SOF((USBD_HandleTypeDef*)hpcd->pData);
 }
 
@@ -361,7 +382,7 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
   hpcd_USB_OTG_FS.Init.dev_endpoints = 6;
   hpcd_USB_OTG_FS.Init.speed = PCD_SPEED_FULL;
   hpcd_USB_OTG_FS.Init.phy_itface = PCD_PHY_EMBEDDED;
-  hpcd_USB_OTG_FS.Init.Sof_enable = DISABLE;
+  hpcd_USB_OTG_FS.Init.Sof_enable = ENABLE;   /* SOF-correlation experiment: 1 kHz SOF IRQ latches (frame, DWT) */
   hpcd_USB_OTG_FS.Init.low_power_enable = DISABLE;
   hpcd_USB_OTG_FS.Init.lpm_enable = DISABLE;
   hpcd_USB_OTG_FS.Init.battery_charging_enable = DISABLE;
