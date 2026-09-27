@@ -52,6 +52,7 @@ sudo fatattr +h 'mnt/System Volume Information' || echo "fatattr failed"
 sudo cp config.txt mnt/ || true
 sudo cp output/tzrules.bin mnt/ || true
 sudo cp output/tzmap.bin mnt/ || true
+sudo cp output/stars.bin mnt/ || true
 sudo cp output/fwt.bin mnt/ || true
 sudo cp output/fwd.bin mnt/ || true
 

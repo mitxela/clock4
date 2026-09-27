@@ -1,5 +1,5 @@
 # QSPI flash contents
-The external flash memory is exposed as a USB MSC device directly. It's 16MB and contains the config, timezone rules, timezone shapefile (map), and optionally firmware images for both microcontrollers.
+The external flash memory is exposed as a USB MSC device directly. It's 16MB and contains the config, timezone rules, timezone shapefile (map), the bright-star catalogue, and optionally firmware images for both microcontrollers.
 
 ## Format
 The memory must be formatted FAT12 or FAT16, with block size of 4096 (not 512).
@@ -32,6 +32,16 @@ curl -L https://github.com/evansiroky/timezone-boundary-builder/releases/downloa
 ```
 
 The `generate-tzrules.py` file uses these names and the installed timezone database on the system it's running. Query the tzdata package to see the version (`pacman -Q tzdata` or `apt show tzdata`)
+
+## stars
+The `stars.bin` file is the catalogue `MODE_STAR` predicts meridian transits from: about 90 naked-eye
+stars people recognise, magnitude 2.5 and brighter plus Megrez to complete the Plough, with J2000
+positions and proper motion.
+`MODE_STAR` requires it; there is no baked-in fallback, so without the file the mode has no stars.
+
+`generate-stars.py` builds it from the HYG database v4 (CC0), downloading the source on first run;
+the script's header documents the binary format. `STAR_MAG_CUT` in the environment sets a different
+magnitude cut at build time, and `star_max_mag` in config.txt trims the catalogue on the clock.
 
 ## config
 An example `config.txt` is provided. 

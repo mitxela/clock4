@@ -172,6 +172,17 @@ SECTIONS
     __bss_end__ = _ebss;
   } >RAM
 
+  /* RAM2 (0x10000000, 32 KB) — NOLOAD: startup neither copies nor zeroes it, so RAM2 users clear
+     themselves. Outside the app-CRC/reflash region. Home of the free-running Allan-deviation ring. */
+  .ram2 (NOLOAD) :
+  {
+    . = ALIGN(8);
+    _sram2 = .;
+    *(.ram2) *(.ram2*)
+    . = ALIGN(8);
+    _eram2 = .;
+  } >RAM2
+
   /* User_heap_stack section, used to check that there is enough "RAM" Ram  type memory left */
   ._user_heap_stack :
   {

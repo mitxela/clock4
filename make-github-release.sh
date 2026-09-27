@@ -45,6 +45,7 @@ cp qspi/output/fwt.bin flash/fwt.bin
 cp qspi/output/fwd.bin flash/fwd.bin
 cp qspi/output/tzrules.bin flash/tzrules.bin
 cp qspi/output/tzmap.bin flash/tzmap.bin
+cp qspi/output/stars.bin flash/stars.bin
 
 zip -r $name disk-image bootloader flash
 
