@@ -23,3 +23,5 @@ the AM/PM letter stays visible when fractional digits are hidden.
 The buttons cycle through enabled modes. Leave `MODE_ISO8601_STD` enabled
 for access to the original 24-hour display, or disable it to use only the
 12-hour clock mode (plus any other enabled modes).
+
+the "NEW-FIRMWARE" directory has the new fwt.bin in it for you, already compiled.

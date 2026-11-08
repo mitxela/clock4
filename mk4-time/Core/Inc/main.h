@@ -239,6 +239,7 @@ void setPrecision(void);
 void sendDate( _Bool now );
 void generateDACbuffer(uint16_t * buf);
 void PPS(void);
+void PPS_12H(void);
 void PPS_NoUpdate(void);
 void PPS_Countdown(void);
 void rxConfigString(char c);
@@ -246,7 +247,6 @@ void monitor_vbus(void);
 
 #define latchSegments() \
   buffer_c[0].low = next7seg.c; \
-  if (displayMode == MODE_12H) buffer_c[3].low = next7seg.ampm; \
   buffer_b[0] = next7seg.b[0]; \
   buffer_b[1] = next7seg.b[1]; \
   buffer_b[2] = next7seg.b[2]; \

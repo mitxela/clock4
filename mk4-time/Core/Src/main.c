@@ -1286,6 +1286,35 @@ void PPS(void)
   last_pps_time = (uint32_t)currentTime;
 }
 
+// Selected for 12-hour mode: latch A/P without a mode branch in the ISR.
+void PPS_12H(void)
+{
+  SysTick->VAL = SysTick->LOAD;
+
+  buffer_c[2].low=cLut[0];
+  buffer_c[1].low=cLut[0];
+  buffer_c[3].low=next7seg.ampm;
+  loadNextTimestamp();
+  millisec=0;
+  centisec=0;
+  decisec=0;
+
+  __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_7);
+
+  // clear systick flag if set?
+
+  // During first power up PPS can be emitted before the GPS leapsecond offset is known
+  // In this case, it is safest to pretend PPS hasn't happened
+  if (!data_valid) return;
+
+  calibrateRTC();
+
+  if ((currentTime & 1) ==0) {colonAnimationSync()}
+
+  had_pps = 1;
+  last_pps_time = (uint32_t)currentTime;
+}
+
 void PPS_NoUpdate(void)
 {
   SysTick->VAL = SysTick->LOAD;
@@ -1340,7 +1369,7 @@ void PPS_Init(void){
   HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
-  SetPPS( &PPS );
+  SetPPS( (displayMode == MODE_12H ? &PPS_12H : &PPS) );
 }
 
 #define timetick() \
@@ -1358,11 +1387,28 @@ void PPS_Init(void){
       } \
     }
 
+// A/P must also latch on rollover when GPS PPS is unavailable.
+#define timetick12h() \
+    millisec++; \
+    if (millisec>=10) { \
+      millisec=0; \
+      centisec++; \
+      if (centisec>=10) { \
+        centisec=0; \
+        decisec++; \
+        if (decisec>=10) { \
+          decisec=0; \
+          buffer_c[3].low=next7seg.ampm; \
+          loadNextTimestamp(); \
+        } \
+      } \
+    }
+
 void SysTick_CountUp_P3(void)
 {
   timetick()
 
-  if (displayMode != MODE_12H) buffer_c[3].low=cLut[millisec];
+  buffer_c[3].low=cLut[millisec];
   buffer_c[2].low=cLut[centisec];
   buffer_c[1].low=cLut[decisec];
 
@@ -1417,6 +1463,72 @@ void SysTick_CountUp_P0(void) {
   HAL_IncTick();
 
   if (decisec==9 && centisec==0 && millisec==0){
+    currentTime++;
+    setNextTimestamp( currentTime );
+    sendDate(0);
+  }
+}
+
+// Dedicated 12-hour vectors keep mode selection out of the tick handlers.
+void SysTick_CountUp_12H_P0(void) {
+
+  timetick12h()
+
+  HAL_IncTick();
+
+  if (decisec==9 && centisec==0 && millisec==0){
+    currentTime++;
+    setNextTimestamp( currentTime );
+    sendDate(0);
+  }
+}
+
+void SysTick_CountUp_12H_P1(void) {
+
+  timetick12h()
+
+  buffer_c[1].low=cLut[decisec];
+
+  HAL_IncTick();
+
+  if (decisec==9 && centisec==0 && millisec==0){
+    currentTime++;
+    setNextTimestamp( currentTime );
+    sendDate(0);
+  }
+}
+
+void SysTick_CountUp_12H_P2(void) {
+  timetick12h()
+
+  buffer_c[2].low=cLut[centisec];
+  buffer_c[1].low=cLut[decisec];
+
+  HAL_IncTick();
+
+  if (decisec==9 && centisec==0 && millisec==0){
+    currentTime++;
+    setNextTimestamp( currentTime );
+    sendDate(0);
+  }
+}
+
+void SysTick_CountUp_12H_P3(void)
+{
+  timetick12h()
+
+  buffer_c[2].low=cLut[centisec];
+  buffer_c[1].low=cLut[decisec];
+
+
+
+  HAL_IncTick();
+
+  // At the 0.900 mark, we calculate what the display should read at the next pulse
+  if (decisec==9 && centisec==0 && millisec==0){
+    // Calculating the next display from the unix timestamp takes about 32uS with -O2, -O3 or -Os
+    // takes about 70uS on -O0 so I think it's fine to do this within systick
+    // If needed, we should move this to a lower priority software-triggered interrupt
     currentTime++;
     setNextTimestamp( currentTime );
     sendDate(0);
@@ -1670,22 +1782,22 @@ void setPrecision(void){
     // - last pps more than 100000 seconds ago (27 hours)
     if (currentTime - last_pps_time < config.tolerance_1ms){
       buffer_c[0].high= 0b11001110 | cSegDP;
-      SetSysTick( &SysTick_CountUp_P3 );
+      SetSysTick( (displayMode == MODE_12H ? &SysTick_CountUp_12H_P3 : &SysTick_CountUp_P3) );
     } else if (currentTime - last_pps_time < config.tolerance_10ms){
       if (displayMode != MODE_12H) buffer_c[3].low = 0b01000000;
       buffer_c[0].high= 0b11001110 | cSegDP;
-      SetSysTick( &SysTick_CountUp_P2 );
+      SetSysTick( (displayMode == MODE_12H ? &SysTick_CountUp_12H_P2 : &SysTick_CountUp_P2) );
     } else if (currentTime - rtc_last_calibration < config.tolerance_100ms){
       if (displayMode != MODE_12H) buffer_c[3].low = 0b01000000;
       buffer_c[2].low = 0b01000000;
       buffer_c[0].high= 0b11001110 | cSegDP;
-      SetSysTick( &SysTick_CountUp_P1 );
+      SetSysTick( (displayMode == MODE_12H ? &SysTick_CountUp_12H_P1 : &SysTick_CountUp_P1) );
     } else {
       if (displayMode != MODE_12H) buffer_c[3].low = 0b01000000;
       buffer_c[2].low = 0b01000000;
       buffer_c[1].low = 0b01000000;
       buffer_c[0].high= 0b11001110;
-      SetSysTick( &SysTick_CountUp_P0 );
+      SetSysTick( (displayMode == MODE_12H ? &SysTick_CountUp_12H_P0 : &SysTick_CountUp_P0) );
     }
 
   } else if (displayMode == MODE_COUNTDOWN) {
@@ -1795,7 +1907,7 @@ void nextMode(_Bool reverse){
     if (countMode != COUNT_NORMAL) {
       countMode = COUNT_NORMAL;
       setPrecision();
-      SetPPS( &PPS );
+      SetPPS( (displayMode == MODE_12H ? &PPS_12H : &PPS) );
       TIM2->CCR1 = 0;
       TIM2->CCR2 = 0;
       latchSegments();
@@ -1804,6 +1916,7 @@ void nextMode(_Bool reverse){
   if (displayMode == MODE_12H || (justExited(MODE_12H) && countMode == COUNT_NORMAL)) {
     setNextTimestamp(currentTime);
     latchSegments();
+    SetPPS( (displayMode == MODE_12H ? &PPS_12H : &PPS) );
     if (countMode == COUNT_NORMAL) {
       buffer_c[3].low = displayMode == MODE_12H ? next7seg.ampm : cLut[millisec];
       setPrecision();
@@ -2058,6 +2171,7 @@ int main(void)
     setNextTimestamp( currentTime );
     sendDate(1);
     latchSegments();
+    if (displayMode == MODE_12H) buffer_c[3].low = next7seg.ampm;
 
     // As the coin cell goes flat, the RTC stops ticking long before the backup registers die.
     // Powering on with a flat battery means the clock thinks no time has passed, and assumes it has good precision.
