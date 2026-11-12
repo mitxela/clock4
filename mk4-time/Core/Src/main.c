@@ -148,6 +148,10 @@ uint8_t decisec=0, centisec=0, millisec=0;
 
 float longitude=-9999, latitude=-9999;
 _Bool data_valid=0, had_pps=0, rtc_good=0, new_position=1;
+// Where the timezone was last looked up. The NMEA parser sets new_position on every fix, and the
+// lookup reads TZMAP.BIN and takes about 300 ms, so a clock that isn't moving re-ran it every second
+// on GPS jitter. 999 means look up at the next fix.
+float zone_lat=999, zone_lon=999;
 #define rtc_last_write RTC->BKP30R
 #define rtc_last_calibration RTC->BKP31R
 uint32_t last_pps_time = 0;
@@ -1646,6 +1650,7 @@ void checkDelayedLoadRules(){
     config.zone_override = 1;
     if (loadRulesSingle(preloadRulesString) !=RULES_OK) {
       config.zone_override = 0;
+      zone_lat=999;
       if (data_valid) new_position=1;
     }
   }
@@ -2074,11 +2079,20 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    // Look up again after anything that can change the answer without the clock moving: files
+    // written to the drive (TZMAP.BIN, TZRULES.BIN, config.txt), or an override, so that when it is
+    // dropped the zone comes back from the position.
+    if (qspi_write_time || config.zone_override) zone_lat=999;
+
+    // Otherwise only when the fix has moved 0.005 degrees (about 0.5 km): far more than a still
+    // clock's jitter, and a moving clock still finds a new zone within 0.5 km of the border.
     if (new_position && !qspi_write_time && !config.zone_override
         && (data_valid || (config.fake_long && config.fake_lat))
-        && latitude>=-90.0 && latitude<=90.0 && longitude>=-180.0 && longitude<=180.0) {
+        && latitude>=-90.0 && latitude<=90.0 && longitude>=-180.0 && longitude<=180.0
+        && (zone_lat>90 || (latitude-zone_lat)*(latitude-zone_lat) + (longitude-zone_lon)*(longitude-zone_lon) > 2.5e-5f)) {
 
       new_position=0;
+      float lat=latitude, lon=longitude;
       FIL mapfile;
       if (f_open(&mapfile, MAP_FILENAME, FA_READ) == FR_OK) {
 #ifdef MEASURE_LOOKUP_TIME
@@ -2089,7 +2103,7 @@ int main(void)
         if (!zdb) {
           // mapfile error
         } else {
-          char* zone = ZDHelperSimpleLookupString(zdb, latitude, longitude);
+          char* zone = ZDHelperSimpleLookupString(zdb, lat, lon);
 #ifdef MEASURE_LOOKUP_TIME
           uint32_t ztime=uwTick-start;
 #endif
@@ -2097,7 +2111,7 @@ int main(void)
 #ifdef MEASURE_LOOKUP_TIME
             start=uwTick;
 #endif
-            loadRulesSingle(zone);
+            if (loadRulesSingle(zone) == RULES_OK) { zone_lat=lat; zone_lon=lon; }  // a failure retries at the next fix
 #ifdef MEASURE_LOOKUP_TIME
             sprintf(textDisplay,"d%ld L%ld",ztime, uwTick-start);
 #endif
