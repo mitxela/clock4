@@ -1247,10 +1247,24 @@ skipRtcCal:
 
 void EXTI9_5_IRQHandler(void){__HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_7);}
 
+// Restart the millisecond count at a PPS edge.
+// Writing VAL does not clear a SysTick that is already pending. The restart comes a few microseconds
+// after the edge, and SysTick shares the PPS interrupt's priority, so the old second's last tick has
+// often just become pending. Left alone it runs as soon as the PPS handler returns and is counted as
+// the new second's first millisecond: the whole second then reads one millisecond ahead.
+// Drop it. If the old second never reached its last tick, count the HAL tick it would have counted,
+// so uwTick still advances 1000 times a second.
+static inline void restartSecond(void)
+{
+  SysTick->VAL = SysTick->LOAD;
+  SCB->ICSR = SCB_ICSR_PENDSTCLR_Msk;
+  if (decisec >= 5) HAL_IncTick();
+}
+
 // PPS rising edge
 void PPS(void)
 {
-  SysTick->VAL = SysTick->LOAD;
+  restartSecond();
 
   buffer_c[3].low=cLut[0];
   buffer_c[2].low=cLut[0];
@@ -1261,8 +1275,6 @@ void PPS(void)
   decisec=0;
 
   __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_7);
-
-  // clear systick flag if set?
 
   // During first power up PPS can be emitted before the GPS leapsecond offset is known
   // In this case, it is safest to pretend PPS hasn't happened
@@ -1278,7 +1290,7 @@ void PPS(void)
 
 void PPS_NoUpdate(void)
 {
-  SysTick->VAL = SysTick->LOAD;
+  restartSecond();
   triggerPendSV();
 
   millisec=0;
@@ -1297,7 +1309,7 @@ void PPS_NoUpdate(void)
 
 void PPS_Countdown(void)
 {
-  SysTick->VAL = SysTick->LOAD;
+  restartSecond();
 
   buffer_c[3].low=cLut[9];
   buffer_c[2].low=cLut[9];
